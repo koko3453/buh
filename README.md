@@ -1,6 +1,5 @@
 # Hack n Slash Survivor (C + SDL2)
 
-
 A Vampire Survivors-style endless survival game built in C with SDL2. Features:
 - Endless auto-attacking combat with infinite scrolling map
 - Level up system - choose 1 of 4 upgrades on each level
