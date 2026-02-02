@@ -11,8 +11,8 @@ A hack-and-slash arena survival game built in C with SDL2. Features:
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/YOUR_USERNAME/hack-arena.git
-cd hack-arena
+  git clone https://github.com/koko3453/buh.git
+cd buh
 ```
 
 ### 2. Setup vcpkg (package manager)
