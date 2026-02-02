@@ -1,0 +1,25 @@
+{
+  "characters": [
+    {
+      "id": "gladiator",
+      "name": "Gladiator",
+      "weapon": "spear",
+      "stats": {"armor": 2, "damage": 0.1},
+      "rule": "no_ranged"
+    },
+    {
+      "id": "gunslinger",
+      "name": "Gunslinger",
+      "weapon": "pistol",
+      "stats": {"crit": 0.08, "max_hp": -10},
+      "rule": "no_melee"
+    },
+    {
+      "id": "engineer",
+      "name": "Engineer",
+      "weapon": "pistol",
+      "stats": {"damage": -0.05, "attack_speed": 0.1},
+      "rule": "turret_bonus"
+    }
+  ]
+}

@@ -1,0 +1,339 @@
+{
+  "items": [
+    {
+      "id": "quick_hands",
+      "name": "Quick Hands",
+      "rarity": "common",
+      "tags": ["tech"],
+      "stats": {"attack_speed": 0.12},
+      "desc": "+12% Attack Speed"
+    },
+    {
+      "id": "glass_cannon",
+      "name": "Glass Cannon",
+      "rarity": "rare",
+      "tags": ["guns"],
+      "stats": {"damage": 0.22, "max_hp": -15},
+      "desc": "+22% Damage, -15 HP"
+    },
+    {
+      "id": "runner",
+      "name": "Runner",
+      "rarity": "common",
+      "tags": ["survivor"],
+      "stats": {"move_speed": 0.1},
+      "desc": "+10% Move Speed"
+    },
+    {
+      "id": "thick_hide",
+      "name": "Thick Hide",
+      "rarity": "uncommon",
+      "tags": ["survivor"],
+      "stats": {"armor": 2},
+      "desc": "+2 Armor"
+    },
+    {
+      "id": "toughness",
+      "name": "Toughness",
+      "rarity": "common",
+      "tags": ["survivor"],
+      "stats": {"max_hp": 20},
+      "desc": "+20 Max HP"
+    },
+    {
+      "id": "power_surge",
+      "name": "Power Surge",
+      "rarity": "uncommon",
+      "tags": ["arcane"],
+      "stats": {"damage": 0.1},
+      "desc": "+10% Damage"
+    },
+    {
+      "id": "boots",
+      "name": "Swift Boots",
+      "rarity": "common",
+      "tags": ["survivor"],
+      "stats": {"move_speed": 0.12},
+      "desc": "+12% Move Speed"
+    },
+    {
+      "id": "iron_helm",
+      "name": "Iron Helm",
+      "rarity": "common",
+      "slot": "helmet",
+      "tags": ["armor"],
+      "stats": {"armor": 3, "max_hp": 10},
+      "desc": "+3 Armor, +10 HP"
+    },
+    {
+      "id": "steel_chest",
+      "name": "Steel Chest",
+      "rarity": "uncommon",
+      "slot": "chest",
+      "tags": ["armor"],
+      "stats": {"armor": 4, "max_hp": 30},
+      "desc": "+4 Armor, +30 HP"
+    },
+    {
+      "id": "spiked_gloves",
+      "name": "Spiked Gloves",
+      "rarity": "uncommon",
+      "slot": "gloves",
+      "tags": ["armor"],
+      "stats": {"damage": 0.08, "attack_speed": 0.05},
+      "desc": "+8% Dmg, +5% AS"
+    },
+    {
+      "id": "swift_boots",
+      "name": "Swift Boots+",
+      "rarity": "uncommon",
+      "slot": "boots",
+      "tags": ["armor"],
+      "stats": {"move_speed": 0.15, "dodge": 0.03},
+      "desc": "+15% Speed, +3% Dodge"
+    },
+    {
+      "id": "ring_power",
+      "name": "Ring of Power",
+      "rarity": "uncommon",
+      "slot": "ring",
+      "tags": ["jewelry"],
+      "stats": {"damage": 0.12},
+      "desc": "+12% Damage"
+    },
+    {
+      "id": "ring_speed",
+      "name": "Ring of Speed",
+      "rarity": "uncommon",
+      "slot": "ring",
+      "tags": ["jewelry"],
+      "stats": {"attack_speed": 0.1},
+      "desc": "+10% Attack Speed"
+    },
+    {
+      "id": "amulet_fortitude",
+      "name": "Amulet of Fortitude",
+      "rarity": "rare",
+      "slot": "amulet",
+      "tags": ["jewelry"],
+      "stats": {"max_hp": 40, "armor": 2},
+      "desc": "+40 HP, +2 Armor"
+    },
+    {
+      "id": "relic_war",
+      "name": "War Relic",
+      "rarity": "rare",
+      "slot": "relic",
+      "tags": ["relic"],
+      "stats": {"damage": 0.15, "attack_speed": 0.08},
+      "desc": "+15% Dmg, +8% AS"
+    },
+    {
+      "id": "offhand_shield",
+      "name": "Buckler Shield",
+      "rarity": "uncommon",
+      "slot": "offhand",
+      "tags": ["armor"],
+      "stats": {"armor": 3, "dodge": 0.04},
+      "desc": "+3 Armor, +4% Dodge"
+    },
+    {
+      "id": "berserker_rage",
+      "name": "Berserker Rage",
+      "rarity": "epic",
+      "tags": ["melee"],
+      "stats": {"damage": 0.25, "attack_speed": 0.15, "armor": -3},
+      "desc": "+25% Dmg, +15% AS, -3 Armor"
+    },
+    {
+      "id": "iron_skin",
+      "name": "Iron Skin",
+      "rarity": "rare",
+      "tags": ["survivor"],
+      "stats": {"armor": 5, "max_hp": 30},
+      "desc": "+5 Armor, +30 HP"
+    },
+    {
+      "id": "storm_crystal",
+      "name": "Storm Crystal",
+      "rarity": "epic",
+      "tags": ["arcane"],
+      "stats": {"attack_speed": 0.2, "damage": 0.12},
+      "desc": "+20% AS, +12% Dmg"
+    },
+    {
+      "id": "shadow_cloak",
+      "name": "Shadow Cloak",
+      "rarity": "rare",
+      "tags": ["survivor"],
+      "stats": {"dodge": 0.08, "move_speed": 0.15},
+      "desc": "+8% Dodge, +15% Speed"
+    },
+    {
+      "id": "titan_gauntlets",
+      "name": "Titan Gauntlets",
+      "rarity": "legendary",
+      "slot": "gloves",
+      "tags": ["armor"],
+      "stats": {"damage": 0.2, "armor": 3},
+      "desc": "+20% Dmg, +3 Armor"
+    },
+    {
+      "id": "crown_of_might",
+      "name": "Crown of Might",
+      "rarity": "epic",
+      "slot": "helmet",
+      "tags": ["armor"],
+      "stats": {"max_hp": 50, "armor": 4},
+      "desc": "+50 HP, +4 Armor"
+    },
+    {
+      "id": "dragon_heart",
+      "name": "Dragon Heart",
+      "rarity": "legendary",
+      "slot": "chest",
+      "tags": ["armor"],
+      "stats": {"max_hp": 80, "armor": 6},
+      "desc": "+80 HP, +6 Armor"
+    },
+    {
+      "id": "boots_of_hermes",
+      "name": "Boots of Hermes",
+      "rarity": "legendary",
+      "slot": "boots",
+      "tags": ["armor"],
+      "stats": {"move_speed": 0.25, "dodge": 0.1},
+      "desc": "+25% Speed, +10% Dodge"
+    },
+    {
+      "id": "ring_of_doom",
+      "name": "Ring of Doom",
+      "rarity": "epic",
+      "slot": "ring",
+      "tags": ["jewelry"],
+      "stats": {"damage": 0.2, "max_hp": -25},
+      "desc": "+20% Dmg, -25 HP"
+    },
+    {
+      "id": "amulet_defense",
+      "name": "Amulet of Defense",
+      "rarity": "rare",
+      "slot": "amulet",
+      "tags": ["jewelry"],
+      "stats": {"armor": 4, "dodge": 0.05},
+      "desc": "+4 Armor, +5% Dodge"
+    },
+    {
+      "id": "relic_destruction",
+      "name": "Relic of Destruction",
+      "rarity": "legendary",
+      "slot": "relic",
+      "tags": ["relic"],
+      "stats": {"damage": 0.3, "attack_speed": 0.15},
+      "desc": "+30% Dmg, +15% AS"
+    },
+    {
+      "id": "mystic_orb",
+      "name": "Mystic Orb",
+      "rarity": "rare",
+      "slot": "offhand",
+      "tags": ["arcane"],
+      "stats": {"damage": 0.12, "attack_speed": 0.08},
+      "desc": "+12% Dmg, +8% AS"
+    },
+    {
+      "id": "warriors_belt",
+      "name": "Warrior's Belt",
+      "rarity": "uncommon",
+      "tags": ["armor"],
+      "stats": {"max_hp": 25, "damage": 0.05},
+      "desc": "+25 HP, +5% Dmg"
+    },
+    {
+      "id": "featherweight",
+      "name": "Featherweight Charm",
+      "rarity": "common",
+      "tags": ["survivor"],
+      "stats": {"move_speed": 0.08, "dodge": 0.02},
+      "desc": "+8% Speed, +2% Dodge"
+    },
+    {
+      "id": "heavy_plate",
+      "name": "Heavy Plate",
+      "rarity": "epic",
+      "tags": ["armor"],
+      "stats": {"armor": 8, "move_speed": -0.1},
+      "desc": "+8 Armor, -10% Speed"
+    },
+    {
+      "id": "bloodlust_amulet",
+      "name": "Bloodlust Amulet",
+      "rarity": "legendary",
+      "slot": "amulet",
+      "tags": ["jewelry"],
+      "stats": {"damage": 0.25, "attack_speed": 0.2},
+      "desc": "+25% Dmg, +20% AS"
+    },
+    {
+      "id": "tank_armor",
+      "name": "Tank Armor",
+      "rarity": "legendary",
+      "tags": ["armor"],
+      "stats": {"armor": 10, "max_hp": 60, "move_speed": -0.15},
+      "desc": "+10 Armor, +60 HP, -15% Spd"
+    },
+    {
+      "id": "agility_ring",
+      "name": "Agility Ring",
+      "rarity": "rare",
+      "slot": "ring",
+      "tags": ["jewelry"],
+      "stats": {"attack_speed": 0.12, "dodge": 0.05},
+      "desc": "+12% AS, +5% Dodge"
+    },
+    {
+      "id": "bulwark_shield",
+      "name": "Bulwark Shield",
+      "rarity": "epic",
+      "slot": "offhand",
+      "tags": ["armor"],
+      "stats": {"armor": 6, "max_hp": 30},
+      "desc": "+6 Armor, +30 HP"
+    },
+    {
+      "id": "assassin_garb",
+      "name": "Assassin Garb",
+      "rarity": "epic",
+      "slot": "chest",
+      "tags": ["armor"],
+      "stats": {"dodge": 0.12, "damage": 0.1, "armor": -2},
+      "desc": "+12% Dodge, +10% Dmg, -2 Arm"
+    },
+    {
+      "id": "speed_demon",
+      "name": "Speed Demon",
+      "rarity": "rare",
+      "tags": ["survivor"],
+      "stats": {"move_speed": 0.2, "attack_speed": 0.1},
+      "desc": "+20% Speed, +10% AS"
+    },
+    {
+      "id": "fortress_helm",
+      "name": "Fortress Helm",
+      "rarity": "rare",
+      "slot": "helmet",
+      "tags": ["armor"],
+      "stats": {"armor": 5, "max_hp": 20},
+      "desc": "+5 Armor, +20 HP"
+    },
+    {
+      "id": "brawler_gloves",
+      "name": "Brawler Gloves",
+      "rarity": "rare",
+      "slot": "gloves",
+      "tags": ["armor"],
+      "stats": {"damage": 0.12, "attack_speed": 0.08},
+      "desc": "+12% Dmg, +8% AS"
+    }
+  ]
+}

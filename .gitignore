@@ -1,0 +1,20 @@
+# Build output
+build/
+*.exe
+*.obj
+*.pdb
+
+# vcpkg (users should clone separately)
+tools/vcpkg/
+
+# Assets (distribute separately)
+data/assets/
+
+# Logs
+log.txt
+*.log
+
+# IDE
+.vs/
+.vscode/
+*.user
