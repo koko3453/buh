@@ -1,18 +1,26 @@
-# Hack and Slash Arena (C + SDL2)
+# Hack n Slash Survivor (C + SDL2)
 
-A hack-and-slash arena survival game built in C with SDL2. Features:
-- Auto-attacking combat with infinite scrolling map
-- Wave-based enemy spawns with scaling difficulty
-- Shop between waves (items, weapons, reroll, heal)
+
+A Vampire Survivors-style endless survival game built in C with SDL2. Features:
+- Endless auto-attacking combat with infinite scrolling map
+- Level up system - choose 1 of 4 upgrades on each level
+- Enemies spawn continuously with scaling difficulty over time
 - Ultimate ability (SPACE) with 2-minute cooldown
 - Data-driven content via JSON
+
+## Gameplay
+
+Kill enemies to collect XP orbs. When you level up, choose 1 of 4 random upgrades:
+- **Items** - Passive stat boosts (damage, health, speed, armor, etc.)
+- **Weapons** - Add new weapons or upgrade existing ones
+
 
 ## Setup
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/YOUR_USERNAME/hack-arena.git
-cd hack-arena
+git clone https://github.com/koko3453/buh.git
+cd buh
 ```
 
 ### 2. Setup vcpkg (package manager)
@@ -24,7 +32,7 @@ tools\vcpkg\vcpkg install sdl2 sdl2-ttf sdl2-image --triplet=x64-windows
 
 ### 3. Add assets
 Create `data/assets/` folder and add your sprites:
-- `player..png` - Player sprite
+- `player.png` - Player sprite
 - `goo_green.png` - Enemy sprite  
 - `goo_bolt.png` - Enemy projectile
 - `hd_ground_tile.png` - Ground tile
@@ -40,7 +48,7 @@ cmake --build build --config Release
 
 ### 5. Run
 ```bash
-build\Release\hack_arena.exe
+build\Release\buh.exe
 ```
 
 ## Controls
@@ -49,7 +57,7 @@ build\Release\hack_arena.exe
 | WASD | Move |
 | SPACE | Ultimate (kills all enemies, 2 min cooldown) |
 | P | Pause |
-| Mouse | Shop interaction |
+| Mouse | Select upgrades on level up |
 
 ## Stats
 The game uses 6 core stats:

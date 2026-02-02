@@ -315,6 +315,18 @@
       "projectile_speed": 0,
       "pierce": 0,
       "scales": ["damage", "range"]
+    },
+    {
+      "id": "lightning_zone",
+      "name": "Lightning Zone",
+      "type": "aura",
+      "rarity": "common",
+      "cooldown": 1.5,
+      "damage": 15,
+      "range": 120,
+      "projectile_speed": 0,
+      "pierce": 0,
+      "scales": ["damage", "range"]
     }
   ]
 }

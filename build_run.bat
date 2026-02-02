@@ -3,9 +3,9 @@ setlocal EnableExtensions EnableDelayedExpansion
 echo Starting build...
 
 set BUILD_DIR=build
-set EXE_RELEASE=%BUILD_DIR%\Release\hack_arena.exe
-set EXE_DEBUG=%BUILD_DIR%\Debug\hack_arena.exe
-set EXE_PLAIN=%BUILD_DIR%\hack_arena.exe
+set EXE_RELEASE=%BUILD_DIR%\Release\buh.exe
+set EXE_DEBUG=%BUILD_DIR%\Debug\buh.exe
+set EXE_PLAIN=%BUILD_DIR%\buh.exe
 
 if "%VCPKG_ROOT%"=="" (
   set "VCPKG_ROOT=%~dp0tools\vcpkg"

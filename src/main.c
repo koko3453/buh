@@ -107,7 +107,7 @@ enum {
 #define VIEW_W 1180
 #define VIEW_H 640
 
-#define WAVE_COUNT 10
+#define MAX_LEVELUP_CHOICES 4
 
 typedef struct {
   float damage;
@@ -257,7 +257,7 @@ typedef struct {
 
 typedef struct {
   int active;
-  int type; /* 0 currency, 1 heal */
+  int type; /* 0 xp orb, 1 heal */
   float x;
   float y;
   float value;
@@ -268,15 +268,13 @@ typedef struct {
 typedef struct {
   int type; /* 0 item, 1 weapon */
   int index;
-  int price;
   SDL_Rect rect;
-  int sold;
-} ShopSlot;
+} LevelUpChoice;
 
 typedef enum {
   MODE_START,
   MODE_WAVE,
-  MODE_SHOP,
+  MODE_LEVELUP,
   MODE_PAUSE,
   MODE_GAMEOVER
 } GameMode;
@@ -302,6 +300,7 @@ typedef struct {
   SDL_Texture *tex_enemy;
   SDL_Texture *tex_player;
   SDL_Texture *tex_enemy_bolt;
+  SDL_Texture *tex_lightning_zone;
   int running;
   GameMode mode;
   float time_scale;
@@ -315,17 +314,15 @@ typedef struct {
   Bullet bullets[MAX_BULLETS];
   Drop drops[MAX_DROPS];
 
-  int wave;
-  float wave_time;
-  float wave_duration;
   float spawn_timer;
-  int currency;
-  int reroll_cost;
-  int lock_shop;
   int kills;
+  int xp;
+  int level;
+  int xp_to_next;
+  float game_time;
 
-  ShopSlot shop[MAX_SHOP_SLOTS];
-  int shop_count;
+  LevelUpChoice choices[MAX_LEVELUP_CHOICES];
+  int choice_count;
   float camera_x;
   float camera_y;
 } Game;
@@ -878,28 +875,31 @@ static void apply_item(Player *p, Database *db, ItemDef *it, int item_index) {
   player_recalc(p, db);
 }
 
-static void build_shop(Game *g) {
-  g->shop_count = 0;
-  int desired_items = 8;
-  int desired_weapons = 4;
-  if (g->db.item_count == 0 || g->db.weapon_count == 0) {
-    log_line("Shop build skipped: missing items or weapons.");
+static void build_levelup_choices(Game *g) {
+  g->choice_count = 0;
+  if (g->db.item_count == 0 && g->db.weapon_count == 0) {
+    log_line("Level up choices skipped: no items or weapons.");
     return;
   }
-  for (int i = 0; i < desired_items && g->shop_count < MAX_SHOP_SLOTS; i++) {
-    int idx = rand() % g->db.item_count;
-    int price = 15 + rand() % 20 + g->wave * 2;
-    g->shop[g->shop_count++] = (ShopSlot){ .type = 0, .index = idx, .price = price, .sold = 0 };
-  }
-  for (int i = 0; i < desired_weapons && g->shop_count < MAX_SHOP_SLOTS; i++) {
-    int idx = rand() % g->db.weapon_count;
-    int price = 25 + rand() % 15 + g->wave * 3;
-    g->shop[g->shop_count++] = (ShopSlot){ .type = 1, .index = idx, .price = price, .sold = 0 };
+  
+  /* Generate 4 random choices - mix of items and weapons */
+  for (int i = 0; i < MAX_LEVELUP_CHOICES; i++) {
+    int type = rand() % 3; /* 0,1 = item (66%), 2 = weapon (33%) */
+    if (type < 2 && g->db.item_count > 0) {
+      int idx = rand() % g->db.item_count;
+      g->choices[g->choice_count++] = (LevelUpChoice){ .type = 0, .index = idx };
+    } else if (g->db.weapon_count > 0) {
+      int idx = rand() % g->db.weapon_count;
+      g->choices[g->choice_count++] = (LevelUpChoice){ .type = 1, .index = idx };
+    } else if (g->db.item_count > 0) {
+      int idx = rand() % g->db.item_count;
+      g->choices[g->choice_count++] = (LevelUpChoice){ .type = 0, .index = idx };
+    }
   }
 }
 
 static void build_start_page(Game *g) {
-  g->shop_count = 0;
+  g->choice_count = 0;
   int per_page = 16;
   int total = g->db.weapon_count;
   int pages = (total + per_page - 1) / per_page;
@@ -910,7 +910,7 @@ static void build_start_page(Game *g) {
   int end = start + per_page;
   if (end > total) end = total;
   for (int i = start; i < end; i++) {
-    g->shop[g->shop_count++] = (ShopSlot){ .type = 1, .index = i, .price = 0, .sold = 0 };
+    g->choices[g->choice_count++] = (LevelUpChoice){ .type = 1, .index = i };
   }
 }
 
@@ -934,19 +934,18 @@ static void draw_text(SDL_Renderer *r, TTF_Font *font, int x, int y, SDL_Color c
 }
 
 static void game_reset(Game *g) {
-  g->wave = 1;
-  g->wave_duration = 25.0f;
-  g->wave_time = g->wave_duration;
   g->spawn_timer = 0.0f;
-  g->currency = 60;
-  g->reroll_cost = 5;
-  g->lock_shop = 0;
   g->kills = 0;
+  g->xp = 0;
+  g->level = 1;
+  g->xp_to_next = 10;
+  g->game_time = 0.0f;
   g->mode = MODE_START;
   g->time_scale = 1.0f;
   g->debug_show_range = 1;
   g->start_page = 0;
   g->ultimate_cd = 0.0f;
+  g->choice_count = 0;
   for (int i = 0; i < MAX_ENEMIES; i++) g->enemies[i].active = 0;
   for (int i = 0; i < MAX_BULLETS; i++) g->bullets[i].active = 0;
   for (int i = 0; i < MAX_DROPS; i++) g->drops[i].active = 0;
@@ -960,7 +959,7 @@ static void game_reset(Game *g) {
   g->camera_x = clampf(g->camera_x, 0.0f, ARENA_W - VIEW_W);
   g->camera_y = clampf(g->camera_y, 0.0f, ARENA_H - VIEW_H);
   p->base = (Stats){0};
-  p->base.max_hp = 1000;
+  p->base.max_hp = 100;
   p->base.move_speed = 1.0f;
   p->hp = p->base.max_hp;
   stats_clear(&p->bonus);
@@ -974,22 +973,22 @@ static void game_reset(Game *g) {
   build_start_page(g);
 }
 
-static void shop_enter(Game *g) {
-  g->mode = MODE_SHOP;
-  if (!g->lock_shop) build_shop(g);
+static void level_up(Game *g) {
+  g->level += 1;
+  g->xp_to_next = 10 + g->level * 5;
+  g->mode = MODE_LEVELUP;
+  build_levelup_choices(g);
 }
 
 static void wave_start(Game *g) {
   g->mode = MODE_WAVE;
-  g->wave_time = g->wave_duration;
   g->spawn_timer = 0.0f;
-  g->currency += (int)(20 + g->wave * 2);
 }
 
 static void handle_player_pickups(Game *g, float dt) {
   Player *p = &g->player;
   Stats total = player_total_stats(p);
-  float coin_magnet_range = 150.0f;  /* coins start moving toward player */
+  float xp_magnet_range = 150.0f;  /* XP orbs start moving toward player */
   float pickup_range = 20.0f;        /* actual pickup distance */
   float health_pickup_range = 30.0f; /* health pickup distance */
   
@@ -1002,13 +1001,17 @@ static void handle_player_pickups(Game *g, float dt) {
     float dist = sqrtf(dist2);
     
     if (d->type == 0) {
-      /* Coin - magnet attraction with accelerating speed */
+      /* XP orb - magnet attraction with accelerating speed */
       if (dist < pickup_range) {
-        g->currency += (int)d->value;
+        g->xp += (int)d->value;
+        if (g->xp >= g->xp_to_next) {
+          g->xp -= g->xp_to_next;
+          level_up(g);
+        }
         d->active = 0;
         continue;
       }
-      if (dist < coin_magnet_range) {
+      if (dist < xp_magnet_range) {
         /* Accelerate magnet speed over time */
         d->magnet_speed += 400.0f * dt;
         if (d->magnet_speed > 600.0f) d->magnet_speed = 600.0f;
@@ -1186,8 +1189,10 @@ static void update_enemies(Game *g, float dt) {
       e->active = 0;
       g->kills += 1;
       if (e->spawn_invuln <= 0.0f) {
-        spawn_drop(g, e->x, e->y, 0, 5 + rand() % 6);
-        if (frandf() < 0.15f) spawn_drop(g, e->x, e->y, 1, 15 + rand() % 10);
+        /* Drop XP orb */
+        spawn_drop(g, e->x, e->y, 0, 1 + rand() % 2);
+        /* Drop health pickup sometimes */
+        if (frandf() < 0.05f) spawn_drop(g, e->x, e->y, 1, 10 + rand() % 10);
       }
     }
   }
@@ -1230,6 +1235,30 @@ static void fire_weapons(Game *g, float dt) {
 
     float bleed_chance, burn_chance, slow_chance, stun_chance, shred_chance;
     weapon_status_chances(w, &bleed_chance, &burn_chance, &slow_chance, &stun_chance, &shred_chance);
+
+    /* Lightning Zone - damages all enemies in circular range */
+    if (weapon_is(w, "lightning_zone")) {
+      float range = w->range * (1.0f + 0.1f * (slot->level - 1));
+      float range2 = range * range;
+      for (int e = 0; e < MAX_ENEMIES; e++) {
+        if (!g->enemies[e].active) continue;
+        Enemy *en = &g->enemies[e];
+        if (en->spawn_invuln > 0.0f) continue;
+        float ex = en->x - p->x;
+        float ey = en->y - p->y;
+        float d2 = ex * ex + ey * ey;
+        if (d2 <= range2) {
+          float final_dmg = damage;
+          if (en->armor_shred_timer > 0.0f) final_dmg *= 1.2f;
+          en->hp -= final_dmg;
+          /* Lightning has a chance to stun */
+          if (frandf() < 0.15f) en->stun_timer = 0.3f;
+        }
+      }
+      float level_cd = clampf(1.0f - 0.05f * (slot->level - 1), 0.7f, 1.0f);
+      slot->cd_timer = w->cooldown * cooldown_scale * level_cd;
+      continue;
+    }
 
     if (weapon_is(w, "laser") || weapon_is(w, "whip") || weapon_is(w, "chain_blades")) {
       float range = w->range;
@@ -1379,39 +1408,40 @@ static void update_game(Game *g, float dt) {
   update_enemies(g, dt);
   handle_player_pickups(g, dt);
 
-  g->wave_time -= dt;
+  /* Update game time and spawn enemies continuously */
+  g->game_time += dt;
   g->spawn_timer -= dt;
   if (g->spawn_timer <= 0.0f) {
-    int tier = g->wave;
-    if (g->db.enemy_count == 0) {
+    if (g->db.enemy_count > 0) {
+      int def_index = rand() % g->db.enemy_count;
+      /* Every 60 seconds, spawn tougher enemy type */
+      int difficulty_tier = (int)(g->game_time / 60.0f);
+      if (difficulty_tier > 0 && frandf() < 0.2f + difficulty_tier * 0.1f) {
+        def_index = (def_index + difficulty_tier) % g->db.enemy_count;
+      }
+      spawn_enemy(g, def_index);
+      /* Spawn rate increases over time */
+      float base_rate = 1.0f - g->game_time * 0.005f;
+      g->spawn_timer = clampf(base_rate, 0.15f, 1.0f);
+    } else {
       g->spawn_timer = 1.0f;
-      return;
     }
-    int def_index = rand() % g->db.enemy_count;
-    if (tier % 5 == 0) def_index = g->db.enemy_count - 1;
-    spawn_enemy(g, def_index);
-    g->spawn_timer = clampf(0.75f - 0.03f * g->wave, 0.2f, 1.0f);
-  }
-
-  if (g->wave_time <= 0.0f) {
-    shop_enter(g);
   }
 
   if (p->hp <= 0.0f) {
     g->mode = MODE_GAMEOVER;
   }
 }
-static void layout_shop(Game *g, int screen_w, int screen_h) {
-  int cols = 4;
-  int rows = 3;
-  int card_w = 280;
-  int card_h = 100;
-  int start_x = (screen_w - cols * card_w - (cols - 1) * 10) / 2;
-  int start_y = 120;
-  for (int i = 0; i < g->shop_count; i++) {
-    int col = i % cols;
-    int row = i / cols;
-    g->shop[i].rect = (SDL_Rect){ start_x + col * (card_w + 10), start_y + row * (card_h + 10), card_w, card_h };
+
+static void layout_levelup(Game *g, int screen_w, int screen_h) {
+  int card_w = 260;
+  int card_h = 120;
+  int spacing = 20;
+  int total_w = g->choice_count * card_w + (g->choice_count - 1) * spacing;
+  int start_x = (screen_w - total_w) / 2;
+  int start_y = (screen_h - card_h) / 2;
+  for (int i = 0; i < g->choice_count; i++) {
+    g->choices[i].rect = (SDL_Rect){ start_x + i * (card_w + spacing), start_y, card_w, card_h };
   }
 }
 
@@ -1451,6 +1481,39 @@ static void render_game(Game *g) {
   int px = (int)(offset_x + g->player.x - cam_x);
   int py = (int)(offset_y + g->player.y - cam_y);
   int player_size = 32;
+  
+  /* Draw lightning zone effect if player has the weapon */
+  for (int i = 0; i < MAX_WEAPON_SLOTS; i++) {
+    if (!g->player.weapons[i].active) continue;
+    WeaponDef *w = &g->db.weapons[g->player.weapons[i].def_index];
+    if (weapon_is(w, "lightning_zone")) {
+      float range = w->range * (1.0f + 0.1f * (g->player.weapons[i].level - 1));
+      float cd_ratio = g->player.weapons[i].cd_timer / w->cooldown;
+      /* Pulsing effect - brighter when about to fire */
+      int alpha = (int)(40 + (1.0f - cd_ratio) * 60);
+      SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
+      /* Draw filled circle for the zone */
+      SDL_Color zone_color = { 100, 150, 255, (Uint8)alpha };
+      draw_filled_circle(g->renderer, px, py, (int)range, zone_color);
+      /* Draw border */
+      SDL_Color border_color = { 150, 200, 255, (Uint8)(alpha + 40) };
+      draw_circle(g->renderer, px, py, (int)range, border_color);
+      /* Flash effect when firing */
+      if (cd_ratio > 0.95f) {
+        SDL_Color flash = { 200, 220, 255, 120 };
+        draw_filled_circle(g->renderer, px, py, (int)range, flash);
+        /* Render lightning zone sprite */
+        if (g->tex_lightning_zone) {
+          int sprite_size = (int)(range * 2.0f);
+          SDL_Rect dst = { px - sprite_size/2, py - sprite_size/2, sprite_size, sprite_size };
+          SDL_SetTextureAlphaMod(g->tex_lightning_zone, 220);
+          SDL_RenderCopy(g->renderer, g->tex_lightning_zone, NULL, &dst);
+          SDL_SetTextureAlphaMod(g->tex_lightning_zone, 255);
+        }
+      }
+    }
+  }
+  
   if (g->tex_player) {
     SDL_Rect dst = { px - player_size/2, py - player_size/2, player_size, player_size };
     SDL_RenderCopy(g->renderer, g->tex_player, NULL, &dst);
@@ -1525,9 +1588,9 @@ static void render_game(Game *g) {
     int dx = (int)(offset_x + g->drops[i].x - cam_x);
     int dy = (int)(offset_y + g->drops[i].y - cam_y);
     if (g->drops[i].type == 0) {
-      /* Gold coin */
-      draw_glow(g->renderer, dx, dy, 10, (SDL_Color){255, 215, 0, 80});
-      draw_filled_circle(g->renderer, dx, dy, 5, (SDL_Color){255, 215, 0, 255});
+      /* XP orb - blue/cyan */
+      draw_glow(g->renderer, dx, dy, 10, (SDL_Color){80, 180, 255, 80});
+      draw_filled_circle(g->renderer, dx, dy, 5, (SDL_Color){100, 200, 255, 255});
     } else {
       /* Health pack */
       if (g->tex_health_flask) {
@@ -1548,14 +1611,14 @@ static void render_game(Game *g) {
     Stats stats = player_total_stats(&g->player);
     snprintf(buf, sizeof(buf), "HP %.0f / %.0f", g->player.hp, stats.max_hp);
     draw_text(g->renderer, g->font, 70, 12, text, buf);
-    snprintf(buf, sizeof(buf), "Wave %d / %d", g->wave, WAVE_COUNT);
+    snprintf(buf, sizeof(buf), "Lv %d  XP %d/%d", g->level, g->xp, g->xp_to_next);
     draw_text(g->renderer, g->font, 260, 12, text, buf);
-    snprintf(buf, sizeof(buf), "Time %.0f", g->wave_time);
+    int mins = (int)(g->game_time / 60.0f);
+    int secs = (int)g->game_time % 60;
+    snprintf(buf, sizeof(buf), "Time %d:%02d", mins, secs);
     draw_text(g->renderer, g->font, 430, 12, text, buf);
-    snprintf(buf, sizeof(buf), "$ %d", g->currency);
-    draw_text(g->renderer, g->font, 560, 12, text, buf);
     snprintf(buf, sizeof(buf), "Kills %d", g->kills);
-    draw_text(g->renderer, g->font, 680, 12, text, buf);
+    draw_text(g->renderer, g->font, 560, 12, text, buf);
     snprintf(buf, sizeof(buf), "HP %.0f  Dmg +%.0f%%  AS +%.0f%%", stats.max_hp, stats.damage * 100.0f, stats.attack_speed * 100.0f);
     draw_text(g->renderer, g->font, 70, 32, text, buf);
     snprintf(buf, sizeof(buf), "Armor %.0f  Speed +%.0f%%  Dodge %.0f%%", stats.armor, stats.move_speed * 100.0f, stats.dodge * 100.0f);
@@ -1596,57 +1659,47 @@ static void render_game(Game *g) {
       }
     }
 
-  if (g->mode == MODE_SHOP) {
+  if (g->mode == MODE_LEVELUP) {
     SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(g->renderer, 5, 8, 15, 220);
+    SDL_SetRenderDrawColor(g->renderer, 5, 8, 15, 200);
     SDL_Rect overlay = { 0, 0, WINDOW_W, WINDOW_H };
     SDL_RenderFillRect(g->renderer, &overlay);
     
-    /* Shop panel with glow border */
-    SDL_Rect panel = { 60, 60, WINDOW_W - 120, WINDOW_H - 120 };
-    SDL_SetRenderDrawColor(g->renderer, 20, 26, 40, 255);
-    SDL_RenderFillRect(g->renderer, &panel);
-    SDL_SetRenderDrawColor(g->renderer, 60, 80, 120, 255);
-    SDL_RenderDrawRect(g->renderer, &panel);
-    
-    /* Shop title */
+    /* Level up title */
     SDL_Color gold = {255, 215, 100, 255};
-    draw_text(g->renderer, g->font, 80, 72, gold, "SHOP - Click to Buy");
-    char money_str[64];
-    snprintf(money_str, sizeof(money_str), "Gold: $%d", g->currency);
-    draw_text(g->renderer, g->font, WINDOW_W - 200, 72, gold, money_str);
+    char lvl_str[64];
+    snprintf(lvl_str, sizeof(lvl_str), "LEVEL UP! (Lv %d)", g->level);
+    draw_text(g->renderer, g->font, WINDOW_W / 2 - 80, 200, gold, lvl_str);
+    draw_text(g->renderer, g->font, WINDOW_W / 2 - 60, 230, text, "Choose one:");
     
-    layout_shop(g, WINDOW_W, WINDOW_H);
-    for (int i = 0; i < g->shop_count; i++) {
-      ShopSlot *slot = &g->shop[i];
-      if (slot->sold) continue;
+    layout_levelup(g, WINDOW_W, WINDOW_H);
+    for (int i = 0; i < g->choice_count; i++) {
+      LevelUpChoice *choice = &g->choices[i];
       
-      /* Card background with gradient effect */
+      /* Card background */
       SDL_SetRenderDrawColor(g->renderer, 28, 34, 50, 255);
-      SDL_RenderFillRect(g->renderer, &slot->rect);
+      SDL_RenderFillRect(g->renderer, &choice->rect);
       
-      /* Highlight border based on rarity */
-      const char *rarity_str = (slot->type == 0) ? g->db.items[slot->index].rarity : g->db.weapons[slot->index].rarity;
+      /* Border based on rarity */
+      const char *rarity_str = (choice->type == 0) ? g->db.items[choice->index].rarity : g->db.weapons[choice->index].rarity;
       SDL_Color border = {60, 70, 90, 255};
       if (strcmp(rarity_str, "uncommon") == 0) border = (SDL_Color){80, 180, 120, 255};
       else if (strcmp(rarity_str, "rare") == 0) border = (SDL_Color){80, 140, 255, 255};
       else if (strcmp(rarity_str, "epic") == 0) border = (SDL_Color){180, 100, 255, 255};
       else if (strcmp(rarity_str, "legendary") == 0) border = (SDL_Color){255, 180, 60, 255};
       SDL_SetRenderDrawColor(g->renderer, border.r, border.g, border.b, border.a);
-      SDL_RenderDrawRect(g->renderer, &slot->rect);
+      SDL_RenderDrawRect(g->renderer, &choice->rect);
 
-      if (slot->type == 0) {
-        ItemDef *it = &g->db.items[slot->index];
+      if (choice->type == 0) {
+        ItemDef *it = &g->db.items[choice->index];
         SDL_Color rc = rarity_color(it->rarity);
-        draw_text(g->renderer, g->font, slot->rect.x + 8, slot->rect.y + 6, rc, it->name);
+        draw_text(g->renderer, g->font, choice->rect.x + 8, choice->rect.y + 8, rc, it->name);
         
-        /* Show description if available */
         if (it->desc[0]) {
           SDL_Color desc_color = {180, 180, 190, 255};
-          draw_text(g->renderer, g->font, slot->rect.x + 8, slot->rect.y + 26, desc_color, it->desc);
+          draw_text(g->renderer, g->font, choice->rect.x + 8, choice->rect.y + 30, desc_color, it->desc);
         }
         
-        /* Show key stats on third line */
         char statline[128];
         Stats *s = &it->stats;
         int pos = 0;
@@ -1658,32 +1711,25 @@ static void render_game(Game *g) {
         if (s->armor != 0) pos += snprintf(statline + pos, sizeof(statline) - pos, "ARM%+.0f ", s->armor);
         if (s->dodge != 0) pos += snprintf(statline + pos, sizeof(statline) - pos, "DDG%+.0f%% ", s->dodge * 100);
         SDL_Color stat_color = {140, 200, 140, 255};
-        draw_text(g->renderer, g->font, slot->rect.x + 8, slot->rect.y + 46, stat_color, statline);
-      } else {
-        WeaponDef *w = &g->db.weapons[slot->index];
-        SDL_Color rc = rarity_color(w->rarity);
-        draw_text(g->renderer, g->font, slot->rect.x + 8, slot->rect.y + 6, rc, w->name);
-        char statline[128];
-        snprintf(statline, sizeof(statline), "%s - DMG %.0f  CD %.2fs  RNG %.0f", w->type, w->damage, w->cooldown, w->range);
-        SDL_Color wep_color = {180, 180, 190, 255};
-        draw_text(g->renderer, g->font, slot->rect.x + 8, slot->rect.y + 26, wep_color, statline);
+        draw_text(g->renderer, g->font, choice->rect.x + 8, choice->rect.y + 52, stat_color, statline);
         
-        /* Show projectile info */
-        char proj_info[64];
-        snprintf(proj_info, sizeof(proj_info), "Pellets: %d  Speed: %.0f", w->pellets, w->projectile_speed);
-        draw_text(g->renderer, g->font, slot->rect.x + 8, slot->rect.y + 46, text, proj_info);
+        SDL_Color slot_color = {150, 150, 160, 255};
+        draw_text(g->renderer, g->font, choice->rect.x + 8, choice->rect.y + 95, slot_color, it->slot);
+      } else {
+        WeaponDef *w = &g->db.weapons[choice->index];
+        SDL_Color rc = rarity_color(w->rarity);
+        draw_text(g->renderer, g->font, choice->rect.x + 8, choice->rect.y + 8, rc, w->name);
+        char statline[128];
+        snprintf(statline, sizeof(statline), "%s  DMG %.0f", w->type, w->damage);
+        SDL_Color wep_color = {180, 180, 190, 255};
+        draw_text(g->renderer, g->font, choice->rect.x + 8, choice->rect.y + 30, wep_color, statline);
+        snprintf(statline, sizeof(statline), "CD %.2fs  RNG %.0f", w->cooldown, w->range);
+        draw_text(g->renderer, g->font, choice->rect.x + 8, choice->rect.y + 52, wep_color, statline);
+        
+        SDL_Color type_color = {150, 150, 160, 255};
+        draw_text(g->renderer, g->font, choice->rect.x + 8, choice->rect.y + 95, type_color, "WEAPON");
       }
-      
-      /* Price with affordability color */
-      char price[32];
-      snprintf(price, sizeof(price), "$%d", slot->price);
-      SDL_Color price_color = (g->currency >= slot->price) ? (SDL_Color){100, 255, 100, 255} : (SDL_Color){255, 100, 100, 255};
-      draw_text(g->renderer, g->font, slot->rect.x + 8, slot->rect.y + slot->rect.h - 22, price_color, price);
     }
-    SDL_Rect start = { WINDOW_W - 240, WINDOW_H - 120, 160, 48 };
-    SDL_SetRenderDrawColor(g->renderer, 50, 90, 80, 255);
-    SDL_RenderFillRect(g->renderer, &start);
-    draw_text(g->renderer, g->font, start.x + 20, start.y + 12, text, "Start Wave");
   }
 
   if (g->mode == MODE_START) {
@@ -1704,7 +1750,7 @@ static void render_game(Game *g) {
     snprintf(pagebuf, sizeof(pagebuf), "Page %d / %d (Left/Right)", g->start_page + 1, pages);
     draw_text(g->renderer, g->font, 170, 140, text, pagebuf);
 
-    int shown = g->shop_count;
+    int shown = g->choice_count;
     int cols = 2;
     int rows = (shown + cols - 1) / cols;
     int card_w = 240;
@@ -1719,13 +1765,13 @@ static void render_game(Game *g) {
       SDL_RenderFillRect(g->renderer, &r);
       SDL_SetRenderDrawColor(g->renderer, 80, 90, 110, 255);
       SDL_RenderDrawRect(g->renderer, &r);
-      WeaponDef *w = &g->db.weapons[g->shop[i].index];
+      WeaponDef *w = &g->db.weapons[g->choices[i].index];
       SDL_Color rc = rarity_color(w->rarity);
       draw_text(g->renderer, g->font, r.x + 8, r.y + 8, rc, w->name);
       char info[64];
       snprintf(info, sizeof(info), "DMG %.0f  CD %.2f", w->damage, w->cooldown);
       draw_text(g->renderer, g->font, r.x + 8, r.y + 36, text, info);
-      g->shop[i].rect = r;
+      g->choices[i].rect = r;
     }
   }
 
@@ -1734,38 +1780,42 @@ static void render_game(Game *g) {
     SDL_SetRenderDrawColor(g->renderer, 0, 0, 0, 180);
     SDL_Rect overlay = { 0, 0, WINDOW_W, WINDOW_H };
     SDL_RenderFillRect(g->renderer, &overlay);
-    draw_text(g->renderer, g->font, WINDOW_W / 2 - 80, WINDOW_H / 2 - 20, text, "Run Complete");
-    draw_text(g->renderer, g->font, WINDOW_W / 2 - 120, WINDOW_H / 2 + 10, text, "Press R to restart");
+    char buf[128];
+    snprintf(buf, sizeof(buf), "Game Over - Level %d", g->level);
+    draw_text(g->renderer, g->font, WINDOW_W / 2 - 80, WINDOW_H / 2 - 40, text, buf);
+    int mins = (int)(g->game_time / 60.0f);
+    int secs = (int)g->game_time % 60;
+    snprintf(buf, sizeof(buf), "Survived %d:%02d  Kills: %d", mins, secs, g->kills);
+    draw_text(g->renderer, g->font, WINDOW_W / 2 - 100, WINDOW_H / 2 - 10, text, buf);
+    draw_text(g->renderer, g->font, WINDOW_W / 2 - 80, WINDOW_H / 2 + 20, text, "Press R to restart");
   }
 
   SDL_RenderPresent(g->renderer);
 }
 
-static void handle_shop_click(Game *g, int mx, int my) {
-  for (int i = 0; i < g->shop_count; i++) {
-    SDL_Rect r = g->shop[i].rect;
-    if (g->shop[i].sold) continue;
+static void handle_levelup_click(Game *g, int mx, int my) {
+  for (int i = 0; i < g->choice_count; i++) {
+    SDL_Rect r = g->choices[i].rect;
     if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
-      if (g->shop[i].type == 0) {
-        ItemDef *it = &g->db.items[g->shop[i].index];
-        if (g->currency >= g->shop[i].price) {
-          g->currency -= g->shop[i].price;
-          apply_item(&g->player, &g->db, it, g->shop[i].index);
-          g->shop[i].sold = 1;
-        } else {
-          log_line("Shop: not enough currency for item.");
-        }
+      if (g->choices[i].type == 0) {
+        ItemDef *it = &g->db.items[g->choices[i].index];
+        apply_item(&g->player, &g->db, it, g->choices[i].index);
       } else {
-        WeaponDef *w = &g->db.weapons[g->shop[i].index];
-        if (g->currency >= g->shop[i].price && can_equip_weapon(&g->player, g->shop[i].index)) {
-          g->currency -= g->shop[i].price;
-          int wi = find_weapon(&g->db, w->id);
-          if (wi >= 0) equip_weapon(&g->player, wi);
-          g->shop[i].sold = 1;
+        int wi = g->choices[i].index;
+        if (can_equip_weapon(&g->player, wi)) {
+          equip_weapon(&g->player, wi);
         } else {
-          log_line("Shop: not enough currency or no weapon slot.");
+          /* Upgrade existing weapon if we already have it */
+          for (int w = 0; w < MAX_WEAPON_SLOTS; w++) {
+            if (g->player.weapons[w].active && g->player.weapons[w].def_index == wi) {
+              g->player.weapons[w].level += 1;
+              break;
+            }
+          }
         }
       }
+      g->mode = MODE_WAVE;
+      return;
     }
   }
 }
@@ -1818,12 +1868,15 @@ int main(int argc, char **argv) {
   else log_linef("Failed to load wall.png: %s", IMG_GetError());
   if (game.tex_enemy) log_line("Loaded goo_green.png");
   else log_linef("Failed to load goo_green.png: %s", IMG_GetError());
-  game.tex_player = IMG_LoadTexture(game.renderer, "data/assets/player..png");
+  game.tex_player = IMG_LoadTexture(game.renderer, "data/assets/player.png");
   if (game.tex_player) log_line("Loaded player.png");
   else log_linef("Failed to load player.png: %s", IMG_GetError());
   game.tex_enemy_bolt = IMG_LoadTexture(game.renderer, "data/assets/goo_bolt.png");
   if (game.tex_enemy_bolt) log_line("Loaded goo_bolt.png");
   else log_linef("Failed to load goo_bolt.png: %s", IMG_GetError());
+  game.tex_lightning_zone = IMG_LoadTexture(game.renderer, "data/assets/lightning_zone.png");
+  if (game.tex_lightning_zone) log_line("Loaded lightning_zone.png");
+  else log_linef("Failed to load lightning_zone.png: %s", IMG_GetError());
   
   game.font = TTF_OpenFont("C:/Windows/Fonts/verdana.ttf", 16);
   if (!game.font) {
@@ -1895,26 +1948,17 @@ int main(int argc, char **argv) {
         }
       }
       if (e.type == SDL_MOUSEBUTTONDOWN && game.mode == MODE_START) {
-        int shown = game.shop_count;
+        int shown = game.choice_count;
         for (int i = 0; i < shown; i++) {
-          SDL_Rect r = game.shop[i].rect;
+          SDL_Rect r = game.choices[i].rect;
           if (e.button.x >= r.x && e.button.x <= r.x + r.w && e.button.y >= r.y && e.button.y <= r.y + r.h) {
-            equip_weapon(&game.player, game.shop[i].index);
+            equip_weapon(&game.player, game.choices[i].index);
             wave_start(&game);
           }
         }
       }
-      if (e.type == SDL_MOUSEBUTTONDOWN && game.mode == MODE_SHOP) {
-        handle_shop_click(&game, e.button.x, e.button.y);
-        SDL_Rect start = { WINDOW_W - 240, WINDOW_H - 120, 160, 48 };
-        if (e.button.x >= start.x && e.button.x <= start.x + start.w && e.button.y >= start.y && e.button.y <= start.y + start.h) {
-          if (game.wave >= WAVE_COUNT) {
-            game.mode = MODE_GAMEOVER;
-          } else {
-            game.wave += 1;
-            wave_start(&game);
-          }
-        }
+      if (e.type == SDL_MOUSEBUTTONDOWN && game.mode == MODE_LEVELUP) {
+        handle_levelup_click(&game, e.button.x, e.button.y);
       }
     }
 
@@ -1938,6 +1982,7 @@ int main(int argc, char **argv) {
   if (game.tex_enemy) SDL_DestroyTexture(game.tex_enemy);
   if (game.tex_player) SDL_DestroyTexture(game.tex_player);
   if (game.tex_enemy_bolt) SDL_DestroyTexture(game.tex_enemy_bolt);
+  if (game.tex_lightning_zone) SDL_DestroyTexture(game.tex_lightning_zone);
   TTF_CloseFont(game.font);
   SDL_DestroyRenderer(game.renderer);
   SDL_DestroyWindow(game.window);
