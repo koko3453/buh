@@ -1,4 +1,4 @@
-# Hack and Slash Arena (C + SDL2)
+# Hack n Slash Game (C + SDL2)
 
 A hack-and-slash arena survival game built in C with SDL2. Features:
 - Auto-attacking combat with infinite scrolling map
