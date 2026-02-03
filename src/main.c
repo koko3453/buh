@@ -191,6 +191,7 @@ typedef struct {
 typedef struct {
   char id[32];
   char name[32];
+  char portrait[48];
   char weapon[32];
   Stats stats;
   char rule[24];
@@ -279,6 +280,8 @@ typedef enum {
   MODE_GAMEOVER
 } GameMode;
 
+#define MAX_CHARACTERS 16
+
 typedef struct {
   WeaponDef weapons[MAX_WEAPONS];
   int weapon_count;
@@ -286,7 +289,7 @@ typedef struct {
   int item_count;
   EnemyDef enemies[MAX_ITEMS];
   int enemy_count;
-  CharacterDef characters[MAX_ITEMS];
+  CharacterDef characters[MAX_CHARACTERS];
   int character_count;
 } Database;
 
@@ -294,6 +297,7 @@ typedef struct {
   SDL_Window *window;
   SDL_Renderer *renderer;
   TTF_Font *font;
+  TTF_Font *font_title;
   SDL_Texture *tex_ground;
   SDL_Texture *tex_wall;
   SDL_Texture *tex_health_flask;
@@ -301,6 +305,7 @@ typedef struct {
   SDL_Texture *tex_player;
   SDL_Texture *tex_enemy_bolt;
   SDL_Texture *tex_lightning_zone;
+  SDL_Texture *tex_portraits[MAX_CHARACTERS];
   int running;
   GameMode mode;
   float time_scale;
@@ -674,16 +679,18 @@ static int load_characters(Database *db, const char *path) {
   int idx = arr + 1;
   int n = tokens[arr].size;
   db->character_count = 0;
-  for (int i = 0; i < n && db->character_count < MAX_ITEMS; i++) {
+  for (int i = 0; i < n && db->character_count < MAX_CHARACTERS; i++) {
     int obj = idx;
     CharacterDef *c = &db->characters[db->character_count++];
     memset(c, 0, sizeof(*c));
     int idt = find_key(json, tokens, obj, "id");
     int nt = find_key(json, tokens, obj, "name");
+    int pt = find_key(json, tokens, obj, "portrait");
     int wt = find_key(json, tokens, obj, "weapon");
     int rt = find_key(json, tokens, obj, "rule");
     if (idt > 0) token_string(json, &tokens[idt], c->id, (int)sizeof(c->id));
     if (nt > 0) token_string(json, &tokens[nt], c->name, (int)sizeof(c->name));
+    if (pt > 0) token_string(json, &tokens[pt], c->portrait, (int)sizeof(c->portrait));
     if (wt > 0) token_string(json, &tokens[wt], c->weapon, (int)sizeof(c->weapon));
     if (rt > 0) token_string(json, &tokens[rt], c->rule, (int)sizeof(c->rule));
     int stats = find_key(json, tokens, obj, "stats");
@@ -901,7 +908,7 @@ static void build_levelup_choices(Game *g) {
 static void build_start_page(Game *g) {
   g->choice_count = 0;
   int per_page = 16;
-  int total = g->db.weapon_count;
+  int total = g->db.character_count;
   int pages = (total + per_page - 1) / per_page;
   if (pages < 1) pages = 1;
   if (g->start_page < 0) g->start_page = 0;
@@ -910,7 +917,8 @@ static void build_start_page(Game *g) {
   int end = start + per_page;
   if (end > total) end = total;
   for (int i = start; i < end; i++) {
-    g->choices[g->choice_count++] = (LevelUpChoice){ .type = 1, .index = i };
+    /* Type 2 = Character */
+    g->choices[g->choice_count++] = (LevelUpChoice){ .type = 2, .index = i };
   }
 }
 
@@ -928,6 +936,17 @@ static void draw_text(SDL_Renderer *r, TTF_Font *font, int x, int y, SDL_Color c
   if (!surf) return;
   SDL_Texture *tex = SDL_CreateTextureFromSurface(r, surf);
   SDL_Rect dst = { x, y, surf->w, surf->h };
+  SDL_FreeSurface(surf);
+  SDL_RenderCopy(r, tex, NULL, &dst);
+  SDL_DestroyTexture(tex);
+}
+
+static void draw_text_centered(SDL_Renderer *r, TTF_Font *font, int cx, int y, SDL_Color color, const char *text) {
+  if (!font) return;
+  SDL_Surface *surf = TTF_RenderText_Blended(font, text, color);
+  if (!surf) return;
+  SDL_Texture *tex = SDL_CreateTextureFromSurface(r, surf);
+  SDL_Rect dst = { cx - surf->w / 2, y, surf->w, surf->h };
   SDL_FreeSurface(surf);
   SDL_RenderCopy(r, tex, NULL, &dst);
   SDL_DestroyTexture(tex);
@@ -966,10 +985,6 @@ static void game_reset(Game *g) {
   weapons_clear(p);
   for (int i = 0; i < SLOT_COUNT; i++) p->gear[i] = -1;
   p->passive_count = 0;
-  if (g->db.character_count > 0) {
-    CharacterDef *c = &g->db.characters[0];
-    stats_add(&p->base, &c->stats);
-  }
   build_start_page(g);
 }
 
@@ -1733,45 +1748,150 @@ static void render_game(Game *g) {
   }
 
   if (g->mode == MODE_START) {
-    SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(g->renderer, 10, 10, 20, 220);
-    SDL_Rect overlay = { 0, 0, WINDOW_W, WINDOW_H };
-    SDL_RenderFillRect(g->renderer, &overlay);
-    SDL_SetRenderDrawColor(g->renderer, 24, 30, 44, 255);
-    SDL_Rect panel = { 140, 100, WINDOW_W - 280, WINDOW_H - 200 };
-    SDL_RenderFillRect(g->renderer, &panel);
-    draw_text(g->renderer, g->font, 170, 120, text, "Choose your starting weapon");
+    /* Background */
+    SDL_SetRenderDrawColor(g->renderer, 8, 8, 12, 255);
+    SDL_RenderClear(g->renderer);
 
-    int per_page = 8;
-    int total = g->db.weapon_count;
-    int pages = (total + per_page - 1) / per_page;
-    if (pages < 1) pages = 1;
-    char pagebuf[64];
-    snprintf(pagebuf, sizeof(pagebuf), "Page %d / %d (Left/Right)", g->start_page + 1, pages);
-    draw_text(g->renderer, g->font, 170, 140, text, pagebuf);
+    int split_x = (WINDOW_W * 2) / 3;
+
+    /* Right Panel Background */
+    SDL_Rect right_panel = { split_x, 0, WINDOW_W - split_x, WINDOW_H };
+    SDL_SetRenderDrawColor(g->renderer, 12, 14, 20, 255);
+    SDL_RenderFillRect(g->renderer, &right_panel);
+    SDL_SetRenderDrawColor(g->renderer, 40, 45, 60, 255);
+    SDL_RenderDrawLine(g->renderer, split_x, 0, split_x, WINDOW_H);
+
+    /* Left Panel: Character Grid */
+    int margin = 25;
+    int cols = 4;
+    int name_area_h = 32;  /* Space below card for name */
+    int card_w = (split_x - margin * 2 - (cols - 1) * 20) / cols;
+    int card_h = card_w + 20;  /* Slightly taller than wide for portrait */
+    int total_h = card_h + name_area_h;
+    int start_y = 90;
+    
+    /* Title */
+    draw_text_centered(g->renderer, g->font_title, split_x / 2, 30, (SDL_Color){255, 215, 100, 255}, "SELECT YOUR CHARACTER");
+    draw_text_centered(g->renderer, g->font, split_x / 2, 58, (SDL_Color){100, 100, 120, 255}, "Click to choose - Hover for details");
+    
+    /* Mouse for hover */
+    int mx, my;
+    SDL_GetMouseState(&mx, &my);
+    int hovered_idx = -1;
 
     int shown = g->choice_count;
-    int cols = 2;
-    int rows = (shown + cols - 1) / cols;
-    int card_w = 240;
-    int card_h = 90;
-    int start_x = 200;
-    int start_y = 180;
     for (int i = 0; i < shown; i++) {
       int col = i % cols;
       int row = i / cols;
-      SDL_Rect r = { start_x + col * (card_w + 16), start_y + row * (card_h + 14), card_w, card_h };
-      SDL_SetRenderDrawColor(g->renderer, 30, 36, 50, 255);
-      SDL_RenderFillRect(g->renderer, &r);
-      SDL_SetRenderDrawColor(g->renderer, 80, 90, 110, 255);
-      SDL_RenderDrawRect(g->renderer, &r);
-      WeaponDef *w = &g->db.weapons[g->choices[i].index];
-      SDL_Color rc = rarity_color(w->rarity);
-      draw_text(g->renderer, g->font, r.x + 8, r.y + 8, rc, w->name);
-      char info[64];
-      snprintf(info, sizeof(info), "DMG %.0f  CD %.2f", w->damage, w->cooldown);
-      draw_text(g->renderer, g->font, r.x + 8, r.y + 36, text, info);
-      g->choices[i].rect = r;
+      int card_x = margin + col * (card_w + 20);
+      int card_y = start_y + row * (total_h + 12);
+      SDL_Rect r = { card_x, card_y, card_w, card_h };
+      
+      /* Full clickable area includes name */
+      SDL_Rect click_r = { card_x, card_y, card_w, total_h };
+      g->choices[i].rect = click_r;
+
+      int hovered = (mx >= click_r.x && mx <= click_r.x + click_r.w && my >= click_r.y && my <= click_r.y + click_r.h);
+      if (hovered) hovered_idx = i;
+
+      int char_idx = g->choices[i].index;
+      CharacterDef *c = &g->db.characters[char_idx];
+      
+      /* Portrait fills the entire card */
+      if (g->tex_portraits[char_idx]) {
+        SDL_RenderCopy(g->renderer, g->tex_portraits[char_idx], NULL, &r);
+      } else {
+        /* Fallback - draw placeholder */
+        SDL_SetRenderDrawColor(g->renderer, 30, 35, 50, 255);
+        SDL_RenderFillRect(g->renderer, &r);
+        draw_text_centered(g->renderer, g->font_title, r.x + card_w/2, r.y + card_h/2 - 10, (SDL_Color){60, 65, 80, 255}, "?");
+      }
+      
+      /* Border - thicker gold glow for hovered */
+      if (hovered) {
+        /* Outer glow */
+        SDL_SetRenderDrawColor(g->renderer, 180, 150, 60, 100);
+        SDL_Rect glow1 = { r.x - 3, r.y - 3, r.w + 6, r.h + 6 };
+        SDL_RenderDrawRect(g->renderer, &glow1);
+        SDL_Rect glow2 = { r.x - 2, r.y - 2, r.w + 4, r.h + 4 };
+        SDL_RenderDrawRect(g->renderer, &glow2);
+        /* Main border */
+        SDL_SetRenderDrawColor(g->renderer, 220, 190, 90, 255);
+        SDL_RenderDrawRect(g->renderer, &r);
+      } else {
+        SDL_SetRenderDrawColor(g->renderer, 50, 55, 70, 255);
+        SDL_RenderDrawRect(g->renderer, &r);
+      }
+      
+      /* Character name centered below portrait */
+      SDL_Color name_color = hovered ? (SDL_Color){ 255, 220, 120, 255 } : (SDL_Color){ 180, 180, 200, 255 };
+      int name_y = card_y + card_h + 6;
+      draw_text_centered(g->renderer, g->font_title, card_x + card_w / 2, name_y, name_color, c->name);
+    }
+
+    /* Right Panel: Details */
+    if (hovered_idx >= 0) {
+      int char_idx = g->choices[hovered_idx].index;
+      CharacterDef *c = &g->db.characters[char_idx];
+      int rx = split_x + 20;
+      int ry = 30;
+      int panel_w = WINDOW_W - split_x - 40;
+      
+      /* Large portrait on right panel */
+      int big_portrait_size = 200;
+      SDL_Rect big_portrait = { rx + (panel_w - big_portrait_size) / 2, ry, big_portrait_size, big_portrait_size };
+      if (g->tex_portraits[char_idx]) {
+        SDL_RenderCopy(g->renderer, g->tex_portraits[char_idx], NULL, &big_portrait);
+        /* Gold border */
+        SDL_SetRenderDrawColor(g->renderer, 200, 170, 80, 255);
+        SDL_RenderDrawRect(g->renderer, &big_portrait);
+      }
+      ry += big_portrait_size + 15;
+      
+      /* Character name centered */
+      draw_text_centered(g->renderer, g->font_title, rx + panel_w / 2, ry, (SDL_Color){255, 215, 100, 255}, c->name);
+      ry += 30;
+      
+      /* Passive Bonuses */
+      draw_text(g->renderer, g->font, rx, ry, (SDL_Color){150, 150, 170, 255}, "Passive Bonuses:");
+      ry += 20;
+      char sbuf[128];
+      Stats *s = &c->stats;
+      int has_bonus = 0;
+      if (s->max_hp != 0) { snprintf(sbuf, sizeof(sbuf), "Max HP: %+.0f", s->max_hp); draw_text(g->renderer, g->font, rx + 10, ry, s->max_hp > 0 ? (SDL_Color){100, 220, 100, 255} : (SDL_Color){220, 100, 100, 255}, sbuf); ry += 17; has_bonus = 1; }
+      if (s->damage != 0) { snprintf(sbuf, sizeof(sbuf), "Damage: %+.0f%%", s->damage * 100); draw_text(g->renderer, g->font, rx + 10, ry, s->damage > 0 ? (SDL_Color){100, 220, 100, 255} : (SDL_Color){220, 100, 100, 255}, sbuf); ry += 17; has_bonus = 1; }
+      if (s->attack_speed != 0) { snprintf(sbuf, sizeof(sbuf), "Atk Speed: %+.0f%%", s->attack_speed * 100); draw_text(g->renderer, g->font, rx + 10, ry, s->attack_speed > 0 ? (SDL_Color){100, 220, 100, 255} : (SDL_Color){220, 100, 100, 255}, sbuf); ry += 17; has_bonus = 1; }
+      if (s->move_speed != 0) { snprintf(sbuf, sizeof(sbuf), "Speed: %+.0f%%", s->move_speed * 100); draw_text(g->renderer, g->font, rx + 10, ry, s->move_speed > 0 ? (SDL_Color){100, 220, 100, 255} : (SDL_Color){220, 100, 100, 255}, sbuf); ry += 17; has_bonus = 1; }
+      if (s->armor != 0) { snprintf(sbuf, sizeof(sbuf), "Armor: %+.0f", s->armor); draw_text(g->renderer, g->font, rx + 10, ry, s->armor > 0 ? (SDL_Color){100, 220, 100, 255} : (SDL_Color){220, 100, 100, 255}, sbuf); ry += 17; has_bonus = 1; }
+      if (s->dodge != 0) { snprintf(sbuf, sizeof(sbuf), "Dodge: %+.0f%%", s->dodge * 100); draw_text(g->renderer, g->font, rx + 10, ry, s->dodge > 0 ? (SDL_Color){100, 220, 100, 255} : (SDL_Color){220, 100, 100, 255}, sbuf); ry += 17; has_bonus = 1; }
+      if (!has_bonus) { draw_text(g->renderer, g->font, rx + 10, ry, (SDL_Color){100, 100, 120, 255}, "None"); ry += 17; }
+      
+      ry += 12;
+      draw_text(g->renderer, g->font, rx, ry, (SDL_Color){150, 150, 170, 255}, "Starting Weapon:");
+      ry += 20;
+      int widx = find_weapon(&g->db, c->weapon);
+      if (widx >= 0) {
+        WeaponDef *w = &g->db.weapons[widx];
+        draw_text(g->renderer, g->font, rx + 10, ry, (SDL_Color){100, 180, 255, 255}, w->name);
+        ry += 18;
+        snprintf(sbuf, sizeof(sbuf), "DMG: %.0f  CD: %.2fs", w->damage, w->cooldown);
+        draw_text(g->renderer, g->font, rx + 10, ry, text, sbuf);
+        ry += 17;
+        snprintf(sbuf, sizeof(sbuf), "Range: %.0f  Type: %s", w->range, w->type);
+        draw_text(g->renderer, g->font, rx + 10, ry, text, sbuf);
+      }
+      
+      if (c->rule[0]) {
+        ry += 22;
+        draw_text(g->renderer, g->font, rx, ry, (SDL_Color){255, 150, 100, 255}, "Special Rule:");
+        ry += 20;
+        draw_text(g->renderer, g->font, rx + 10, ry, (SDL_Color){200, 180, 150, 255}, c->rule);
+      }
+    } else {
+      int rx = split_x + 20;
+      int panel_w = WINDOW_W - split_x - 40;
+      draw_text_centered(g->renderer, g->font, rx + panel_w / 2, WINDOW_H / 2 - 20, (SDL_Color){80, 80, 100, 255}, "Hover over a character");
+      draw_text_centered(g->renderer, g->font, rx + panel_w / 2, WINDOW_H / 2 + 5, (SDL_Color){80, 80, 100, 255}, "to see details");
     }
   }
 
@@ -1878,9 +1998,29 @@ int main(int argc, char **argv) {
   if (game.tex_lightning_zone) log_line("Loaded lightning_zone.png");
   else log_linef("Failed to load lightning_zone.png: %s", IMG_GetError());
   
-  game.font = TTF_OpenFont("C:/Windows/Fonts/verdana.ttf", 16);
+  /* Load character portraits */
+  for (int i = 0; i < game.db.character_count && i < MAX_CHARACTERS; i++) {
+    char portrait_path[128];
+    snprintf(portrait_path, sizeof(portrait_path), "data/assets/portraits/%s", game.db.characters[i].portrait);
+    game.tex_portraits[i] = IMG_LoadTexture(game.renderer, portrait_path);
+    if (game.tex_portraits[i]) log_linef("Loaded portrait: %s", game.db.characters[i].portrait);
+    else log_linef("Failed to load portrait %s: %s", game.db.characters[i].portrait, IMG_GetError());
+  }
+  
+  game.font = TTF_OpenFont("C:/Windows/Fonts/verdana.ttf", 14);
   if (!game.font) {
     log_linef("Font load failed. Continuing without text. %s", TTF_GetError());
+  }
+  /* Try to load a nicer game font for titles - Impact or Georgia Bold */
+  game.font_title = TTF_OpenFont("C:/Windows/Fonts/impact.ttf", 18);
+  if (!game.font_title) {
+    game.font_title = TTF_OpenFont("C:/Windows/Fonts/georgiab.ttf", 18);
+  }
+  if (!game.font_title) {
+    game.font_title = TTF_OpenFont("C:/Windows/Fonts/arialbd.ttf", 18);
+  }
+  if (!game.font_title) {
+    game.font_title = game.font; /* Fallback to regular font */
   }
   if (!game.window || !game.renderer) {
     log_linef("Window/renderer creation failed: %s", SDL_GetError());
@@ -1952,7 +2092,12 @@ int main(int argc, char **argv) {
         for (int i = 0; i < shown; i++) {
           SDL_Rect r = game.choices[i].rect;
           if (e.button.x >= r.x && e.button.x <= r.x + r.w && e.button.y >= r.y && e.button.y <= r.y + r.h) {
-            equip_weapon(&game.player, game.choices[i].index);
+            CharacterDef *c = &game.db.characters[game.choices[i].index];
+            /* Apply character stats to base */
+            stats_add(&game.player.base, &c->stats);
+            /* Equip starting weapon */
+            int widx = find_weapon(&game.db, c->weapon);
+            if (widx >= 0) equip_weapon(&game.player, widx);
             wave_start(&game);
           }
         }
@@ -1983,7 +2128,11 @@ int main(int argc, char **argv) {
   if (game.tex_player) SDL_DestroyTexture(game.tex_player);
   if (game.tex_enemy_bolt) SDL_DestroyTexture(game.tex_enemy_bolt);
   if (game.tex_lightning_zone) SDL_DestroyTexture(game.tex_lightning_zone);
+  for (int i = 0; i < MAX_CHARACTERS; i++) {
+    if (game.tex_portraits[i]) SDL_DestroyTexture(game.tex_portraits[i]);
+  }
   TTF_CloseFont(game.font);
+  if (game.font_title) TTF_CloseFont(game.font_title);
   SDL_DestroyRenderer(game.renderer);
   SDL_DestroyWindow(game.window);
   IMG_Quit();

@@ -1,23 +1,66 @@
 {
   "characters": [
     {
+      "id": "mage",
+      "name": "Mage",
+      "portrait": "mage.png",
+      "weapon": "wand",
+      "stats": {"damage": 0.15, "max_hp": -20},
+      "rule": "magic_only"
+    },
+    {
+      "id": "reaper",
+      "name": "Reaper",
+      "portrait": "repear.png",
+      "weapon": "scythe",
+      "stats": {"damage": 0.1, "attack_speed": 0.05},
+      "rule": "lifesteal"
+    },
+    {
+      "id": "rogue",
+      "name": "Rogue",
+      "portrait": "rogue.png",
+      "weapon": "daggers",
+      "stats": {"attack_speed": 0.2, "dodge": 0.1, "armor": -2},
+      "rule": "crit_bonus"
+    },
+    {
+      "id": "shapeshifter",
+      "name": "Shapeshifter",
+      "portrait": "shapeshifter.png",
+      "weapon": "fists",
+      "stats": {"max_hp": 30, "move_speed": 0.15},
+      "rule": "adapt"
+    },
+    {
+      "id": "vampire",
+      "name": "Vampire",
+      "portrait": "vampire.png",
+      "weapon": "chain_blades",
+      "stats": {"damage": 0.08, "max_hp": -10},
+      "rule": "lifesteal"
+    },
+    {
       "id": "gladiator",
       "name": "Gladiator",
+      "portrait": "gladiator.png",
       "weapon": "spear",
-      "stats": {"armor": 2, "damage": 0.1},
+      "stats": {"armor": 3, "damage": 0.1},
       "rule": "no_ranged"
     },
     {
       "id": "gunslinger",
       "name": "Gunslinger",
+      "portrait": "gunslinger.png",
       "weapon": "pistol",
-      "stats": {"crit": 0.08, "max_hp": -10},
+      "stats": {"attack_speed": 0.15, "max_hp": -15},
       "rule": "no_melee"
     },
     {
       "id": "engineer",
       "name": "Engineer",
-      "weapon": "pistol",
+      "portrait": "engineer.png",
+      "weapon": "crossbow",
       "stats": {"damage": -0.05, "attack_speed": 0.1},
       "rule": "turret_bonus"
     }
