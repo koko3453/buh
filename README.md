@@ -30,13 +30,7 @@ tools\vcpkg\vcpkg install sdl2 sdl2-ttf sdl2-image --triplet=x64-windows
 ```
 
 ### 3. Add assets
-Create `data/assets/` folder and add your sprites:
-- `player.png` - Player sprite
-- `goo_green.png` - Enemy sprite  
-- `goo_bolt.png` - Enemy projectile
-- `hd_ground_tile.png` - Ground tile
-- `wall.png` - Wall tile
-- `health_flask.png` - Health pickup
+Create `data/assets/` folder and add your sprites
 
 ### 4. Build
 ```bash
