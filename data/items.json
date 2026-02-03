@@ -334,6 +334,24 @@
       "tags": ["armor"],
       "stats": {"damage": 0.12, "attack_speed": 0.08},
       "desc": "+12% Dmg, +8% AS"
+    },
+    {
+      "id": "frost_blade",
+      "name": "Frost Blade",
+      "rarity": "rare",
+      "tags": ["melee", "frost"],
+      "stats": {"damage": 0.08},
+      "slow_on_hit": 0.35,
+      "desc": "35% slow on hit, +8% Dmg"
+    },
+    {
+      "id": "frozen_heart",
+      "name": "Frozen Heart",
+      "rarity": "epic",
+      "tags": ["frost", "survivor"],
+      "stats": {"max_hp": 30, "armor": 2},
+      "slow_aura": 120,
+      "desc": "Slows nearby enemies (120 range)"
     }
   ]
 }

@@ -172,6 +172,8 @@ typedef struct {
   int proc_bounces;
   float proc_chance;
   float proc_damage;
+  float slow_on_hit;    /* chance to slow enemy on autoattack (0.0-1.0) */
+  float slow_aura;      /* range for slowing nearby enemies (0 = disabled) */
 } ItemDef;
 
 typedef struct {
@@ -264,6 +266,7 @@ typedef struct {
   float value;
   float ttl;
   float magnet_speed; /* current attraction speed */
+  int magnetized;     /* once true, keeps flying toward player */
 } Drop;
 
 typedef struct {
@@ -321,6 +324,7 @@ typedef struct {
   SDL_Texture *tex_scythe;
   SDL_Texture *tex_bite;
   SDL_Texture *tex_dagger;
+  SDL_Texture *tex_exp_orb;
   int running;
   GameMode mode;
   float time_scale;
@@ -615,6 +619,12 @@ static int load_items(Database *db, const char *path) {
       if (dmg > 0) it->proc_damage = token_float(json, &tokens[dmg]);
       if (bounces > 0) it->proc_bounces = token_int(json, &tokens[bounces]);
     }
+    
+    /* Parse slow effects */
+    int slow_hit = find_key(json, tokens, obj, "slow_on_hit");
+    int slow_aura = find_key(json, tokens, obj, "slow_aura");
+    if (slow_hit > 0) it->slow_on_hit = token_float(json, &tokens[slow_hit]);
+    if (slow_aura > 0) it->slow_aura = token_float(json, &tokens[slow_aura]);
 
     idx += token_span(tokens, idx);
   }
@@ -740,6 +750,46 @@ static Stats player_total_stats(Player *p) {
   s.move_speed = clampf(s.move_speed, -0.3f, 2.0f);
   s.dodge = clampf(s.dodge, 0.0f, 0.75f);
   return s;
+}
+
+/* Get total slow_on_hit chance from all equipped/passive items */
+static float player_slow_on_hit(Player *p, Database *db) {
+  float total = 0.0f;
+  for (int i = 0; i < SLOT_COUNT; i++) {
+    int idx = p->gear[i];
+    if (idx >= 0 && idx < db->item_count) {
+      total += db->items[idx].slow_on_hit;
+    }
+  }
+  for (int i = 0; i < p->passive_count; i++) {
+    int idx = p->passive_items[i];
+    if (idx >= 0 && idx < db->item_count) {
+      total += db->items[idx].slow_on_hit;
+    }
+  }
+  return clampf(total, 0.0f, 1.0f);
+}
+
+/* Get max slow_aura range from all equipped/passive items */
+static float player_slow_aura(Player *p, Database *db) {
+  float max_range = 0.0f;
+  for (int i = 0; i < SLOT_COUNT; i++) {
+    int idx = p->gear[i];
+    if (idx >= 0 && idx < db->item_count) {
+      if (db->items[idx].slow_aura > max_range) {
+        max_range = db->items[idx].slow_aura;
+      }
+    }
+  }
+  for (int i = 0; i < p->passive_count; i++) {
+    int idx = p->passive_items[i];
+    if (idx >= 0 && idx < db->item_count) {
+      if (db->items[idx].slow_aura > max_range) {
+        max_range = db->items[idx].slow_aura;
+      }
+    }
+  }
+  return max_range;
 }
 
 static float damage_after_armor(float dmg, float armor) {
@@ -1025,7 +1075,7 @@ static void game_reset(Game *g) {
   g->camera_x = clampf(g->camera_x, 0.0f, ARENA_W - VIEW_W);
   g->camera_y = clampf(g->camera_y, 0.0f, ARENA_H - VIEW_H);
   p->base = (Stats){0};
-  p->base.max_hp = 100;
+  p->base.max_hp = 1100;
   p->base.move_speed = 1.0f;
   p->hp = p->base.max_hp;
   stats_clear(&p->bonus);
@@ -1073,7 +1123,9 @@ static void handle_player_pickups(Game *g, float dt) {
         d->active = 0;
         continue;
       }
-      if (dist < xp_magnet_range) {
+      /* Once magnetized, keep flying until picked up */
+      if (dist < xp_magnet_range || d->magnetized) {
+        d->magnetized = 1;
         /* Accelerate magnet speed over time */
         d->magnet_speed += 400.0f * dt;
         if (d->magnet_speed > 600.0f) d->magnet_speed = 600.0f;
@@ -1194,6 +1246,12 @@ static void update_enemies(Game *g, float dt) {
     if (e->slow_timer > 0.0f) e->slow_timer -= dt;
     if (e->stun_timer > 0.0f) e->stun_timer -= dt;
     if (e->armor_shred_timer > 0.0f) e->armor_shred_timer -= dt;
+    
+    /* Slow aura from items - constantly slows enemies in range */
+    float aura_range = player_slow_aura(p, &g->db);
+    if (aura_range > 0.0f && dist < aura_range) {
+      e->slow_timer = 0.5f; /* Keep refreshing while in range */
+    }
 
     if (e->stun_timer <= 0.0f &&
         (strcmp(def->role, "ranged") == 0 || strcmp(def->role, "boss") == 0 || strcmp(def->role, "turret") == 0)) {
@@ -1297,6 +1355,10 @@ static void fire_weapons(Game *g, float dt) {
 
     float bleed_chance, burn_chance, slow_chance, stun_chance, shred_chance;
     weapon_status_chances(w, &bleed_chance, &burn_chance, &slow_chance, &stun_chance, &shred_chance);
+    
+    /* Add slow chance from items */
+    slow_chance += player_slow_on_hit(p, &g->db);
+    slow_chance = clampf(slow_chance, 0.0f, 1.0f);
 
     /* Lightning Zone - damages all enemies in circular range */
     if (weapon_is(w, "lightning_zone")) {
@@ -1724,20 +1786,28 @@ static void render_game(Game *g) {
     int size = 32;
     if (strcmp(def->role, "boss") == 0) size = 48;
     
-    /* Status effect visuals */
+    /* Status effect visuals - burn glow only */
     if (g->enemies[i].burn_timer > 0.0f) {
       draw_glow(g->renderer, ex, ey, size/2 + 8, (SDL_Color){255, 100, 0, 100});
     }
-    if (g->enemies[i].slow_timer > 0.0f) {
-      draw_circle(g->renderer, ex, ey, size/2 + 4, (SDL_Color){100, 150, 255, 150});
-    }
     
-    /* Draw enemy sprite */
+    /* Draw enemy sprite with color tint for slow */
     if (g->tex_enemy) {
+      /* Tint blue when slowed */
+      if (g->enemies[i].slow_timer > 0.0f) {
+        SDL_SetTextureColorMod(g->tex_enemy, 150, 180, 255);
+      } else {
+        SDL_SetTextureColorMod(g->tex_enemy, 255, 255, 255);
+      }
       SDL_Rect dst = { ex - size/2, ey - size/2, size, size };
       SDL_RenderCopy(g->renderer, g->tex_enemy, NULL, &dst);
     } else {
-      draw_filled_circle(g->renderer, ex, ey, size/2, (SDL_Color){100, 200, 100, 255});
+      /* Fallback circle - tint blue when slowed */
+      if (g->enemies[i].slow_timer > 0.0f) {
+        draw_filled_circle(g->renderer, ex, ey, size/2, (SDL_Color){100, 150, 200, 255});
+      } else {
+        draw_filled_circle(g->renderer, ex, ey, size/2, (SDL_Color){100, 200, 100, 255});
+      }
     }
 
     /* Health bar for all enemies */
@@ -1895,9 +1965,14 @@ static void render_game(Game *g) {
     int dx = (int)(offset_x + g->drops[i].x - cam_x);
     int dy = (int)(offset_y + g->drops[i].y - cam_y);
     if (g->drops[i].type == 0) {
-      /* XP orb - blue/cyan */
-      draw_glow(g->renderer, dx, dy, 10, (SDL_Color){80, 180, 255, 80});
-      draw_filled_circle(g->renderer, dx, dy, 5, (SDL_Color){100, 200, 255, 255});
+      /* XP orb (0.6x size) */
+      if (g->tex_exp_orb) {
+        SDL_Rect dst = { dx - 7, dy - 7, 14, 14 };
+        SDL_RenderCopy(g->renderer, g->tex_exp_orb, NULL, &dst);
+      } else {
+        draw_glow(g->renderer, dx, dy, 6, (SDL_Color){80, 180, 255, 80});
+        draw_filled_circle(g->renderer, dx, dy, 3, (SDL_Color){100, 200, 255, 255});
+      }
     } else {
       /* Health pack */
       if (g->tex_health_flask) {
@@ -2268,6 +2343,17 @@ int main(int argc, char **argv) {
   
   /* Load textures */
   IMG_Init(IMG_INIT_PNG);
+  
+  /* Set window icon */
+  SDL_Surface *icon = IMG_Load("data/assets/game_icon.png");
+  if (icon) {
+    SDL_SetWindowIcon(game.window, icon);
+    SDL_FreeSurface(icon);
+    log_line("Window icon set");
+  } else {
+    log_linef("Failed to load game_icon.png: %s", IMG_GetError());
+  }
+  
   game.tex_ground = IMG_LoadTexture(game.renderer, "data/assets/hd_ground_tile.png");
   game.tex_wall = IMG_LoadTexture(game.renderer, "data/assets/wall.png");
   game.tex_enemy = IMG_LoadTexture(game.renderer, "data/assets/goo_green.png");
@@ -2300,6 +2386,9 @@ int main(int argc, char **argv) {
   game.tex_dagger = IMG_LoadTexture(game.renderer, "data/assets/weapons/dagger.png");
   if (game.tex_dagger) log_line("Loaded dagger sprite");
   else log_linef("Failed to load dagger sprite: %s", IMG_GetError());
+  game.tex_exp_orb = IMG_LoadTexture(game.renderer, "data/assets/exp_orb.png");
+  if (game.tex_exp_orb) log_line("Loaded exp_orb sprite");
+  else log_linef("Failed to load exp_orb.png: %s", IMG_GetError());
   
   /* Load character portraits */
   for (int i = 0; i < game.db.character_count && i < MAX_CHARACTERS; i++) {
@@ -2434,6 +2523,7 @@ int main(int argc, char **argv) {
   if (game.tex_scythe) SDL_DestroyTexture(game.tex_scythe);
   if (game.tex_bite) SDL_DestroyTexture(game.tex_bite);
   if (game.tex_dagger) SDL_DestroyTexture(game.tex_dagger);
+  if (game.tex_exp_orb) SDL_DestroyTexture(game.tex_exp_orb);
   for (int i = 0; i < MAX_CHARACTERS; i++) {
     if (game.tex_portraits[i]) SDL_DestroyTexture(game.tex_portraits[i]);
   }
