@@ -107,7 +107,7 @@ enum {
 #define VIEW_W 1180
 #define VIEW_H 640
 
-#define MAX_LEVELUP_CHOICES 4
+#define MAX_LEVELUP_CHOICES 16
 
 typedef struct {
   float damage;
@@ -272,6 +272,18 @@ typedef struct {
   SDL_Rect rect;
 } LevelUpChoice;
 
+/* Visual effect for weapon swings/attacks */
+#define MAX_WEAPON_FX 16
+typedef struct {
+  int active;
+  int type;       /* 0=scythe swing, 1=bite on enemy, 2=dagger projectile */
+  float x, y;
+  float angle;    /* direction of swing or projectile */
+  float timer;    /* animation progress */
+  float duration; /* total duration */
+  int target_enemy; /* for bite effect - which enemy */
+} WeaponFX;
+
 typedef enum {
   MODE_START,
   MODE_WAVE,
@@ -306,6 +318,9 @@ typedef struct {
   SDL_Texture *tex_enemy_bolt;
   SDL_Texture *tex_lightning_zone;
   SDL_Texture *tex_portraits[MAX_CHARACTERS];
+  SDL_Texture *tex_scythe;
+  SDL_Texture *tex_bite;
+  SDL_Texture *tex_dagger;
   int running;
   GameMode mode;
   float time_scale;
@@ -318,6 +333,7 @@ typedef struct {
   Enemy enemies[MAX_ENEMIES];
   Bullet bullets[MAX_BULLETS];
   Drop drops[MAX_DROPS];
+  WeaponFX weapon_fx[MAX_WEAPON_FX];
 
   float spawn_timer;
   int kills;
@@ -806,6 +822,36 @@ static void spawn_drop(Game *g, float x, float y, int type, float value) {
   }
 }
 
+/* Spawn weapon visual effect */
+static void spawn_weapon_fx(Game *g, int type, float x, float y, float angle, float duration, int target_enemy) {
+  for (int i = 0; i < MAX_WEAPON_FX; i++) {
+    if (!g->weapon_fx[i].active) {
+      WeaponFX *fx = &g->weapon_fx[i];
+      memset(fx, 0, sizeof(*fx));
+      fx->active = 1;
+      fx->type = type;
+      fx->x = x;
+      fx->y = y;
+      fx->angle = angle;
+      fx->timer = 0.0f;
+      fx->duration = duration;
+      fx->target_enemy = target_enemy;
+      return;
+    }
+  }
+}
+
+static void update_weapon_fx(Game *g, float dt) {
+  for (int i = 0; i < MAX_WEAPON_FX; i++) {
+    if (!g->weapon_fx[i].active) continue;
+    WeaponFX *fx = &g->weapon_fx[i];
+    fx->timer += dt;
+    if (fx->timer >= fx->duration) {
+      fx->active = 0;
+    }
+  }
+}
+
 static void weapons_clear(Player *p) {
   for (int i = 0; i < MAX_WEAPON_SLOTS; i++) {
     p->weapons[i].active = 0;
@@ -889,8 +935,9 @@ static void build_levelup_choices(Game *g) {
     return;
   }
   
-  /* Generate 4 random choices - mix of items and weapons */
-  for (int i = 0; i < MAX_LEVELUP_CHOICES; i++) {
+  /* Generate 3 random choices - mix of items and weapons */
+  int num_choices = 3;
+  for (int i = 0; i < num_choices; i++) {
     int type = rand() % 3; /* 0,1 = item (66%), 2 = weapon (33%) */
     if (type < 2 && g->db.item_count > 0) {
       int idx = rand() % g->db.item_count;
@@ -1310,11 +1357,142 @@ static void fire_weapons(Game *g, float dt) {
       continue;
     }
 
+    /* Scythe - 180 degree half-circle swing */
+    if (weapon_is(w, "scythe")) {
+      float range = w->range;
+      float arc_deg = 180.0f;  /* Half circle */
+      float arc_cos = cosf(arc_deg * 0.5f * (3.14159f / 180.0f)); /* cos(90) = 0, so anything in front half */
+      float base_angle = atan2f(ty, tx);
+      
+      /* Spawn swing visual effect */
+      spawn_weapon_fx(g, 0, p->x, p->y, base_angle, 0.35f, -1);
+      
+      for (int e = 0; e < MAX_ENEMIES; e++) {
+        if (!g->enemies[e].active) continue;
+        float ex = g->enemies[e].x - p->x;
+        float ey = g->enemies[e].y - p->y;
+        float d2 = ex * ex + ey * ey;
+        if (d2 > range * range) continue;
+        float len = sqrtf(d2);
+        if (len < 0.001f) len = 0.001f;
+        float nx = ex / len;
+        float ny = ey / len;
+        float dot = nx * tx + ny * ty;
+        if (dot >= arc_cos) {  /* In front 180 degrees */
+          Enemy *en = &g->enemies[e];
+          if (en->spawn_invuln > 0.0f) continue;
+          float final_dmg = damage;
+          if (en->armor_shred_timer > 0.0f) final_dmg *= 1.2f;
+          en->hp -= final_dmg;
+          if (bleed_chance > 0.0f && frandf() < bleed_chance) {
+            en->bleed_stacks = (en->bleed_stacks < 5) ? en->bleed_stacks + 1 : 5;
+            en->bleed_timer = 4.0f;
+          }
+          /* Lifesteal on kill */
+          if (en->hp <= 0.0f) {
+            p->hp = clampf(p->hp + 6.0f, 0.0f, stats.max_hp);
+          }
+        }
+      }
+      float level_cd = clampf(1.0f - 0.05f * (slot->level - 1), 0.7f, 1.0f);
+      slot->cd_timer = w->cooldown * cooldown_scale * level_cd;
+      continue;
+    }
+
+    /* Vampire Bite - pulsates around player, bites enemies in range */
+    if (weapon_is(w, "vampire_bite")) {
+      float range = w->range;
+      float range2 = range * range;
+      int hits = 0;
+      for (int e = 0; e < MAX_ENEMIES; e++) {
+        if (!g->enemies[e].active) continue;
+        Enemy *en = &g->enemies[e];
+        if (en->spawn_invuln > 0.0f) continue;
+        float ex = en->x - p->x;
+        float ey = en->y - p->y;
+        float d2 = ex * ex + ey * ey;
+        if (d2 <= range2) {
+          float final_dmg = damage;
+          if (en->armor_shred_timer > 0.0f) final_dmg *= 1.2f;
+          en->hp -= final_dmg;
+          /* Spawn bite effect on enemy */
+          spawn_weapon_fx(g, 1, en->x, en->y, 0.0f, 0.6f, e);
+          /* Lifesteal */
+          p->hp = clampf(p->hp + final_dmg * 0.15f, 0.0f, stats.max_hp);
+          hits++;
+        }
+      }
+      float level_cd = clampf(1.0f - 0.05f * (slot->level - 1), 0.7f, 1.0f);
+      slot->cd_timer = w->cooldown * cooldown_scale * level_cd;
+      continue;
+    }
+
+    /* Daggers - throw at up to 3 targets in range */
+    if (weapon_is(w, "daggers")) {
+      float range = w->range;
+      float range2 = range * range;
+      int max_targets = 3 + (slot->level - 1); /* More targets at higher levels */
+      if (max_targets > 6) max_targets = 6;
+      
+      /* Find up to max_targets enemies in range, sorted by distance */
+      int targets[6] = {-1, -1, -1, -1, -1, -1};
+      float dists[6] = {999999.0f, 999999.0f, 999999.0f, 999999.0f, 999999.0f, 999999.0f};
+      
+      for (int e = 0; e < MAX_ENEMIES; e++) {
+        if (!g->enemies[e].active) continue;
+        if (g->enemies[e].spawn_invuln > 0.0f) continue;
+        float ex = g->enemies[e].x - p->x;
+        float ey = g->enemies[e].y - p->y;
+        float d2 = ex * ex + ey * ey;
+        if (d2 > range2) continue;
+        
+        /* Insert into sorted list */
+        for (int t = 0; t < max_targets; t++) {
+          if (d2 < dists[t]) {
+            /* Shift others down */
+            for (int s = max_targets - 1; s > t; s--) {
+              targets[s] = targets[s-1];
+              dists[s] = dists[s-1];
+            }
+            targets[t] = e;
+            dists[t] = d2;
+            break;
+          }
+        }
+      }
+      
+      /* Throw dagger at each target */
+      float speed = w->projectile_speed > 0 ? w->projectile_speed : 400.0f;
+      for (int t = 0; t < max_targets; t++) {
+        if (targets[t] < 0) continue;
+        Enemy *en = &g->enemies[targets[t]];
+        float dx = en->x - p->x;
+        float dy = en->y - p->y;
+        vec_norm(&dx, &dy);
+        float angle = atan2f(dy, dx);
+        
+        /* Spawn dagger visual and damage */
+        spawn_weapon_fx(g, 2, p->x, p->y, angle, 0.25f, targets[t]);
+        
+        float final_dmg = damage;
+        if (en->armor_shred_timer > 0.0f) final_dmg *= 1.2f;
+        en->hp -= final_dmg;
+        if (bleed_chance > 0.0f && frandf() < bleed_chance) {
+          en->bleed_stacks = (en->bleed_stacks < 5) ? en->bleed_stacks + 1 : 5;
+          en->bleed_timer = 4.0f;
+        }
+      }
+      
+      float level_cd = clampf(1.0f - 0.05f * (slot->level - 1), 0.7f, 1.0f);
+      slot->cd_timer = w->cooldown * cooldown_scale * level_cd;
+      continue;
+    }
+
     if (weapon_is(w, "sword") || weapon_is(w, "short_sword") || weapon_is(w, "longsword") || weapon_is(w, "axe") ||
-        weapon_is(w, "greatsword") || weapon_is(w, "hammer") || weapon_is(w, "scythe") || weapon_is(w, "daggers") ||
+        weapon_is(w, "greatsword") || weapon_is(w, "hammer") ||
         weapon_is(w, "fists")) {
       float range = w->range;
-      float arc_deg = weapon_is(w, "axe") || weapon_is(w, "greatsword") || weapon_is(w, "hammer") || weapon_is(w, "scythe") ? 110.0f : 80.0f;
+      float arc_deg = weapon_is(w, "axe") || weapon_is(w, "greatsword") || weapon_is(w, "hammer") ? 110.0f : 80.0f;
       float arc_cos = cosf(arc_deg * (3.14159f / 180.0f));
       for (int e = 0; e < MAX_ENEMIES; e++) {
         if (!g->enemies[e].active) continue;
@@ -1341,9 +1519,6 @@ static void fire_weapons(Game *g, float dt) {
           if (slow_chance > 0.0f && frandf() < slow_chance) en->slow_timer = 2.5f;
           if (stun_chance > 0.0f && frandf() < stun_chance) en->stun_timer = 0.6f;
           if (shred_chance > 0.0f && frandf() < shred_chance) en->armor_shred_timer = 3.0f;
-          if (weapon_is(w, "scythe") && en->hp <= 0.0f) {
-            p->hp = clampf(p->hp + 6.0f, 0.0f, stats.max_hp);
-          }
         }
       }
       float level_cd = clampf(1.0f - 0.05f * (slot->level - 1), 0.7f, 1.0f);
@@ -1420,6 +1595,7 @@ static void update_game(Game *g, float dt) {
 
   fire_weapons(g, dt);
   update_bullets(g, dt);
+  update_weapon_fx(g, dt);
   update_enemies(g, dt);
   handle_player_pickups(g, dt);
 
@@ -1593,6 +1769,122 @@ static void render_game(Game *g) {
       } else {
         draw_glow(g->renderer, bx, by, 8, (SDL_Color){255, 100, 100, 80});
         draw_filled_circle(g->renderer, bx, by, 4, (SDL_Color){255, 120, 120, 255});
+      }
+    }
+  }
+
+  /* Weapon visual effects */
+  for (int i = 0; i < MAX_WEAPON_FX; i++) {
+    if (!g->weapon_fx[i].active) continue;
+    WeaponFX *fx = &g->weapon_fx[i];
+    float progress = fx->timer / fx->duration;
+    
+    if (fx->type == 0) {
+      /* Scythe swing - half circle arc from player */
+      int fxx = (int)(offset_x + fx->x - cam_x);
+      int fxy = (int)(offset_y + fx->y - cam_y);
+      float base_angle = fx->angle;
+      float swing_progress = progress;  /* 0 to 1 over duration */
+      /* Swing from -90 to +90 degrees relative to facing direction */
+      float start_offset = -90.0f * (3.14159f / 180.0f);
+      float end_offset = 90.0f * (3.14159f / 180.0f);
+      float current_offset = start_offset + (end_offset - start_offset) * swing_progress;
+      float swing_angle = base_angle + current_offset;
+      
+      /* Draw arc trail */
+      int alpha = (int)(200 * (1.0f - progress));
+      SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
+      
+      /* Draw multiple lines for the swing arc trail */
+      float range = 120.0f;  /* Scythe range */
+      for (float trail = 0.0f; trail <= swing_progress; trail += 0.05f) {
+        float trail_offset = start_offset + (end_offset - start_offset) * trail;
+        float trail_angle = base_angle + trail_offset;
+        int trail_alpha = (int)(alpha * (trail / swing_progress) * 0.5f);
+        SDL_SetRenderDrawColor(g->renderer, 180, 60, 200, (Uint8)trail_alpha);
+        int ex = fxx + (int)(cosf(trail_angle) * range);
+        int ey = fxy + (int)(sinf(trail_angle) * range);
+        SDL_RenderDrawLine(g->renderer, fxx, fxy, ex, ey);
+      }
+      
+      /* Draw scythe sprite at current swing position */
+      if (g->tex_scythe) {
+        int sx = fxx + (int)(cosf(swing_angle) * range * 0.6f);
+        int sy = fxy + (int)(sinf(swing_angle) * range * 0.6f);
+        int scythe_size = 67;  /* 48 * 1.4 = ~67 */
+        SDL_Rect dst = { sx - scythe_size/2, sy - scythe_size/2, scythe_size, scythe_size };
+        /* Rotate sprite to match swing angle */
+        double angle_deg = swing_angle * (180.0 / 3.14159);
+        SDL_SetTextureAlphaMod(g->tex_scythe, (Uint8)alpha);
+        SDL_RenderCopyEx(g->renderer, g->tex_scythe, NULL, &dst, angle_deg + 90, NULL, SDL_FLIP_NONE);
+        SDL_SetTextureAlphaMod(g->tex_scythe, 255);
+      } else {
+        /* Fallback - draw a line for the scythe blade */
+        int ex = fxx + (int)(cosf(swing_angle) * range);
+        int ey = fxy + (int)(sinf(swing_angle) * range);
+        SDL_SetRenderDrawColor(g->renderer, 200, 80, 220, (Uint8)alpha);
+        SDL_RenderDrawLine(g->renderer, fxx, fxy, ex, ey);
+        /* Draw blade tip */
+        draw_filled_circle(g->renderer, ex, ey, 6, (SDL_Color){220, 100, 240, (Uint8)alpha});
+      }
+    }
+    else if (fx->type == 1) {
+      /* Vampire bite - appears on enemy */
+      int target = fx->target_enemy;
+      if (target >= 0 && target < MAX_ENEMIES && g->enemies[target].active) {
+        int ex = (int)(offset_x + g->enemies[target].x - cam_x);
+        int ey = (int)(offset_y + g->enemies[target].y - cam_y);
+        int alpha = (int)(255 * (1.0f - progress));
+        float scale = 0.5f + progress * 0.5f;  /* Grow from 0.5 to 1.0 */
+        int size = (int)(96 * scale);  /* 3x bigger (was 32) */
+        
+        if (g->tex_bite) {
+          SDL_Rect dst = { ex - size/2, ey - size/2, size, size };
+          SDL_SetTextureAlphaMod(g->tex_bite, (Uint8)alpha);
+          SDL_RenderCopy(g->renderer, g->tex_bite, NULL, &dst);
+          SDL_SetTextureAlphaMod(g->tex_bite, 255);
+        } else {
+          /* Fallback - red fangs effect */
+          SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
+          draw_glow(g->renderer, ex, ey, size/2, (SDL_Color){180, 0, 40, (Uint8)(alpha * 0.6f)});
+          /* Draw two fang marks */
+          draw_filled_circle(g->renderer, ex - 12, ey - 8, 6, (SDL_Color){220, 20, 60, (Uint8)alpha});
+          draw_filled_circle(g->renderer, ex + 12, ey - 8, 6, (SDL_Color){220, 20, 60, (Uint8)alpha});
+        }
+      }
+    }
+    else if (fx->type == 2) {
+      /* Dagger throw - travels from player to target */
+      int target = fx->target_enemy;
+      if (target >= 0 && target < MAX_ENEMIES) {
+        float start_x = fx->x;
+        float start_y = fx->y;
+        float end_x = g->enemies[target].active ? g->enemies[target].x : start_x + cosf(fx->angle) * 150.0f;
+        float end_y = g->enemies[target].active ? g->enemies[target].y : start_y + sinf(fx->angle) * 150.0f;
+        
+        /* Interpolate position */
+        float curr_x = start_x + (end_x - start_x) * progress;
+        float curr_y = start_y + (end_y - start_y) * progress;
+        
+        int dx = (int)(offset_x + curr_x - cam_x);
+        int dy = (int)(offset_y + curr_y - cam_y);
+        int alpha = progress < 0.8f ? 255 : (int)(255 * (1.0f - (progress - 0.8f) / 0.2f));
+        
+        if (g->tex_dagger) {
+          SDL_Rect dst = { dx - 12, dy - 12, 24, 24 };
+          double angle_deg = fx->angle * (180.0 / 3.14159);
+          SDL_SetTextureAlphaMod(g->tex_dagger, (Uint8)alpha);
+          SDL_RenderCopyEx(g->renderer, g->tex_dagger, NULL, &dst, angle_deg + 90, NULL, SDL_FLIP_NONE);
+          SDL_SetTextureAlphaMod(g->tex_dagger, 255);
+        } else {
+          /* Fallback - simple dagger shape */
+          SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
+          int tip_x = dx + (int)(cosf(fx->angle) * 10);
+          int tip_y = dy + (int)(sinf(fx->angle) * 10);
+          SDL_SetRenderDrawColor(g->renderer, 180, 180, 200, (Uint8)alpha);
+          SDL_RenderDrawLine(g->renderer, dx, dy, tip_x, tip_y);
+          draw_filled_circle(g->renderer, tip_x, tip_y, 3, (SDL_Color){200, 200, 220, (Uint8)alpha});
+        }
       }
     }
   }
@@ -1998,6 +2290,17 @@ int main(int argc, char **argv) {
   if (game.tex_lightning_zone) log_line("Loaded lightning_zone.png");
   else log_linef("Failed to load lightning_zone.png: %s", IMG_GetError());
   
+  /* Load weapon effect sprites */
+  game.tex_scythe = IMG_LoadTexture(game.renderer, "data/assets/weapons/sythe.png");
+  if (game.tex_scythe) log_line("Loaded scythe sprite");
+  else log_linef("Failed to load scythe sprite: %s", IMG_GetError());
+  game.tex_bite = IMG_LoadTexture(game.renderer, "data/assets/weapons/vampire_bite.png");
+  if (game.tex_bite) log_line("Loaded vampire bite sprite");
+  else log_linef("Failed to load vampire bite sprite: %s", IMG_GetError());
+  game.tex_dagger = IMG_LoadTexture(game.renderer, "data/assets/weapons/dagger.png");
+  if (game.tex_dagger) log_line("Loaded dagger sprite");
+  else log_linef("Failed to load dagger sprite: %s", IMG_GetError());
+  
   /* Load character portraits */
   for (int i = 0; i < game.db.character_count && i < MAX_CHARACTERS; i++) {
     char portrait_path[128];
@@ -2128,6 +2431,9 @@ int main(int argc, char **argv) {
   if (game.tex_player) SDL_DestroyTexture(game.tex_player);
   if (game.tex_enemy_bolt) SDL_DestroyTexture(game.tex_enemy_bolt);
   if (game.tex_lightning_zone) SDL_DestroyTexture(game.tex_lightning_zone);
+  if (game.tex_scythe) SDL_DestroyTexture(game.tex_scythe);
+  if (game.tex_bite) SDL_DestroyTexture(game.tex_bite);
+  if (game.tex_dagger) SDL_DestroyTexture(game.tex_dagger);
   for (int i = 0; i < MAX_CHARACTERS; i++) {
     if (game.tex_portraits[i]) SDL_DestroyTexture(game.tex_portraits[i]);
   }

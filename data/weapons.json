@@ -198,12 +198,12 @@
     {
       "id": "daggers",
       "name": "Daggers",
-      "type": "melee",
+      "type": "ranged",
       "rarity": "uncommon",
-      "cooldown": 0.28,
-      "damage": 7,
-      "range": 70,
-      "projectile_speed": 0,
+      "cooldown": 0.35,
+      "damage": 9,
+      "range": 180,
+      "projectile_speed": 450,
       "pierce": 0,
       "crit_multiplier": 2.0,
       "scales": ["damage", "attack_speed", "crit"]
@@ -291,6 +291,18 @@
       "projectile_speed": 0,
       "pierce": 0,
       "scales": ["damage", "attack_speed"]
+    },
+    {
+      "id": "vampire_bite",
+      "name": "Vampire Bite",
+      "type": "aura",
+      "rarity": "rare",
+      "cooldown": 1.2,
+      "damage": 18,
+      "range": 180,
+      "projectile_speed": 0,
+      "pierce": 0,
+      "scales": ["damage", "range"]
     },
     {
       "id": "fists",

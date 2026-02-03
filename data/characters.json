@@ -36,7 +36,7 @@
       "id": "vampire",
       "name": "Vampire",
       "portrait": "vampire.png",
-      "weapon": "chain_blades",
+      "weapon": "vampire_bite",
       "stats": {"damage": 0.08, "max_hp": -10},
       "rule": "lifesteal"
     },
