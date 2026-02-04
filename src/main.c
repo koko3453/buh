@@ -197,6 +197,7 @@ typedef struct {
   char weapon[32];
   Stats stats;
   char rule[24];
+  char ultimate[32];  /* unique ultimate ability id */
 } CharacterDef;
 
 typedef struct {
@@ -331,6 +332,8 @@ typedef struct {
   int debug_show_range;
   float ultimate_cd;
   int start_page;
+  int selected_character;  /* index into db.characters */
+  int rerolls;             /* rerolls remaining this run */
 
   Database db;
   Player player;
@@ -348,6 +351,7 @@ typedef struct {
 
   LevelUpChoice choices[MAX_LEVELUP_CHOICES];
   int choice_count;
+  SDL_Rect reroll_button;  /* reroll button rect for levelup screen */
   float camera_x;
   float camera_y;
 } Game;
@@ -714,11 +718,14 @@ static int load_characters(Database *db, const char *path) {
     int pt = find_key(json, tokens, obj, "portrait");
     int wt = find_key(json, tokens, obj, "weapon");
     int rt = find_key(json, tokens, obj, "rule");
+    int ut = find_key(json, tokens, obj, "ultimate");
     if (idt > 0) token_string(json, &tokens[idt], c->id, (int)sizeof(c->id));
     if (nt > 0) token_string(json, &tokens[nt], c->name, (int)sizeof(c->name));
     if (pt > 0) token_string(json, &tokens[pt], c->portrait, (int)sizeof(c->portrait));
     if (wt > 0) token_string(json, &tokens[wt], c->weapon, (int)sizeof(c->weapon));
     if (rt > 0) token_string(json, &tokens[rt], c->rule, (int)sizeof(c->rule));
+    if (ut > 0) token_string(json, &tokens[ut], c->ultimate, (int)sizeof(c->ultimate));
+    else strcpy(c->ultimate, "kill_all"); /* default ultimate */
     int stats = find_key(json, tokens, obj, "stats");
     if (stats > 0) parse_stats_object(json, tokens, stats, &c->stats);
     idx += token_span(tokens, idx);
@@ -1062,6 +1069,8 @@ static void game_reset(Game *g) {
   g->start_page = 0;
   g->ultimate_cd = 0.0f;
   g->choice_count = 0;
+  g->selected_character = -1;
+  g->rerolls = 2;  /* 2 rerolls per run */
   for (int i = 0; i < MAX_ENEMIES; i++) g->enemies[i].active = 0;
   for (int i = 0; i < MAX_BULLETS; i++) g->bullets[i].active = 0;
   for (int i = 0; i < MAX_DROPS; i++) g->drops[i].active = 0;
@@ -1605,12 +1614,29 @@ static void fire_weapons(Game *g, float dt) {
   }
 }
 
-/* Ultimate ability - kills all enemies on screen, 2 minute cooldown */
+/* Ultimate abilities - each character can have a unique one */
 static void ultimate_kill_all(Game *g) {
+  /* Default ultimate - kills all enemies on screen */
   for (int i = 0; i < MAX_ENEMIES; i++) {
     if (g->enemies[i].active) {
       g->enemies[i].hp = 0.0f;
     }
+  }
+}
+
+static void activate_ultimate(Game *g) {
+  /* Get character's ultimate type */
+  const char *ult_type = "kill_all";
+  if (g->selected_character >= 0 && g->selected_character < g->db.character_count) {
+    ult_type = g->db.characters[g->selected_character].ultimate;
+  }
+  
+  /* Dispatch to appropriate ultimate */
+  if (strcmp(ult_type, "kill_all") == 0) {
+    ultimate_kill_all(g);
+  } else {
+    /* Unknown ultimate - fallback to kill_all */
+    ultimate_kill_all(g);
   }
 }
 
@@ -2112,6 +2138,31 @@ static void render_game(Game *g) {
         draw_text(g->renderer, g->font, choice->rect.x + 8, choice->rect.y + 95, type_color, "WEAPON");
       }
     }
+    
+    /* Reroll button */
+    int btn_w = 140;
+    int btn_h = 36;
+    int btn_x = WINDOW_W / 2 - btn_w / 2;
+    int btn_y = 520;
+    g->reroll_button = (SDL_Rect){ btn_x, btn_y, btn_w, btn_h };
+    
+    if (g->rerolls > 0) {
+      /* Active button */
+      SDL_SetRenderDrawColor(g->renderer, 50, 70, 100, 255);
+      SDL_RenderFillRect(g->renderer, &g->reroll_button);
+      SDL_SetRenderDrawColor(g->renderer, 100, 140, 200, 255);
+      SDL_RenderDrawRect(g->renderer, &g->reroll_button);
+      char reroll_text[32];
+      snprintf(reroll_text, sizeof(reroll_text), "Reroll (%d)", g->rerolls);
+      draw_text_centered(g->renderer, g->font, btn_x + btn_w / 2, btn_y + 10, (SDL_Color){200, 220, 255, 255}, reroll_text);
+    } else {
+      /* Disabled button */
+      SDL_SetRenderDrawColor(g->renderer, 30, 35, 45, 255);
+      SDL_RenderFillRect(g->renderer, &g->reroll_button);
+      SDL_SetRenderDrawColor(g->renderer, 50, 55, 65, 255);
+      SDL_RenderDrawRect(g->renderer, &g->reroll_button);
+      draw_text_centered(g->renderer, g->font, btn_x + btn_w / 2, btn_y + 10, (SDL_Color){80, 85, 95, 255}, "No Rerolls");
+    }
   }
 
   if (g->mode == MODE_START) {
@@ -2281,6 +2332,14 @@ static void render_game(Game *g) {
 }
 
 static void handle_levelup_click(Game *g, int mx, int my) {
+  /* Check reroll button first */
+  SDL_Rect rb = g->reroll_button;
+  if (g->rerolls > 0 && mx >= rb.x && mx <= rb.x + rb.w && my >= rb.y && my <= rb.y + rb.h) {
+    g->rerolls--;
+    build_levelup_choices(g);
+    return;
+  }
+  
   for (int i = 0; i < g->choice_count; i++) {
     SDL_Rect r = g->choices[i].rect;
     if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
@@ -2469,7 +2528,7 @@ int main(int argc, char **argv) {
         if (game.mode == MODE_WAVE) {
           /* Ultimate ability - SPACE key, 2 minute cooldown */
           if (e.key.keysym.sym == SDLK_SPACE && game.ultimate_cd <= 0.0f) {
-            ultimate_kill_all(&game);
+            activate_ultimate(&game);
             game.ultimate_cd = 120.0f;  /* 2 minutes */
           }
         }
@@ -2485,6 +2544,7 @@ int main(int argc, char **argv) {
           SDL_Rect r = game.choices[i].rect;
           if (e.button.x >= r.x && e.button.x <= r.x + r.w && e.button.y >= r.y && e.button.y <= r.y + r.h) {
             CharacterDef *c = &game.db.characters[game.choices[i].index];
+            game.selected_character = game.choices[i].index;
             /* Apply character stats to base */
             stats_add(&game.player.base, &c->stats);
             /* Equip starting weapon */
