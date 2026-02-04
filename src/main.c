@@ -87,18 +87,7 @@ static LONG WINAPI crash_handler(EXCEPTION_POINTERS *e) {
 #define MAX_SHOP_SLOTS 12
 #define MAX_TAGS 6
 
-enum {
-  SLOT_HELMET = 0,
-  SLOT_CHEST,
-  SLOT_GLOVES,
-  SLOT_BOOTS,
-  SLOT_RING1,
-  SLOT_RING2,
-  SLOT_AMULET,
-  SLOT_RELIC,
-  SLOT_OFFHAND,
-  SLOT_COUNT
-};
+
 
 #define WINDOW_W 1280
 #define WINDOW_H 720
@@ -163,7 +152,6 @@ typedef struct {
   char id[32];
   char name[32];
   char rarity[16];
-  char slot[16];
   char desc[64];
   char tags[MAX_TAGS][16];
   int tag_count;
@@ -214,7 +202,6 @@ typedef struct {
   Stats base;
   Stats bonus;
   WeaponSlot weapons[MAX_WEAPON_SLOTS];
-  int gear[SLOT_COUNT];
   int passive_items[MAX_ITEMS];
   int passive_count;
 } Player;
@@ -592,14 +579,11 @@ static int load_items(Database *db, const char *path) {
     int idt = find_key(json, tokens, obj, "id");
     int nt = find_key(json, tokens, obj, "name");
     int rt = find_key(json, tokens, obj, "rarity");
-    int st = find_key(json, tokens, obj, "slot");
     int dt = find_key(json, tokens, obj, "desc");
     if (idt > 0) token_string(json, &tokens[idt], it->id, (int)sizeof(it->id));
     if (nt > 0) token_string(json, &tokens[nt], it->name, (int)sizeof(it->name));
     if (rt > 0) token_string(json, &tokens[rt], it->rarity, (int)sizeof(it->rarity));
-    if (st > 0) token_string(json, &tokens[st], it->slot, (int)sizeof(it->slot));
     if (dt > 0) token_string(json, &tokens[dt], it->desc, (int)sizeof(it->desc));
-    if (it->slot[0] == '\0') strcpy(it->slot, "passive");
 
     int tags = find_key(json, tokens, obj, "tags");
     if (tags > 0 && tokens[tags].type == JSMN_ARRAY) {
@@ -759,15 +743,9 @@ static Stats player_total_stats(Player *p) {
   return s;
 }
 
-/* Get total slow_on_hit chance from all equipped/passive items */
+/* Get total slow_on_hit chance from all passive items */
 static float player_slow_on_hit(Player *p, Database *db) {
   float total = 0.0f;
-  for (int i = 0; i < SLOT_COUNT; i++) {
-    int idx = p->gear[i];
-    if (idx >= 0 && idx < db->item_count) {
-      total += db->items[idx].slow_on_hit;
-    }
-  }
   for (int i = 0; i < p->passive_count; i++) {
     int idx = p->passive_items[i];
     if (idx >= 0 && idx < db->item_count) {
@@ -777,17 +755,9 @@ static float player_slow_on_hit(Player *p, Database *db) {
   return clampf(total, 0.0f, 1.0f);
 }
 
-/* Get max slow_aura range from all equipped/passive items */
+/* Get max slow_aura range from all passive items */
 static float player_slow_aura(Player *p, Database *db) {
   float max_range = 0.0f;
-  for (int i = 0; i < SLOT_COUNT; i++) {
-    int idx = p->gear[i];
-    if (idx >= 0 && idx < db->item_count) {
-      if (db->items[idx].slow_aura > max_range) {
-        max_range = db->items[idx].slow_aura;
-      }
-    }
-  }
   for (int i = 0; i < p->passive_count; i++) {
     int idx = p->passive_items[i];
     if (idx >= 0 && idx < db->item_count) {
@@ -943,46 +913,19 @@ static int can_equip_weapon(Player *p, int def_index) {
   return 0;
 }
 
-static int slot_from_string(const char *s) {
-  if (!s || s[0] == '\0') return -1;
-  if (strcmp(s, "helmet") == 0) return SLOT_HELMET;
-  if (strcmp(s, "chest") == 0) return SLOT_CHEST;
-  if (strcmp(s, "gloves") == 0) return SLOT_GLOVES;
-  if (strcmp(s, "boots") == 0) return SLOT_BOOTS;
-  if (strcmp(s, "amulet") == 0) return SLOT_AMULET;
-  if (strcmp(s, "relic") == 0) return SLOT_RELIC;
-  if (strcmp(s, "offhand") == 0) return SLOT_OFFHAND;
-  if (strcmp(s, "ring") == 0) return SLOT_RING1;
-  if (strcmp(s, "passive") == 0) return -1;
-  return -1;
-}
-
 static void player_recalc(Player *p, Database *db) {
   stats_clear(&p->bonus);
   for (int i = 0; i < p->passive_count; i++) {
     int idx = p->passive_items[i];
     if (idx >= 0 && idx < db->item_count) stats_add(&p->bonus, &db->items[idx].stats);
   }
-  for (int i = 0; i < SLOT_COUNT; i++) {
-    int idx = p->gear[i];
-    if (idx >= 0 && idx < db->item_count) stats_add(&p->bonus, &db->items[idx].stats);
-  }
 }
 
 static void apply_item(Player *p, Database *db, ItemDef *it, int item_index) {
-  int slot = slot_from_string(it->slot);
-  if (slot == -1) {
-    if (p->passive_count < MAX_ITEMS) {
-      p->passive_items[p->passive_count++] = item_index;
-    }
-  } else if (slot == SLOT_RING1) {
-    if (p->gear[SLOT_RING1] == -1) p->gear[SLOT_RING1] = item_index;
-    else if (p->gear[SLOT_RING2] == -1) p->gear[SLOT_RING2] = item_index;
-    else p->gear[SLOT_RING1] = item_index;
-  } else {
-    p->gear[slot] = item_index;
+  stats_add(&p->bonus, &it->stats);
+  if (p->passive_count < MAX_ITEMS) {
+    p->passive_items[p->passive_count++] = item_index;
   }
-  player_recalc(p, db);
 }
 
 static void build_levelup_choices(Game *g) {
@@ -1089,7 +1032,6 @@ static void game_reset(Game *g) {
   p->hp = p->base.max_hp;
   stats_clear(&p->bonus);
   weapons_clear(p);
-  for (int i = 0; i < SLOT_COUNT; i++) p->gear[i] = -1;
   p->passive_count = 0;
   build_start_page(g);
 }
@@ -2121,8 +2063,8 @@ static void render_game(Game *g) {
         SDL_Color stat_color = {140, 200, 140, 255};
         draw_text(g->renderer, g->font, choice->rect.x + 8, choice->rect.y + 52, stat_color, statline);
         
-        SDL_Color slot_color = {150, 150, 160, 255};
-        draw_text(g->renderer, g->font, choice->rect.x + 8, choice->rect.y + 95, slot_color, it->slot);
+        SDL_Color item_label_color = {150, 150, 160, 255};
+        draw_text(g->renderer, g->font, choice->rect.x + 8, choice->rect.y + 95, item_label_color, "ITEM");
       } else {
         WeaponDef *w = &g->db.weapons[choice->index];
         SDL_Color rc = rarity_color(w->rarity);

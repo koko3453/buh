@@ -33,7 +33,6 @@ static void test_stats_scaling() {
   db.item_count = 1;
   ItemDef *it = &db.items[0];
   memset(it, 0, sizeof(*it));
-  strcpy(it->slot, "helmet");
   it->stats.damage = 0.1f;
   it->stats.attack_speed = 0.1f;
   it->stats.max_hp = 50;
@@ -41,7 +40,6 @@ static void test_stats_scaling() {
   Player p;
   memset(&p, 0, sizeof(p));
   p.base.max_hp = 100;
-  for (int i = 0; i < SLOT_COUNT; i++) p.gear[i] = -1;
 
   apply_item(&p, &db, it, 0);
   Stats total = player_total_stats(&p);
@@ -78,7 +76,6 @@ static void test_json_item_stats_apply() {
   Player p;
   memset(&p, 0, sizeof(p));
   p.base.max_hp = 100;
-  for (int i = 0; i < SLOT_COUNT; i++) p.gear[i] = -1;
 
   apply_item(&p, &db, &db.items[ring_idx], ring_idx);
   Stats total = player_total_stats(&p);
