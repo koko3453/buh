@@ -321,6 +321,7 @@ typedef struct {
   int start_page;
   int selected_character;  /* index into db.characters */
   int rerolls;             /* rerolls remaining this run */
+  int high_roll_used;      /* 1 if high roll was used this run */
 
   Database db;
   Player player;
@@ -339,6 +340,7 @@ typedef struct {
   LevelUpChoice choices[MAX_LEVELUP_CHOICES];
   int choice_count;
   SDL_Rect reroll_button;  /* reroll button rect for levelup screen */
+  SDL_Rect highroll_button; /* high roll button rect for levelup screen */
   float camera_x;
   float camera_y;
 } Game;
@@ -1014,6 +1016,7 @@ static void game_reset(Game *g) {
   g->choice_count = 0;
   g->selected_character = -1;
   g->rerolls = 2;  /* 2 rerolls per run */
+  g->high_roll_used = 0;  /* high roll available once per run */
   for (int i = 0; i < MAX_ENEMIES; i++) g->enemies[i].active = 0;
   for (int i = 0; i < MAX_BULLETS; i++) g->bullets[i].active = 0;
   for (int i = 0; i < MAX_DROPS; i++) g->drops[i].active = 0;
@@ -2105,6 +2108,26 @@ static void render_game(Game *g) {
       SDL_RenderDrawRect(g->renderer, &g->reroll_button);
       draw_text_centered(g->renderer, g->font, btn_x + btn_w / 2, btn_y + 10, (SDL_Color){80, 85, 95, 255}, "No Rerolls");
     }
+    
+    /* High Roll button - below reroll button */
+    int hr_btn_y = btn_y + btn_h + 10;
+    g->highroll_button = (SDL_Rect){ btn_x, hr_btn_y, btn_w, btn_h };
+    
+    if (!g->high_roll_used) {
+      /* Active button - golden/yellow color for gambling feel */
+      SDL_SetRenderDrawColor(g->renderer, 90, 70, 20, 255);
+      SDL_RenderFillRect(g->renderer, &g->highroll_button);
+      SDL_SetRenderDrawColor(g->renderer, 200, 160, 60, 255);
+      SDL_RenderDrawRect(g->renderer, &g->highroll_button);
+      draw_text_centered(g->renderer, g->font, btn_x + btn_w / 2, hr_btn_y + 10, (SDL_Color){255, 220, 100, 255}, "High Roll!");
+    } else {
+      /* Disabled button */
+      SDL_SetRenderDrawColor(g->renderer, 30, 35, 45, 255);
+      SDL_RenderFillRect(g->renderer, &g->highroll_button);
+      SDL_SetRenderDrawColor(g->renderer, 50, 55, 65, 255);
+      SDL_RenderDrawRect(g->renderer, &g->highroll_button);
+      draw_text_centered(g->renderer, g->font, btn_x + btn_w / 2, hr_btn_y + 10, (SDL_Color){80, 85, 95, 255}, "Used");
+    }
   }
 
   if (g->mode == MODE_START) {
@@ -2279,6 +2302,48 @@ static void handle_levelup_click(Game *g, int mx, int my) {
   if (g->rerolls > 0 && mx >= rb.x && mx <= rb.x + rb.w && my >= rb.y && my <= rb.y + rb.h) {
     g->rerolls--;
     build_levelup_choices(g);
+    return;
+  }
+  
+  /* Check high roll button */
+  SDL_Rect hr = g->highroll_button;
+  if (!g->high_roll_used && mx >= hr.x && mx <= hr.x + hr.w && my >= hr.y && my <= hr.y + hr.h) {
+    g->high_roll_used = 1;
+    
+    /* Roll the dice: 60% for 1 item, 25% for 2 items, 10% for all 3, 5% for nothing */
+    float roll = frandf();
+    int items_to_grant = 0;
+    if (roll < 0.05f) {
+      items_to_grant = 0;  /* 5% - bad luck, get nothing */
+    } else if (roll < 0.65f) {
+      items_to_grant = 1;  /* 60% - get 1 item */
+    } else if (roll < 0.90f) {
+      items_to_grant = 2;  /* 25% - get 2 items */
+    } else {
+      items_to_grant = 3;  /* 10% - jackpot! get all 3 */
+    }
+    
+    /* Grant the items/weapons */
+    for (int i = 0; i < items_to_grant && i < g->choice_count; i++) {
+      if (g->choices[i].type == 0) {
+        ItemDef *it = &g->db.items[g->choices[i].index];
+        apply_item(&g->player, &g->db, it, g->choices[i].index);
+      } else {
+        int wi = g->choices[i].index;
+        if (can_equip_weapon(&g->player, wi)) {
+          equip_weapon(&g->player, wi);
+        } else {
+          for (int w = 0; w < MAX_WEAPON_SLOTS; w++) {
+            if (g->player.weapons[w].active && g->player.weapons[w].def_index == wi) {
+              g->player.weapons[w].level += 1;
+              break;
+            }
+          }
+        }
+      }
+    }
+    
+    g->mode = MODE_WAVE;
     return;
   }
   
