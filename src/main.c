@@ -317,6 +317,7 @@ typedef struct {
   GameMode mode;
   float time_scale;
   int debug_show_range;
+  int debug_show_items;   /* toggle with key 8 - shows item list */
   float ultimate_cd;
   int start_page;
   int selected_character;  /* index into db.characters */
@@ -1011,6 +1012,7 @@ static void game_reset(Game *g) {
   g->mode = MODE_START;
   g->time_scale = 1.0f;
   g->debug_show_range = 1;
+  g->debug_show_items = 0;  /* hidden by default, toggle with key 8 */
   g->start_page = 0;
   g->ultimate_cd = 0.0f;
   g->choice_count = 0;
@@ -2293,6 +2295,77 @@ static void render_game(Game *g) {
     draw_text(g->renderer, g->font, WINDOW_W / 2 - 80, WINDOW_H / 2 + 20, text, "Press R to restart");
   }
 
+  /* Debug item/weapon list panel (toggle with key 8) */
+  if (g->debug_show_items) {
+    int panel_w = 220;
+    int panel_x = WINDOW_W - panel_w - 10;
+    int panel_y = 10;
+    int line_h = 18;
+    
+    /* Semi-transparent background */
+    SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g->renderer, 0, 0, 0, 200);
+    int panel_h = 40 + (g->player.passive_count + 1) * line_h + 20 + (MAX_WEAPON_SLOTS + 1) * line_h;
+    SDL_Rect panel = { panel_x, panel_y, panel_w, panel_h };
+    SDL_RenderFillRect(g->renderer, &panel);
+    SDL_SetRenderDrawColor(g->renderer, 100, 100, 120, 255);
+    SDL_RenderDrawRect(g->renderer, &panel);
+    
+    int y = panel_y + 8;
+    SDL_Color header_color = {255, 220, 100, 255};
+    SDL_Color item_color = {180, 200, 180, 255};
+    SDL_Color weapon_color = {180, 180, 220, 255};
+    SDL_Color count_color = {120, 120, 140, 255};
+    
+    /* Items section */
+    char buf[64];
+    snprintf(buf, sizeof(buf), "ITEMS (%d)", g->player.passive_count);
+    draw_text(g->renderer, g->font, panel_x + 8, y, header_color, buf);
+    y += line_h + 4;
+    
+    if (g->player.passive_count == 0) {
+      draw_text(g->renderer, g->font, panel_x + 12, y, count_color, "(none)");
+      y += line_h;
+    } else {
+      for (int i = 0; i < g->player.passive_count; i++) {
+        int idx = g->player.passive_items[i];
+        if (idx >= 0 && idx < g->db.item_count) {
+          ItemDef *it = &g->db.items[idx];
+          SDL_Color rc = rarity_color(it->rarity);
+          draw_text(g->renderer, g->font, panel_x + 12, y, rc, it->name);
+          y += line_h;
+        }
+      }
+    }
+    
+    y += 10;
+    
+    /* Weapons section */
+    int weapon_count = 0;
+    for (int i = 0; i < MAX_WEAPON_SLOTS; i++) {
+      if (g->player.weapons[i].active) weapon_count++;
+    }
+    snprintf(buf, sizeof(buf), "WEAPONS (%d)", weapon_count);
+    draw_text(g->renderer, g->font, panel_x + 8, y, header_color, buf);
+    y += line_h + 4;
+    
+    if (weapon_count == 0) {
+      draw_text(g->renderer, g->font, panel_x + 12, y, count_color, "(none)");
+    } else {
+      for (int i = 0; i < MAX_WEAPON_SLOTS; i++) {
+        if (!g->player.weapons[i].active) continue;
+        int def_idx = g->player.weapons[i].def_index;
+        if (def_idx >= 0 && def_idx < g->db.weapon_count) {
+          WeaponDef *w = &g->db.weapons[def_idx];
+          snprintf(buf, sizeof(buf), "%s (Lv%d)", w->name, g->player.weapons[i].level);
+          SDL_Color rc = rarity_color(w->rarity);
+          draw_text(g->renderer, g->font, panel_x + 12, y, rc, buf);
+          y += line_h;
+        }
+      }
+    }
+  }
+
   SDL_RenderPresent(g->renderer);
 }
 
@@ -2521,6 +2594,9 @@ int main(int argc, char **argv) {
         }
         if (e.key.keysym.sym == SDLK_F5) {
           game.mode = (game.mode == MODE_PAUSE ? MODE_WAVE : MODE_PAUSE);
+        }
+        if (e.key.keysym.sym == SDLK_8) {
+          game.debug_show_items = !game.debug_show_items;
         }
         if (game.mode == MODE_START) {
           if (e.key.keysym.sym == SDLK_LEFT) {
