@@ -71,6 +71,8 @@ The game uses 6 core stats:
 ├── CMakeLists.txt       # Build config
 └── tools/vcpkg/         # Package manager (clone separately)
 ```
+<img width="820" height="340" alt="{89E12881-F2FB-4C23-9EB1-876C57DC99F5}" src="https://github.com/user-attachments/assets/0534edc0-016c-476b-9434-eaea61268abe" />
+
 
 ## License
 MIT
