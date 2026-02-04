@@ -339,6 +339,18 @@
       "projectile_speed": 0,
       "pierce": 0,
       "scales": ["damage", "range"]
+    },
+    {
+      "id": "alchemist_puddle",
+      "name": "Alchemist Puddle",
+      "type": "magic",
+      "rarity": "rare",
+      "cooldown": 2.0,
+      "damage": 8,
+      "range": 90,
+      "projectile_speed": 0,
+      "pierce": 0,
+      "scales": ["damage", "range", "attack_speed"]
     }
   ]
 }

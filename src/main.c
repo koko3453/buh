@@ -13,6 +13,7 @@
 static FILE *g_log = NULL;
 static int g_frame_log = 0;
 static int g_log_combat = 1;
+static FILE *g_combat_log = NULL;
 
 static void log_line(const char *msg) {
   if (!g_log) return;
@@ -86,6 +87,7 @@ static LONG WINAPI crash_handler(EXCEPTION_POINTERS *e) {
 #define MAX_DROPS 256
 #define MAX_WEAPON_SLOTS 6
 #define MAX_SHOP_SLOTS 12
+#define MAX_PUDDLES 64
 
 
 
@@ -250,6 +252,7 @@ typedef struct {
   float lifetime;
   int pierce;
   int homing;
+  int weapon_index;
   float bleed_chance;
   float burn_chance;
   float slow_chance;
@@ -267,6 +270,16 @@ typedef struct {
   float magnet_speed; /* current attraction speed */
   int magnetized;     /* once true, keeps flying toward player */
 } Drop;
+
+typedef struct {
+  int active;
+  float x;
+  float y;
+  float radius;
+  float dps;
+  float ttl;
+  float log_timer;
+} Puddle;
 
 typedef struct {
   int type; /* 0 item, 1 weapon */
@@ -331,6 +344,7 @@ typedef struct {
   int debug_show_items;   /* toggle with key 8 - shows item list */
   float ultimate_cd;
   int start_page;
+  float start_scroll;      /* start screen scroll offset */
   int selected_character;  /* index into db.characters */
   int rerolls;             /* rerolls remaining this run */
   int high_roll_used;      /* 1 if high roll was used this run */
@@ -340,6 +354,7 @@ typedef struct {
   Enemy enemies[MAX_ENEMIES];
   Bullet bullets[MAX_BULLETS];
   Drop drops[MAX_DROPS];
+  Puddle puddles[MAX_PUDDLES];
   WeaponFX weapon_fx[MAX_WEAPON_FX];
 
   float spawn_timer;
@@ -365,7 +380,7 @@ static const char *enemy_label(Game *g, Enemy *e) {
 }
 
 static void log_combatf(Game *g, const char *fmt, ...) {
-  if (!g_log || !g_log_combat || !g) return;
+  if (!g_combat_log || !g_log_combat || !g) return;
   char msg[512];
   va_list args;
   va_start(args, fmt);
@@ -373,7 +388,9 @@ static void log_combatf(Game *g, const char *fmt, ...) {
   va_end(args);
   char line[600];
   snprintf(line, sizeof(line), "[%.2f] %s", g->game_time, msg);
-  log_line(line);
+  fputs(line, g_combat_log);
+  fputs("\n", g_combat_log);
+  fflush(g_combat_log);
 }
 
 static int find_nearest_enemy(Game *g, float x, float y) {
@@ -1023,7 +1040,7 @@ static void spawn_enemy(Game *g, int def_index) {
 }
 
 static void spawn_bullet(Game *g, float x, float y, float vx, float vy, float damage, int pierce, int homing, int from_player,
-                         float bleed_chance, float burn_chance, float slow_chance, float stun_chance, float armor_shred_chance) {
+                         int weapon_index, float bleed_chance, float burn_chance, float slow_chance, float stun_chance, float armor_shred_chance) {
   for (int i = 0; i < MAX_BULLETS; i++) {
     if (!g->bullets[i].active) {
       Bullet *b = &g->bullets[i];
@@ -1039,6 +1056,7 @@ static void spawn_bullet(Game *g, float x, float y, float vx, float vy, float da
       b->lifetime = 2.2f;
       b->homing = homing;
       b->from_player = from_player;
+      b->weapon_index = weapon_index;
       b->bleed_chance = bleed_chance;
       b->burn_chance = burn_chance;
       b->slow_chance = slow_chance;
@@ -1060,6 +1078,23 @@ static void spawn_drop(Game *g, float x, float y, int type, float value) {
       d->y = y;
       d->value = value;
       d->ttl = 10.0f;
+      return;
+    }
+  }
+}
+
+static void spawn_puddle(Game *g, float x, float y, float radius, float dps, float ttl) {
+  for (int i = 0; i < MAX_PUDDLES; i++) {
+    if (!g->puddles[i].active) {
+      Puddle *p = &g->puddles[i];
+      memset(p, 0, sizeof(*p));
+      p->active = 1;
+      p->x = x;
+      p->y = y;
+      p->radius = radius;
+      p->dps = dps;
+      p->ttl = ttl;
+      p->log_timer = 0.0f;
       return;
     }
   }
@@ -1091,6 +1126,36 @@ static void update_weapon_fx(Game *g, float dt) {
     fx->timer += dt;
     if (fx->timer >= fx->duration) {
       fx->active = 0;
+    }
+  }
+}
+
+static void update_puddles(Game *g, float dt) {
+  for (int i = 0; i < MAX_PUDDLES; i++) {
+    Puddle *p = &g->puddles[i];
+    if (!p->active) continue;
+    p->ttl -= dt;
+    p->log_timer -= dt;
+    if (p->ttl <= 0.0f) {
+      p->active = 0;
+      continue;
+    }
+
+    float radius2 = p->radius * p->radius;
+    for (int e = 0; e < MAX_ENEMIES; e++) {
+      Enemy *en = &g->enemies[e];
+      if (!en->active) continue;
+      float dx = en->x - p->x;
+      float dy = en->y - p->y;
+      if (dx * dx + dy * dy <= radius2) {
+        float dmg = p->dps * dt;
+        dmg = player_apply_hit_mods(g, en, dmg);
+        en->hp -= dmg;
+        if (p->log_timer <= 0.0f) {
+          log_combatf(g, "puddle tick %s for %.1f", enemy_label(g, en), dmg);
+          p->log_timer = 0.5f;
+        }
+      }
     }
   }
 }
@@ -1206,7 +1271,7 @@ static void build_levelup_choices(Game *g) {
 
 static void build_start_page(Game *g) {
   g->choice_count = 0;
-  int per_page = 16;
+  int per_page = g->db.character_count;
   int total = g->db.character_count;
   int pages = (total + per_page - 1) / per_page;
   if (pages < 1) pages = 1;
@@ -1219,6 +1284,23 @@ static void build_start_page(Game *g) {
     /* Type 2 = Character */
     g->choices[g->choice_count++] = (LevelUpChoice){ .type = 2, .index = i };
   }
+}
+
+static float start_scroll_max(Game *g) {
+  int split_x = (WINDOW_W * 2) / 3;
+  int margin = 25;
+  int cols = 4;
+  int name_area_h = 32;
+  int card_w = (split_x - margin * 2 - (cols - 1) * 20) / cols;
+  int card_h = card_w + 60;
+  int total_h = card_h + name_area_h;
+  int start_y = 90;
+  int shown = g->choice_count;
+  int rows = (shown + cols - 1) / cols;
+  int total_grid_h = rows * (total_h + 12) - 12;
+  int view_h = WINDOW_H - start_y - 20;
+  if (total_grid_h <= view_h) return 0.0f;
+  return (float)(total_grid_h - view_h);
 }
 
 static SDL_Color rarity_color(const char *rarity) {
@@ -1295,6 +1377,7 @@ static void game_reset(Game *g) {
   g->debug_show_range = 1;
   g->debug_show_items = 0;  /* hidden by default, toggle with key 8 */
   g->start_page = 0;
+  g->start_scroll = 0.0f;
   g->ultimate_cd = 0.0f;
   g->choice_count = 0;
   g->selected_character = -1;
@@ -1303,6 +1386,7 @@ static void game_reset(Game *g) {
   for (int i = 0; i < MAX_ENEMIES; i++) g->enemies[i].active = 0;
   for (int i = 0; i < MAX_BULLETS; i++) g->bullets[i].active = 0;
   for (int i = 0; i < MAX_DROPS; i++) g->drops[i].active = 0;
+  for (int i = 0; i < MAX_PUDDLES; i++) g->puddles[i].active = 0;
 
   Player *p = &g->player;
   p->x = ARENA_W * 0.5f;
@@ -1433,17 +1517,36 @@ static void update_bullets(Game *g, float dt) {
           }
           float dmg = player_apply_hit_mods(g, en, b->damage);
           en->hp -= dmg;
+          if (b->weapon_index >= 0 && b->weapon_index < g->db.weapon_count) {
+            WeaponDef *w = &g->db.weapons[b->weapon_index];
+            log_combatf(g, "hit %s with %s for %.1f", enemy_label(g, en), w->name, dmg);
+          } else {
+            log_combatf(g, "hit %s for %.1f", enemy_label(g, en), dmg);
+          }
           if (b->bleed_chance > 0.0f && frandf() < b->bleed_chance) {
             en->bleed_stacks = (en->bleed_stacks < 5) ? en->bleed_stacks + 1 : 5;
             en->bleed_timer = 4.0f;
+            log_combatf(g, "bleed applied to %s", enemy_label(g, en));
           }
-          if (b->burn_chance > 0.0f && frandf() < b->burn_chance) en->burn_timer = 4.0f;
+          if (b->burn_chance > 0.0f && frandf() < b->burn_chance) {
+            en->burn_timer = 4.0f;
+            log_combatf(g, "burn applied to %s", enemy_label(g, en));
+          }
           if (item_burn > 0.0f && en->burn_timer > 0.0f) {
             log_combatf(g, "burn_on_hit applied to %s", enemy_label(g, en));
           }
-          if (b->slow_chance > 0.0f && frandf() < b->slow_chance) en->slow_timer = 2.5f;
-          if (b->stun_chance > 0.0f && frandf() < b->stun_chance) en->stun_timer = 0.6f;
-          if (b->armor_shred_chance > 0.0f && frandf() < b->armor_shred_chance) en->armor_shred_timer = 3.0f;
+          if (b->slow_chance > 0.0f && frandf() < b->slow_chance) {
+            en->slow_timer = 2.5f;
+            log_combatf(g, "slow applied to %s", enemy_label(g, en));
+          }
+          if (b->stun_chance > 0.0f && frandf() < b->stun_chance) {
+            en->stun_timer = 0.6f;
+            log_combatf(g, "stun applied to %s", enemy_label(g, en));
+          }
+          if (b->armor_shred_chance > 0.0f && frandf() < b->armor_shred_chance) {
+            en->armor_shred_timer = 3.0f;
+            log_combatf(g, "armor_shred applied to %s", enemy_label(g, en));
+          }
           player_try_item_proc(g, e, &stats);
           b->pierce -= 1;
           if (b->pierce < 0) { b->active = 0; }
@@ -1511,7 +1614,7 @@ static void update_enemies(Game *g, float dt) {
         float vy = dy;
         vec_norm(&vx, &vy);
         spawn_bullet(g, e->x, e->y, vx * def->projectile_speed, vy * def->projectile_speed, def->damage, 0, 0, 0,
-                     0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+                     -1, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
         e->cooldown = def->cooldown;
       }
     }
@@ -1612,6 +1715,9 @@ static void fire_weapons(Game *g, float dt) {
     if (target < 0) continue;
 
     float range = w->range;
+    if (weapon_is(w, "alchemist_puddle")) {
+      range *= 3.0f;
+    }
     if (range > 0.0f && best > range * range) continue;
 
     float tx = g->enemies[target].x - p->x;
@@ -1647,11 +1753,25 @@ static void fire_weapons(Game *g, float dt) {
           float final_dmg = player_roll_crit_damage(&stats, w, damage);
           final_dmg = player_apply_hit_mods(g, en, final_dmg);
           en->hp -= final_dmg;
+          log_combatf(g, "hit %s with %s for %.1f", enemy_label(g, en), w->name, final_dmg);
           player_try_item_proc(g, e, &stats);
           /* Lightning has a chance to stun */
-          if (frandf() < 0.15f) en->stun_timer = 0.3f;
+          if (frandf() < 0.15f) {
+            en->stun_timer = 0.3f;
+            log_combatf(g, "stun applied to %s", enemy_label(g, en));
+          }
         }
       }
+      float level_cd = clampf(1.0f - 0.05f * (slot->level - 1), 0.7f, 1.0f);
+      slot->cd_timer = w->cooldown * cooldown_scale * level_cd;
+      continue;
+    }
+
+    if (weapon_is(w, "alchemist_puddle")) {
+      float range = (w->range > 0.0f ? w->range : 90.0f);
+      float dps = damage;
+      spawn_puddle(g, g->enemies[target].x, g->enemies[target].y, range, dps, 5.0f);
+      log_combatf(g, "puddle spawned (r=%.0f dps=%.1f)", range, dps);
       float level_cd = clampf(1.0f - 0.05f * (slot->level - 1), 0.7f, 1.0f);
       slot->cd_timer = w->cooldown * cooldown_scale * level_cd;
       continue;
@@ -1673,17 +1793,31 @@ static void fire_weapons(Game *g, float dt) {
           float final_dmg = player_roll_crit_damage(&stats, w, damage);
           final_dmg = player_apply_hit_mods(g, en, final_dmg);
           en->hp -= final_dmg;
+          log_combatf(g, "hit %s with %s for %.1f", enemy_label(g, en), w->name, final_dmg);
           if (bleed_chance > 0.0f && frandf() < bleed_chance) {
             en->bleed_stacks = (en->bleed_stacks < 5) ? en->bleed_stacks + 1 : 5;
             en->bleed_timer = 4.0f;
+            log_combatf(g, "bleed applied to %s", enemy_label(g, en));
           }
-          if (burn_chance > 0.0f && frandf() < burn_chance) en->burn_timer = 4.0f;
+          if (burn_chance > 0.0f && frandf() < burn_chance) {
+            en->burn_timer = 4.0f;
+            log_combatf(g, "burn applied to %s", enemy_label(g, en));
+          }
           if (item_burn > 0.0f && en->burn_timer > 0.0f) {
             log_combatf(g, "burn_on_hit applied to %s", enemy_label(g, en));
           }
-          if (slow_chance > 0.0f && frandf() < slow_chance) en->slow_timer = 2.5f;
-          if (stun_chance > 0.0f && frandf() < stun_chance) en->stun_timer = 0.6f;
-          if (shred_chance > 0.0f && frandf() < shred_chance) en->armor_shred_timer = 3.0f;
+          if (slow_chance > 0.0f && frandf() < slow_chance) {
+            en->slow_timer = 2.5f;
+            log_combatf(g, "slow applied to %s", enemy_label(g, en));
+          }
+          if (stun_chance > 0.0f && frandf() < stun_chance) {
+            en->stun_timer = 0.6f;
+            log_combatf(g, "stun applied to %s", enemy_label(g, en));
+          }
+          if (shred_chance > 0.0f && frandf() < shred_chance) {
+            en->armor_shred_timer = 3.0f;
+            log_combatf(g, "armor_shred applied to %s", enemy_label(g, en));
+          }
           player_try_item_proc(g, e, &stats);
           if (weapon_is(w, "chain_blades")) {
             en->x -= tx * 20.0f;
@@ -1723,14 +1857,28 @@ static void fire_weapons(Game *g, float dt) {
           float final_dmg = player_roll_crit_damage(&stats, w, damage);
           final_dmg = player_apply_hit_mods(g, en, final_dmg);
           en->hp -= final_dmg;
+          log_combatf(g, "hit %s with %s for %.1f", enemy_label(g, en), w->name, final_dmg);
           if (bleed_chance > 0.0f && frandf() < bleed_chance) {
             en->bleed_stacks = (en->bleed_stacks < 5) ? en->bleed_stacks + 1 : 5;
             en->bleed_timer = 4.0f;
+            log_combatf(g, "bleed applied to %s", enemy_label(g, en));
           }
-          if (burn_chance > 0.0f && frandf() < burn_chance) en->burn_timer = 4.0f;
-          if (slow_chance > 0.0f && frandf() < slow_chance) en->slow_timer = 2.5f;
-          if (stun_chance > 0.0f && frandf() < stun_chance) en->stun_timer = 0.6f;
-          if (shred_chance > 0.0f && frandf() < shred_chance) en->armor_shred_timer = 3.0f;
+          if (burn_chance > 0.0f && frandf() < burn_chance) {
+            en->burn_timer = 4.0f;
+            log_combatf(g, "burn applied to %s", enemy_label(g, en));
+          }
+          if (slow_chance > 0.0f && frandf() < slow_chance) {
+            en->slow_timer = 2.5f;
+            log_combatf(g, "slow applied to %s", enemy_label(g, en));
+          }
+          if (stun_chance > 0.0f && frandf() < stun_chance) {
+            en->stun_timer = 0.6f;
+            log_combatf(g, "stun applied to %s", enemy_label(g, en));
+          }
+          if (shred_chance > 0.0f && frandf() < shred_chance) {
+            en->armor_shred_timer = 3.0f;
+            log_combatf(g, "armor_shred applied to %s", enemy_label(g, en));
+          }
           player_try_item_proc(g, e, &stats);
           /* Lifesteal on kill */
           if (en->hp <= 0.0f) {
@@ -1759,14 +1907,27 @@ static void fire_weapons(Game *g, float dt) {
           float final_dmg = player_roll_crit_damage(&stats, w, damage);
           final_dmg = player_apply_hit_mods(g, en, final_dmg);
           en->hp -= final_dmg;
+          log_combatf(g, "hit %s with %s for %.1f", enemy_label(g, en), w->name, final_dmg);
           /* Spawn bite effect on enemy */
           spawn_weapon_fx(g, 1, en->x, en->y, 0.0f, 0.6f, e);
           /* Lifesteal */
           p->hp = clampf(p->hp + final_dmg * 0.15f, 0.0f, stats.max_hp);
-          if (burn_chance > 0.0f && frandf() < burn_chance) en->burn_timer = 4.0f;
-          if (slow_chance > 0.0f && frandf() < slow_chance) en->slow_timer = 2.5f;
-          if (stun_chance > 0.0f && frandf() < stun_chance) en->stun_timer = 0.6f;
-          if (shred_chance > 0.0f && frandf() < shred_chance) en->armor_shred_timer = 3.0f;
+          if (burn_chance > 0.0f && frandf() < burn_chance) {
+            en->burn_timer = 4.0f;
+            log_combatf(g, "burn applied to %s", enemy_label(g, en));
+          }
+          if (slow_chance > 0.0f && frandf() < slow_chance) {
+            en->slow_timer = 2.5f;
+            log_combatf(g, "slow applied to %s", enemy_label(g, en));
+          }
+          if (stun_chance > 0.0f && frandf() < stun_chance) {
+            en->stun_timer = 0.6f;
+            log_combatf(g, "stun applied to %s", enemy_label(g, en));
+          }
+          if (shred_chance > 0.0f && frandf() < shred_chance) {
+            en->armor_shred_timer = 3.0f;
+            log_combatf(g, "armor_shred applied to %s", enemy_label(g, en));
+          }
           player_try_item_proc(g, e, &stats);
           hits++;
         }
@@ -1826,14 +1987,28 @@ static void fire_weapons(Game *g, float dt) {
         float final_dmg = player_roll_crit_damage(&stats, w, damage);
         final_dmg = player_apply_hit_mods(g, en, final_dmg);
         en->hp -= final_dmg;
+        log_combatf(g, "hit %s with %s for %.1f", enemy_label(g, en), w->name, final_dmg);
         if (bleed_chance > 0.0f && frandf() < bleed_chance) {
           en->bleed_stacks = (en->bleed_stacks < 5) ? en->bleed_stacks + 1 : 5;
           en->bleed_timer = 4.0f;
+          log_combatf(g, "bleed applied to %s", enemy_label(g, en));
         }
-        if (burn_chance > 0.0f && frandf() < burn_chance) en->burn_timer = 4.0f;
-        if (slow_chance > 0.0f && frandf() < slow_chance) en->slow_timer = 2.5f;
-        if (stun_chance > 0.0f && frandf() < stun_chance) en->stun_timer = 0.6f;
-        if (shred_chance > 0.0f && frandf() < shred_chance) en->armor_shred_timer = 3.0f;
+        if (burn_chance > 0.0f && frandf() < burn_chance) {
+          en->burn_timer = 4.0f;
+          log_combatf(g, "burn applied to %s", enemy_label(g, en));
+        }
+        if (slow_chance > 0.0f && frandf() < slow_chance) {
+          en->slow_timer = 2.5f;
+          log_combatf(g, "slow applied to %s", enemy_label(g, en));
+        }
+        if (stun_chance > 0.0f && frandf() < stun_chance) {
+          en->stun_timer = 0.6f;
+          log_combatf(g, "stun applied to %s", enemy_label(g, en));
+        }
+        if (shred_chance > 0.0f && frandf() < shred_chance) {
+          en->armor_shred_timer = 3.0f;
+          log_combatf(g, "armor_shred applied to %s", enemy_label(g, en));
+        }
         player_try_item_proc(g, targets[t], &stats);
       }
       
@@ -1865,14 +2040,28 @@ static void fire_weapons(Game *g, float dt) {
           float final_dmg = player_roll_crit_damage(&stats, w, damage);
           final_dmg = player_apply_hit_mods(g, en, final_dmg);
           en->hp -= final_dmg;
+          log_combatf(g, "hit %s with %s for %.1f", enemy_label(g, en), w->name, final_dmg);
           if (bleed_chance > 0.0f && frandf() < bleed_chance) {
             en->bleed_stacks = (en->bleed_stacks < 5) ? en->bleed_stacks + 1 : 5;
             en->bleed_timer = 4.0f;
+            log_combatf(g, "bleed applied to %s", enemy_label(g, en));
           }
-          if (burn_chance > 0.0f && frandf() < burn_chance) en->burn_timer = 4.0f;
-          if (slow_chance > 0.0f && frandf() < slow_chance) en->slow_timer = 2.5f;
-          if (stun_chance > 0.0f && frandf() < stun_chance) en->stun_timer = 0.6f;
-          if (shred_chance > 0.0f && frandf() < shred_chance) en->armor_shred_timer = 3.0f;
+          if (burn_chance > 0.0f && frandf() < burn_chance) {
+            en->burn_timer = 4.0f;
+            log_combatf(g, "burn applied to %s", enemy_label(g, en));
+          }
+          if (slow_chance > 0.0f && frandf() < slow_chance) {
+            en->slow_timer = 2.5f;
+            log_combatf(g, "slow applied to %s", enemy_label(g, en));
+          }
+          if (stun_chance > 0.0f && frandf() < stun_chance) {
+            en->stun_timer = 0.6f;
+            log_combatf(g, "stun applied to %s", enemy_label(g, en));
+          }
+          if (shred_chance > 0.0f && frandf() < shred_chance) {
+            en->armor_shred_timer = 3.0f;
+            log_combatf(g, "armor_shred applied to %s", enemy_label(g, en));
+          }
           player_try_item_proc(g, e, &stats);
         }
       }
@@ -1891,7 +2080,7 @@ static void fire_weapons(Game *g, float dt) {
       float vy = sinf(angle) * speed;
       float shot_damage = player_roll_crit_damage(&stats, w, damage);
       spawn_bullet(g, p->x, p->y, vx, vy, shot_damage, w->pierce, w->homing, 1,
-                   bleed_chance, burn_chance, slow_chance, stun_chance, shred_chance);
+                   slot->def_index, bleed_chance, burn_chance, slow_chance, stun_chance, shred_chance);
     }
 
     float level_cd = clampf(1.0f - 0.05f * (slot->level - 1), 0.7f, 1.0f);
@@ -1969,6 +2158,7 @@ static void update_game(Game *g, float dt) {
   fire_weapons(g, dt);
   update_bullets(g, dt);
   update_weapon_fx(g, dt);
+  update_puddles(g, dt);
   update_enemies(g, dt);
   handle_player_pickups(g, dt);
 
@@ -2470,6 +2660,20 @@ static void render_game(Game *g) {
     }
   }
 
+  /* Alchemist puddles (hide under levelup overlay) */
+  if (g->mode != MODE_LEVELUP) {
+    for (int i = 0; i < MAX_PUDDLES; i++) {
+      if (!g->puddles[i].active) continue;
+      int px = (int)(offset_x + g->puddles[i].x - cam_x);
+      int py = (int)(offset_y + g->puddles[i].y - cam_y);
+      int radius = (int)g->puddles[i].radius;
+      SDL_Color core = { 60, 200, 120, 120 };
+      SDL_Color glow = { 40, 160, 90, 80 };
+      draw_filled_circle(g->renderer, px, py, radius, core);
+      draw_glow(g->renderer, px, py, radius + 6, glow);
+    }
+  }
+
   if (g->mode == MODE_START) {
     /* Background */
     SDL_SetRenderDrawColor(g->renderer, 8, 8, 12, 255);
@@ -2489,13 +2693,13 @@ static void render_game(Game *g) {
     int cols = 4;
     int name_area_h = 32;  /* Space below card for name */
     int card_w = (split_x - margin * 2 - (cols - 1) * 20) / cols;
-    int card_h = card_w + 20;  /* Slightly taller than wide for portrait */
+    int card_h = card_w + 60;  /* Taller portrait cards */
     int total_h = card_h + name_area_h;
     int start_y = 90;
     
     /* Title */
     draw_text_centered(g->renderer, g->font_title, split_x / 2, 30, (SDL_Color){255, 215, 100, 255}, "SELECT YOUR CHARACTER");
-    draw_text_centered(g->renderer, g->font, split_x / 2, 58, (SDL_Color){100, 100, 120, 255}, "Click to choose - Hover for details");
+    draw_text_centered(g->renderer, g->font, split_x / 2, 58, (SDL_Color){100, 100, 120, 255}, "Scroll to view more - Hover for details");
     
     /* Mouse for hover */
     int mx, my;
@@ -2503,16 +2707,22 @@ static void render_game(Game *g) {
     int hovered_idx = -1;
 
     int shown = g->choice_count;
+    float scroll_max = start_scroll_max(g);
+    g->start_scroll = clampf(g->start_scroll, 0.0f, scroll_max);
     for (int i = 0; i < shown; i++) {
       int col = i % cols;
       int row = i / cols;
       int card_x = margin + col * (card_w + 20);
-      int card_y = start_y + row * (total_h + 12);
+      int card_y = start_y + row * (total_h + 12) - (int)g->start_scroll;
       SDL_Rect r = { card_x, card_y, card_w, card_h };
       
       /* Full clickable area includes name */
       SDL_Rect click_r = { card_x, card_y, card_w, total_h };
       g->choices[i].rect = click_r;
+
+      if (card_y + total_h < start_y - 10 || card_y > WINDOW_H) {
+        continue;
+      }
 
       int hovered = (mx >= click_r.x && mx <= click_r.x + click_r.w && my >= click_r.y && my <= click_r.y + click_r.h);
       if (hovered) hovered_idx = i;
@@ -2561,15 +2771,16 @@ static void render_game(Game *g) {
       int panel_w = WINDOW_W - split_x - 40;
       
       /* Large portrait on right panel */
-      int big_portrait_size = 200;
-      SDL_Rect big_portrait = { rx + (panel_w - big_portrait_size) / 2, ry, big_portrait_size, big_portrait_size };
+      int big_portrait_w = 200;
+      int big_portrait_h = 260;
+      SDL_Rect big_portrait = { rx + (panel_w - big_portrait_w) / 2, ry, big_portrait_w, big_portrait_h };
       if (g->tex_portraits[char_idx]) {
         SDL_RenderCopy(g->renderer, g->tex_portraits[char_idx], NULL, &big_portrait);
         /* Gold border */
         SDL_SetRenderDrawColor(g->renderer, 200, 170, 80, 255);
         SDL_RenderDrawRect(g->renderer, &big_portrait);
       }
-      ry += big_portrait_size + 15;
+      ry += big_portrait_h + 15;
       
       /* Character name centered */
       draw_text_centered(g->renderer, g->font_title, rx + panel_w / 2, ry, (SDL_Color){255, 215, 100, 255}, c->name);
@@ -2789,6 +3000,7 @@ int main(int argc, char **argv) {
   (void)argc;
   (void)argv;
   g_log = fopen("log.txt", "w");
+  g_combat_log = fopen("combat_log.txt", "w");
   log_line("Starting game...");
   SetUnhandledExceptionFilter(crash_handler);
   srand((unsigned int)time(NULL));
@@ -2975,6 +3187,13 @@ int main(int argc, char **argv) {
           }
         }
       }
+      if (e.type == SDL_MOUSEWHEEL && game.mode == MODE_START) {
+        float max_scroll = start_scroll_max(&game);
+        if (max_scroll > 0.0f) {
+          game.start_scroll -= (float)e.wheel.y * 40.0f;
+          game.start_scroll = clampf(game.start_scroll, 0.0f, max_scroll);
+        }
+      }
       if (e.type == SDL_MOUSEBUTTONDOWN && game.mode == MODE_LEVELUP) {
         handle_levelup_click(&game, e.button.x, e.button.y);
       }
@@ -3015,6 +3234,8 @@ int main(int argc, char **argv) {
   IMG_Quit();
   TTF_Quit();
   SDL_Quit();
+  if (g_combat_log) fclose(g_combat_log);
+  g_combat_log = NULL;
   return 0;
 }
 #endif

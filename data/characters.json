@@ -71,6 +71,51 @@
       "stats": {"damage": -0.05, "attack_speed": 0.1},
       "rule": "turret_bonus",
       "ultimate": "kill_all"
+    },
+    {
+      "id": "paladin",
+      "name": "Paladin",
+      "portrait": "paladin.png",
+      "weapon": "sword",
+      "stats": {"armor": 4, "max_hp": 40, "damage": 0.05},
+      "rule": "holy_guard",
+      "ultimate": "kill_all"
+    },
+    {
+      "id": "priestess",
+      "name": "Priestess",
+      "portrait": "priestess.png",
+      "weapon": "wand",
+      "stats": {"max_hp": 25, "attack_speed": -0.05},
+      "rule": "healing_aura",
+      "ultimate": "kill_all"
+    },
+    {
+      "id": "sorceress",
+      "name": "Sorceress",
+      "portrait": "sorceress.png",
+      "weapon": "orb_of_chaos",
+      "stats": {"damage": 0.12, "max_hp": -25},
+      "rule": "arcane_focus",
+      "ultimate": "kill_all"
+    },
+    {
+      "id": "molten",
+      "name": "Molten",
+      "portrait": "molten.png",
+      "weapon": "fire_staff",
+      "stats": {"damage": 0.08, "armor": 2, "move_speed": -0.05},
+      "rule": "burning_core",
+      "ultimate": "kill_all"
+    },
+    {
+      "id": "alchemist",
+      "name": "Alchemist",
+      "portrait": "alchemist.png",
+      "weapon": "alchemist_puddle",
+      "stats": {"damage": 0.05, "attack_speed": 0.1, "max_hp": -10},
+      "rule": "toxic_brew",
+      "ultimate": "kill_all"
     }
   ]
 }
