@@ -42,7 +42,7 @@ static void test_stats_scaling() {
   p.base.max_hp = 100;
 
   apply_item(&p, &db, it, 0);
-  Stats total = player_total_stats(&p);
+  Stats total = player_total_stats(&p, &db);
   assert(total.damage > 0.0f);
   assert(total.attack_speed > 0.0f);
   assert(total.max_hp > 100.0f);
@@ -78,7 +78,7 @@ static void test_json_item_stats_apply() {
   p.base.max_hp = 100;
 
   apply_item(&p, &db, &db.items[ring_idx], ring_idx);
-  Stats total = player_total_stats(&p);
+  Stats total = player_total_stats(&p, &db);
   assert(total.damage >= 0.0f);
 }
 

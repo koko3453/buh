@@ -111,6 +111,7 @@ typedef struct {
   float crit_damage;
   float cooldown_reduction;
   float xp_magnet;
+  float hp_regen;
 } Stats;
 
 typedef struct WeaponDef {
@@ -175,6 +176,8 @@ typedef struct {
   float rarity_bias;    /* bias level-up rarity rolls (0.0-1.0) */
   float slow_bonus_damage; /* bonus damage vs slowed enemies (0.0-1.0) */
   float legendary_amp;  /* amplify legendary stats per secondary score */
+  float hp_regen_amp;   /* amplify hp_regen stat (0.0-1.0+) */
+  float xp_kill_chance; /* chance to kill enemy on XP pickup */
 } ItemDef;
 
 typedef struct {
@@ -522,6 +525,7 @@ static void stats_add(Stats *dst, Stats *src) {
   dst->crit_damage += src->crit_damage;
   dst->cooldown_reduction += src->cooldown_reduction;
   dst->xp_magnet += src->xp_magnet;
+  dst->hp_regen += src->hp_regen;
 }
 
 static void stats_scale(Stats *s, float mul) {
@@ -535,6 +539,7 @@ static void stats_scale(Stats *s, float mul) {
   s->crit_damage *= mul;
   s->cooldown_reduction *= mul;
   s->xp_magnet *= mul;
+  s->hp_regen *= mul;
 }
 
 static void parse_stats_object(const char *json, jsmntok_t *t, int obj, Stats *out) {
@@ -687,6 +692,8 @@ static int load_items(Database *db, const char *path) {
     int rarity_bias = find_key(json, tokens, obj, "rarity_bias");
     int slow_bonus = find_key(json, tokens, obj, "slow_bonus_damage");
     int legendary_amp = find_key(json, tokens, obj, "legendary_amp");
+    int hp_regen_amp = find_key(json, tokens, obj, "hp_regen_amp");
+    int xp_kill = find_key(json, tokens, obj, "xp_kill_chance");
     if (burn_hit > 0) it->burn_on_hit = token_float(json, &tokens[burn_hit]);
     if (burn_aura > 0) it->burn_aura = token_float(json, &tokens[burn_aura]);
     if (thorns > 0) it->thorns_percent = token_float(json, &tokens[thorns]);
@@ -694,6 +701,8 @@ static int load_items(Database *db, const char *path) {
     if (rarity_bias > 0) it->rarity_bias = token_float(json, &tokens[rarity_bias]);
     if (slow_bonus > 0) it->slow_bonus_damage = token_float(json, &tokens[slow_bonus]);
     if (legendary_amp > 0) it->legendary_amp = token_float(json, &tokens[legendary_amp]);
+    if (hp_regen_amp > 0) it->hp_regen_amp = token_float(json, &tokens[hp_regen_amp]);
+    if (xp_kill > 0) it->xp_kill_chance = token_float(json, &tokens[xp_kill]);
 
     idx += token_span(tokens, idx);
   }
@@ -814,7 +823,7 @@ static int find_weapon(Database *db, const char *id) {
   return -1;
 }
 
-static Stats player_total_stats(Player *p) {
+static Stats player_total_stats(Player *p, Database *db) {
   Stats s = p->base;
   stats_add(&s, &p->bonus);
   s.max_hp = clampf(s.max_hp, 1.0f, 9999.0f);
@@ -825,6 +834,12 @@ static Stats player_total_stats(Player *p) {
   s.crit_damage = clampf(s.crit_damage, 0.0f, 3.0f);
   s.cooldown_reduction = clampf(s.cooldown_reduction, 0.0f, 0.6f);
   s.xp_magnet = clampf(s.xp_magnet, 0.0f, 600.0f);
+  s.hp_regen = clampf(s.hp_regen, 0.0f, 50.0f);
+  if (db) {
+    float regen_amp = player_hp_regen_amp(p, db);
+    s.hp_regen = s.hp_regen * (1.0f + regen_amp);
+  }
+  s.hp_regen = clampf(s.hp_regen, 0.0f, 100.0f);
   return s;
 }
 
@@ -931,6 +946,28 @@ static float player_legendary_amp(Player *p, Database *db) {
     }
   }
   return clampf(total, 0.0f, 0.2f);
+}
+
+static float player_hp_regen_amp(Player *p, Database *db) {
+  float total = 0.0f;
+  for (int i = 0; i < p->passive_count; i++) {
+    int idx = p->passive_items[i];
+    if (idx >= 0 && idx < db->item_count) {
+      total += db->items[idx].hp_regen_amp;
+    }
+  }
+  return clampf(total, 0.0f, 3.0f);
+}
+
+static float player_xp_kill_chance(Player *p, Database *db) {
+  float total = 0.0f;
+  for (int i = 0; i < p->passive_count; i++) {
+    int idx = p->passive_items[i];
+    if (idx >= 0 && idx < db->item_count) {
+      total += db->items[idx].xp_kill_chance;
+    }
+  }
+  return clampf(total, 0.0f, 1.0f);
 }
 
 static float player_roll_crit_damage(Stats *stats, WeaponDef *w, float dmg) {
@@ -1420,7 +1457,7 @@ static void wave_start(Game *g) {
 
 static void handle_player_pickups(Game *g, float dt) {
   Player *p = &g->player;
-  Stats total = player_total_stats(p);
+  Stats total = player_total_stats(p, &g->db);
   float xp_magnet_range = 150.0f + total.xp_magnet;  /* XP orbs start moving toward player */
   float pickup_range = 20.0f;        /* actual pickup distance */
   float health_pickup_range = 30.0f; /* health pickup distance */
@@ -1433,17 +1470,25 @@ static void handle_player_pickups(Game *g, float dt) {
     float dist2 = dx * dx + dy * dy;
     float dist = sqrtf(dist2);
     
-    if (d->type == 0) {
-      /* XP orb - magnet attraction with accelerating speed */
-      if (dist < pickup_range) {
-        g->xp += (int)d->value;
-        if (g->xp >= g->xp_to_next) {
-          g->xp -= g->xp_to_next;
-          level_up(g);
+      if (d->type == 0) {
+        /* XP orb - magnet attraction with accelerating speed */
+        if (dist < pickup_range) {
+          g->xp += (int)d->value;
+          if (g->xp >= g->xp_to_next) {
+            g->xp -= g->xp_to_next;
+            level_up(g);
+          }
+          float kill_chance = player_xp_kill_chance(p, &g->db);
+          if (kill_chance > 0.0f && frandf() < kill_chance) {
+            int nearest = find_nearest_enemy(g, p->x, p->y);
+            if (nearest >= 0) {
+              g->enemies[nearest].hp = 0.0f;
+              log_combatf(g, "xp_kill proc on %s", enemy_label(g, &g->enemies[nearest]));
+            }
+          }
+          d->active = 0;
+          continue;
         }
-        d->active = 0;
-        continue;
-      }
       /* Once magnetized, keep flying until picked up */
       if (dist < xp_magnet_range || d->magnetized) {
         d->magnetized = 1;
@@ -1468,7 +1513,7 @@ static void handle_player_pickups(Game *g, float dt) {
 }
 static void update_bullets(Game *g, float dt) {
   Player *p = &g->player;
-  Stats stats = player_total_stats(p);
+  Stats stats = player_total_stats(p, &g->db);
   float item_burn = player_burn_on_hit(p, &g->db);
   for (int i = 0; i < MAX_BULLETS; i++) {
     Bullet *b = &g->bullets[i];
@@ -1567,7 +1612,7 @@ static void update_bullets(Game *g, float dt) {
 
 static void update_enemies(Game *g, float dt) {
   Player *p = &g->player;
-  Stats stats = player_total_stats(p);
+  Stats stats = player_total_stats(p, &g->db);
   for (int i = 0; i < MAX_ENEMIES; i++) {
     Enemy *e = &g->enemies[i];
     if (!e->active) continue;
@@ -1690,7 +1735,7 @@ static void update_enemies(Game *g, float dt) {
 
 static void fire_weapons(Game *g, float dt) {
   Player *p = &g->player;
-  Stats stats = player_total_stats(p);
+  Stats stats = player_total_stats(p, &g->db);
   float attack_speed = 1.0f + stats.attack_speed;
   float cooldown_scale = clampf(1.0f - stats.cooldown_reduction, 0.4f, 1.0f);
   float item_burn = player_burn_on_hit(p, &g->db);
@@ -2117,7 +2162,7 @@ static void activate_ultimate(Game *g) {
 static void update_game(Game *g, float dt) {
   const Uint8 *keys = SDL_GetKeyboardState(NULL);
   Player *p = &g->player;
-  Stats stats = player_total_stats(p);
+  Stats stats = player_total_stats(p, &g->db);
 
   /* Ultimate cooldown tick */
   if (g->ultimate_cd > 0.0f) g->ultimate_cd -= dt;
@@ -2133,6 +2178,10 @@ static void update_game(Game *g, float dt) {
   vec_norm(&vx, &vy);
   p->x = clampf(p->x + vx * speed * dt, 20.0f, ARENA_W - 20.0f);
   p->y = clampf(p->y + vy * speed * dt, 20.0f, ARENA_H - 20.0f);
+
+  if (stats.hp_regen > 0.0f) {
+    p->hp = clampf(p->hp + stats.hp_regen * dt, 0.0f, stats.max_hp);
+  }
 
   /* Update camera - scroll when player reaches 4/5 of view edge */
   float scroll_margin_x = VIEW_W * 0.2f;
@@ -2491,7 +2540,7 @@ static void render_game(Game *g) {
 
     SDL_Color text = { 230, 231, 234, 255 };
     char buf[128];
-    Stats stats = player_total_stats(&g->player);
+    Stats stats = player_total_stats(&g->player, &g->db);
     snprintf(buf, sizeof(buf), "HP %.0f / %.0f", g->player.hp, stats.max_hp);
     draw_text(g->renderer, g->font, 70, 12, text, buf);
     snprintf(buf, sizeof(buf), "Lv %d  XP %d/%d", g->level, g->xp, g->xp_to_next);
@@ -2593,6 +2642,7 @@ static void render_game(Game *g) {
         if (s->move_speed != 0) pos += snprintf(statline + pos, sizeof(statline) - pos, "SPD%+.0f%% ", s->move_speed * 100);
         if (s->armor != 0) pos += snprintf(statline + pos, sizeof(statline) - pos, "ARM%+.0f ", s->armor);
         if (s->dodge != 0) pos += snprintf(statline + pos, sizeof(statline) - pos, "DDG%+.0f%% ", s->dodge * 100);
+        if (s->hp_regen != 0) pos += snprintf(statline + pos, sizeof(statline) - pos, "REG%+.1f ", s->hp_regen);
         SDL_Color stat_color = {140, 200, 140, 255};
         draw_text(g->renderer, g->font, choice->rect.x + 8, choice->rect.y + 52, stat_color, statline);
         

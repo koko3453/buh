@@ -362,6 +362,50 @@
       "rarity": "epic",
       "proc": {"chance": 0.15, "damage": 12, "bounces": 3, "range": 140},
       "desc": "15% chance to chain lightning"
+    },
+    {
+      "id": "herbal_tonic",
+      "name": "Herbal Tonic",
+      "rarity": "common",
+      "stats": {"hp_regen": 0.6},
+      "desc": "+0.6 HP/s"
+    },
+    {
+      "id": "vital_bloom",
+      "name": "Vital Bloom",
+      "rarity": "rare",
+      "stats": {"hp_regen": 1.2},
+      "desc": "+1.2 HP/s"
+    },
+    {
+      "id": "emerald_font",
+      "name": "Emerald Font",
+      "rarity": "epic",
+      "stats": {"hp_regen": 2.0, "max_hp": 20},
+      "desc": "+2.0 HP/s, +20 HP"
+    },
+    {
+      "id": "eternal_spring",
+      "name": "Eternal Spring",
+      "rarity": "legendary",
+      "stats": {"hp_regen": 1.0},
+      "hp_regen_amp": 0.5,
+      "desc": "Boosts HP regen by 50%"
+    },
+    {
+      "id": "verdant_crown",
+      "name": "Verdant Crown",
+      "rarity": "legendary",
+      "stats": {"max_hp": 40},
+      "hp_regen_amp": 1.0,
+      "desc": "Doubles HP regen"
+    },
+    {
+      "id": "executioner_sigil",
+      "name": "Executioner's Sigil",
+      "rarity": "legendary",
+      "xp_kill_chance": 0.10,
+      "desc": "XP pickup: 10% chance to kill an enemy"
     }
   ]
 }
