@@ -12,6 +12,7 @@
 
 static FILE *g_log = NULL;
 static int g_frame_log = 0;
+static int g_log_combat = 1;
 
 static void log_line(const char *msg) {
   if (!g_log) return;
@@ -85,7 +86,6 @@ static LONG WINAPI crash_handler(EXCEPTION_POINTERS *e) {
 #define MAX_DROPS 256
 #define MAX_WEAPON_SLOTS 6
 #define MAX_SHOP_SLOTS 12
-#define MAX_TAGS 6
 
 
 
@@ -105,6 +105,10 @@ typedef struct {
   float attack_speed;
   float armor;
   float dodge;
+  float crit_chance;
+  float crit_damage;
+  float cooldown_reduction;
+  float xp_magnet;
 } Stats;
 
 typedef struct WeaponDef {
@@ -116,6 +120,7 @@ typedef struct WeaponDef {
   float damage;
   float range;
   float projectile_speed;
+  float crit_multiplier;
   int pierce;
   int pellets;
   float spread;
@@ -153,15 +158,21 @@ typedef struct {
   char name[32];
   char rarity[16];
   char desc[64];
-  char tags[MAX_TAGS][16];
-  int tag_count;
   Stats stats;
   int has_proc;
   int proc_bounces;
   float proc_chance;
   float proc_damage;
+  float proc_range;
   float slow_on_hit;    /* chance to slow enemy on autoattack (0.0-1.0) */
   float slow_aura;      /* range for slowing nearby enemies (0 = disabled) */
+  float burn_on_hit;    /* chance to burn enemy on hit (0.0-1.0) */
+  float burn_aura;      /* range for burning nearby enemies (0 = disabled) */
+  float thorns_percent; /* reflect percent of damage taken */
+  float lifesteal_on_kill; /* flat heal on kill */
+  float rarity_bias;    /* bias level-up rarity rolls (0.0-1.0) */
+  float slow_bonus_damage; /* bonus damage vs slowed enemies (0.0-1.0) */
+  float legendary_amp;  /* amplify legendary stats per secondary score */
 } ItemDef;
 
 typedef struct {
@@ -346,6 +357,25 @@ typedef struct {
   float camera_y;
 } Game;
 
+static const char *enemy_label(Game *g, Enemy *e) {
+  if (!g || !e) return "enemy";
+  int idx = e->def_index;
+  if (idx >= 0 && idx < g->db.enemy_count) return g->db.enemies[idx].name;
+  return "enemy";
+}
+
+static void log_combatf(Game *g, const char *fmt, ...) {
+  if (!g_log || !g_log_combat || !g) return;
+  char msg[512];
+  va_list args;
+  va_start(args, fmt);
+  vsnprintf(msg, sizeof(msg), fmt, args);
+  va_end(args);
+  char line[600];
+  snprintf(line, sizeof(line), "[%.2f] %s", g->game_time, msg);
+  log_line(line);
+}
+
 static int find_nearest_enemy(Game *g, float x, float y) {
   float best = 999999.0f;
   int idx = -1;
@@ -471,6 +501,23 @@ static void stats_add(Stats *dst, Stats *src) {
   dst->attack_speed += src->attack_speed;
   dst->armor += src->armor;
   dst->dodge += src->dodge;
+  dst->crit_chance += src->crit_chance;
+  dst->crit_damage += src->crit_damage;
+  dst->cooldown_reduction += src->cooldown_reduction;
+  dst->xp_magnet += src->xp_magnet;
+}
+
+static void stats_scale(Stats *s, float mul) {
+  s->damage *= mul;
+  s->max_hp *= mul;
+  s->move_speed *= mul;
+  s->attack_speed *= mul;
+  s->armor *= mul;
+  s->dodge *= mul;
+  s->crit_chance *= mul;
+  s->crit_damage *= mul;
+  s->cooldown_reduction *= mul;
+  s->xp_magnet *= mul;
 }
 
 static void parse_stats_object(const char *json, jsmntok_t *t, int obj, Stats *out) {
@@ -487,6 +534,10 @@ static void parse_stats_object(const char *json, jsmntok_t *t, int obj, Stats *o
     else if (jsoneq(json, &t[i], "attack_speed") == 0) out->attack_speed = token_float(json, &t[i + 1]);
     else if (jsoneq(json, &t[i], "armor") == 0) out->armor = token_float(json, &t[i + 1]);
     else if (jsoneq(json, &t[i], "dodge") == 0) out->dodge = token_float(json, &t[i + 1]);
+    else if (jsoneq(json, &t[i], "crit_chance") == 0) out->crit_chance = token_float(json, &t[i + 1]);
+    else if (jsoneq(json, &t[i], "crit_damage") == 0) out->crit_damage = token_float(json, &t[i + 1]);
+    else if (jsoneq(json, &t[i], "cooldown_reduction") == 0) out->cooldown_reduction = token_float(json, &t[i + 1]);
+    else if (jsoneq(json, &t[i], "xp_magnet") == 0) out->xp_magnet = token_float(json, &t[i + 1]);
     i += token_span(t, i);  /* skip key */
     i += token_span(t, i);  /* skip value */
   }
@@ -530,6 +581,7 @@ static int load_weapons(Database *db, const char *path) {
     int pellets = find_key(json, tokens, obj, "pellets");
     int spread = find_key(json, tokens, obj, "spread");
     int homing = find_key(json, tokens, obj, "homing");
+    int crit = find_key(json, tokens, obj, "crit_multiplier");
     if (cd > 0) w->cooldown = token_float(json, &tokens[cd]);
     if (dmg > 0) w->damage = token_float(json, &tokens[dmg]);
     if (range > 0) w->range = token_float(json, &tokens[range]);
@@ -538,6 +590,7 @@ static int load_weapons(Database *db, const char *path) {
     if (pellets > 0) w->pellets = token_int(json, &tokens[pellets]);
     if (spread > 0) w->spread = token_float(json, &tokens[spread]);
     if (homing > 0) w->homing = token_int(json, &tokens[homing]);
+    if (crit > 0) w->crit_multiplier = token_float(json, &tokens[crit]);
 
     int scales = find_key(json, tokens, obj, "scales");
     if (scales > 0 && tokens[scales].type == JSMN_ARRAY) {
@@ -588,15 +641,6 @@ static int load_items(Database *db, const char *path) {
     if (rt > 0) token_string(json, &tokens[rt], it->rarity, (int)sizeof(it->rarity));
     if (dt > 0) token_string(json, &tokens[dt], it->desc, (int)sizeof(it->desc));
 
-    int tags = find_key(json, tokens, obj, "tags");
-    if (tags > 0 && tokens[tags].type == JSMN_ARRAY) {
-      int tidx = tags + 1;
-      for (int t = 0; t < tokens[tags].size && it->tag_count < MAX_TAGS; t++) {
-        token_string(json, &tokens[tidx], it->tags[it->tag_count++], 16);
-        tidx += token_span(tokens, tidx);
-      }
-    }
-
     int stats = find_key(json, tokens, obj, "stats");
     if (stats > 0) parse_stats_object(json, tokens, stats, &it->stats);
 
@@ -606,9 +650,11 @@ static int load_items(Database *db, const char *path) {
       int chance = find_key(json, tokens, proc, "chance");
       int dmg = find_key(json, tokens, proc, "damage");
       int bounces = find_key(json, tokens, proc, "bounces");
+      int range = find_key(json, tokens, proc, "range");
       if (chance > 0) it->proc_chance = token_float(json, &tokens[chance]);
       if (dmg > 0) it->proc_damage = token_float(json, &tokens[dmg]);
       if (bounces > 0) it->proc_bounces = token_int(json, &tokens[bounces]);
+      if (range > 0) it->proc_range = token_float(json, &tokens[range]);
     }
     
     /* Parse slow effects */
@@ -616,6 +662,21 @@ static int load_items(Database *db, const char *path) {
     int slow_aura = find_key(json, tokens, obj, "slow_aura");
     if (slow_hit > 0) it->slow_on_hit = token_float(json, &tokens[slow_hit]);
     if (slow_aura > 0) it->slow_aura = token_float(json, &tokens[slow_aura]);
+
+    int burn_hit = find_key(json, tokens, obj, "burn_on_hit");
+    int burn_aura = find_key(json, tokens, obj, "burn_aura");
+    int thorns = find_key(json, tokens, obj, "thorns_percent");
+    int lifesteal = find_key(json, tokens, obj, "lifesteal_on_kill");
+    int rarity_bias = find_key(json, tokens, obj, "rarity_bias");
+    int slow_bonus = find_key(json, tokens, obj, "slow_bonus_damage");
+    int legendary_amp = find_key(json, tokens, obj, "legendary_amp");
+    if (burn_hit > 0) it->burn_on_hit = token_float(json, &tokens[burn_hit]);
+    if (burn_aura > 0) it->burn_aura = token_float(json, &tokens[burn_aura]);
+    if (thorns > 0) it->thorns_percent = token_float(json, &tokens[thorns]);
+    if (lifesteal > 0) it->lifesteal_on_kill = token_float(json, &tokens[lifesteal]);
+    if (rarity_bias > 0) it->rarity_bias = token_float(json, &tokens[rarity_bias]);
+    if (slow_bonus > 0) it->slow_bonus_damage = token_float(json, &tokens[slow_bonus]);
+    if (legendary_amp > 0) it->legendary_amp = token_float(json, &tokens[legendary_amp]);
 
     idx += token_span(tokens, idx);
   }
@@ -743,6 +804,10 @@ static Stats player_total_stats(Player *p) {
   s.attack_speed = clampf(s.attack_speed, -0.5f, 3.0f);
   s.move_speed = clampf(s.move_speed, -0.3f, 2.0f);
   s.dodge = clampf(s.dodge, 0.0f, 0.75f);
+  s.crit_chance = clampf(s.crit_chance, 0.0f, 0.75f);
+  s.crit_damage = clampf(s.crit_damage, 0.0f, 3.0f);
+  s.cooldown_reduction = clampf(s.cooldown_reduction, 0.0f, 0.6f);
+  s.xp_magnet = clampf(s.xp_magnet, 0.0f, 600.0f);
   return s;
 }
 
@@ -770,6 +835,154 @@ static float player_slow_aura(Player *p, Database *db) {
     }
   }
   return max_range;
+}
+
+static float player_burn_on_hit(Player *p, Database *db) {
+  float total = 0.0f;
+  for (int i = 0; i < p->passive_count; i++) {
+    int idx = p->passive_items[i];
+    if (idx >= 0 && idx < db->item_count) {
+      total += db->items[idx].burn_on_hit;
+    }
+  }
+  return clampf(total, 0.0f, 1.0f);
+}
+
+static float player_burn_aura(Player *p, Database *db) {
+  float max_range = 0.0f;
+  for (int i = 0; i < p->passive_count; i++) {
+    int idx = p->passive_items[i];
+    if (idx >= 0 && idx < db->item_count) {
+      if (db->items[idx].burn_aura > max_range) {
+        max_range = db->items[idx].burn_aura;
+      }
+    }
+  }
+  return max_range;
+}
+
+static float player_thorns_percent(Player *p, Database *db) {
+  float total = 0.0f;
+  for (int i = 0; i < p->passive_count; i++) {
+    int idx = p->passive_items[i];
+    if (idx >= 0 && idx < db->item_count) {
+      total += db->items[idx].thorns_percent;
+    }
+  }
+  return clampf(total, 0.0f, 0.9f);
+}
+
+static float player_lifesteal_on_kill(Player *p, Database *db) {
+  float total = 0.0f;
+  for (int i = 0; i < p->passive_count; i++) {
+    int idx = p->passive_items[i];
+    if (idx >= 0 && idx < db->item_count) {
+      total += db->items[idx].lifesteal_on_kill;
+    }
+  }
+  return total;
+}
+
+static float player_rarity_bias(Player *p, Database *db) {
+  float total = 0.0f;
+  for (int i = 0; i < p->passive_count; i++) {
+    int idx = p->passive_items[i];
+    if (idx >= 0 && idx < db->item_count) {
+      total += db->items[idx].rarity_bias;
+    }
+  }
+  return clampf(total, 0.0f, 0.9f);
+}
+
+static float player_slow_bonus_damage(Player *p, Database *db) {
+  float total = 0.0f;
+  for (int i = 0; i < p->passive_count; i++) {
+    int idx = p->passive_items[i];
+    if (idx >= 0 && idx < db->item_count) {
+      total += db->items[idx].slow_bonus_damage;
+    }
+  }
+  return clampf(total, 0.0f, 1.0f);
+}
+
+static float player_legendary_amp(Player *p, Database *db) {
+  float total = 0.0f;
+  for (int i = 0; i < p->passive_count; i++) {
+    int idx = p->passive_items[i];
+    if (idx >= 0 && idx < db->item_count) {
+      total += db->items[idx].legendary_amp;
+    }
+  }
+  return clampf(total, 0.0f, 0.2f);
+}
+
+static float player_roll_crit_damage(Stats *stats, WeaponDef *w, float dmg) {
+  if (!w || !w->scale_crit) return dmg;
+  if (stats->crit_chance <= 0.0f) return dmg;
+  if (frandf() < stats->crit_chance) {
+    float crit_mul = (w->crit_multiplier > 0.0f) ? w->crit_multiplier : 1.5f;
+    crit_mul += stats->crit_damage;
+    if (crit_mul < 1.1f) crit_mul = 1.1f;
+    return dmg * crit_mul;
+  }
+  return dmg;
+}
+
+static float player_apply_hit_mods(Game *g, Enemy *en, float dmg) {
+  if (en->armor_shred_timer > 0.0f) dmg *= 1.2f;
+  float slow_bonus = player_slow_bonus_damage(&g->player, &g->db);
+  if (slow_bonus > 0.0f && en->slow_timer > 0.0f) {
+    float extra = dmg * slow_bonus;
+    log_combatf(g, "slow_bonus +%.1f dmg to %s", extra, enemy_label(g, en));
+    dmg += extra;
+  }
+  return dmg;
+}
+
+static void proc_chain_lightning(Game *g, int start_idx, float dmg, int bounces, float range) {
+  if (bounces <= 0 || range <= 0.0f) return;
+  int visited[MAX_ENEMIES];
+  memset(visited, 0, sizeof(visited));
+  visited[start_idx] = 1;
+  int current = start_idx;
+  float range2 = range * range;
+
+  for (int b = 0; b < bounces; b++) {
+    int next = -1;
+    float best = range2;
+    float cx = g->enemies[current].x;
+    float cy = g->enemies[current].y;
+    for (int i = 0; i < MAX_ENEMIES; i++) {
+      if (!g->enemies[i].active || visited[i]) continue;
+      float dx = g->enemies[i].x - cx;
+      float dy = g->enemies[i].y - cy;
+      float d2 = dx * dx + dy * dy;
+      if (d2 < best) { best = d2; next = i; }
+    }
+    if (next < 0) break;
+    Enemy *en = &g->enemies[next];
+    float hit = player_apply_hit_mods(g, en, dmg);
+    en->hp -= hit;
+    log_combatf(g, "chain_lightning hit %s for %.1f", enemy_label(g, en), hit);
+    visited[next] = 1;
+    current = next;
+  }
+}
+
+static void player_try_item_proc(Game *g, int enemy_idx, Stats *stats) {
+  for (int i = 0; i < g->player.passive_count; i++) {
+    int idx = g->player.passive_items[i];
+    if (idx < 0 || idx >= g->db.item_count) continue;
+    ItemDef *it = &g->db.items[idx];
+    if (!it->has_proc) continue;
+    if (it->proc_chance <= 0.0f || it->proc_damage <= 0.0f || it->proc_bounces <= 0) continue;
+    if (frandf() < it->proc_chance) {
+      float range = (it->proc_range > 0.0f) ? it->proc_range : 140.0f;
+      float dmg = it->proc_damage * (1.0f + stats->damage);
+      log_combatf(g, "chain_lightning proc dmg %.1f bounces %d", dmg, it->proc_bounces);
+      proc_chain_lightning(g, enemy_idx, dmg, it->proc_bounces, range);
+    }
+  }
 }
 
 static float damage_after_armor(float dmg, float armor) {
@@ -918,17 +1131,53 @@ static int can_equip_weapon(Player *p, int def_index) {
 
 static void player_recalc(Player *p, Database *db) {
   stats_clear(&p->bonus);
+  float amp = player_legendary_amp(p, db);
+  if (amp <= 0.0f) {
+    for (int i = 0; i < p->passive_count; i++) {
+      int idx = p->passive_items[i];
+      if (idx >= 0 && idx < db->item_count) stats_add(&p->bonus, &db->items[idx].stats);
+    }
+    return;
+  }
+
+  /* First pass: apply non-legendary items */
   for (int i = 0; i < p->passive_count; i++) {
     int idx = p->passive_items[i];
-    if (idx >= 0 && idx < db->item_count) stats_add(&p->bonus, &db->items[idx].stats);
+    if (idx < 0 || idx >= db->item_count) continue;
+    ItemDef *it = &db->items[idx];
+    if (strcmp(it->rarity, "legendary") != 0) {
+      stats_add(&p->bonus, &it->stats);
+    }
+  }
+
+  /* Compute secondary score from base + non-legendary stats */
+  Stats total = p->base;
+  stats_add(&total, &p->bonus);
+  float secondary_score = 0.0f;
+  secondary_score += total.max_hp / 100.0f;
+  secondary_score += total.move_speed * 10.0f;
+  secondary_score += total.armor;
+  secondary_score += total.dodge * 20.0f;
+  float legendary_bonus = clampf(amp * secondary_score, 0.0f, 0.75f);
+
+  /* Second pass: apply amplified legendary items */
+  for (int i = 0; i < p->passive_count; i++) {
+    int idx = p->passive_items[i];
+    if (idx < 0 || idx >= db->item_count) continue;
+    ItemDef *it = &db->items[idx];
+    if (strcmp(it->rarity, "legendary") == 0) {
+      Stats scaled = it->stats;
+      if (legendary_bonus > 0.0f) stats_scale(&scaled, 1.0f + legendary_bonus);
+      stats_add(&p->bonus, &scaled);
+    }
   }
 }
 
 static void apply_item(Player *p, Database *db, ItemDef *it, int item_index) {
-  stats_add(&p->bonus, &it->stats);
   if (p->passive_count < MAX_ITEMS) {
     p->passive_items[p->passive_count++] = item_index;
   }
+  player_recalc(p, db);
 }
 
 static void build_levelup_choices(Game *g) {
@@ -943,13 +1192,13 @@ static void build_levelup_choices(Game *g) {
   for (int i = 0; i < num_choices; i++) {
     int type = rand() % 3; /* 0,1 = item (66%), 2 = weapon (33%) */
     if (type < 2 && g->db.item_count > 0) {
-      int idx = rand() % g->db.item_count;
+      int idx = roll_item_index_with_bias(g);
       g->choices[g->choice_count++] = (LevelUpChoice){ .type = 0, .index = idx };
     } else if (g->db.weapon_count > 0) {
-      int idx = rand() % g->db.weapon_count;
+      int idx = roll_weapon_index_with_bias(g);
       g->choices[g->choice_count++] = (LevelUpChoice){ .type = 1, .index = idx };
     } else if (g->db.item_count > 0) {
-      int idx = rand() % g->db.item_count;
+      int idx = roll_item_index_with_bias(g);
       g->choices[g->choice_count++] = (LevelUpChoice){ .type = 0, .index = idx };
     }
   }
@@ -978,6 +1227,38 @@ static SDL_Color rarity_color(const char *rarity) {
   if (strcmp(rarity, "epic") == 0) return (SDL_Color){ 210, 123, 255, 255 };
   if (strcmp(rarity, "legendary") == 0) return (SDL_Color){ 255, 179, 71, 255 };
   return (SDL_Color){ 230, 231, 234, 255 };
+}
+
+static int rarity_rank(const char *rarity) {
+  if (strcmp(rarity, "uncommon") == 0) return 1;
+  if (strcmp(rarity, "rare") == 0) return 2;
+  if (strcmp(rarity, "epic") == 0) return 3;
+  if (strcmp(rarity, "legendary") == 0) return 4;
+  return 0;
+}
+
+static int roll_item_index_with_bias(Game *g) {
+  int idx = rand() % g->db.item_count;
+  float bias = player_rarity_bias(&g->player, &g->db);
+  if (bias <= 0.0f) return idx;
+  for (int tries = 0; tries < 4; tries++) {
+    if (rarity_rank(g->db.items[idx].rarity) >= 2) break;
+    if (frandf() < bias) idx = rand() % g->db.item_count;
+    else break;
+  }
+  return idx;
+}
+
+static int roll_weapon_index_with_bias(Game *g) {
+  int idx = rand() % g->db.weapon_count;
+  float bias = player_rarity_bias(&g->player, &g->db);
+  if (bias <= 0.0f) return idx;
+  for (int tries = 0; tries < 4; tries++) {
+    if (rarity_rank(g->db.weapons[idx].rarity) >= 2) break;
+    if (frandf() < bias) idx = rand() % g->db.weapon_count;
+    else break;
+  }
+  return idx;
 }
 
 static void draw_text(SDL_Renderer *r, TTF_Font *font, int x, int y, SDL_Color color, const char *text) {
@@ -1056,7 +1337,7 @@ static void wave_start(Game *g) {
 static void handle_player_pickups(Game *g, float dt) {
   Player *p = &g->player;
   Stats total = player_total_stats(p);
-  float xp_magnet_range = 150.0f;  /* XP orbs start moving toward player */
+  float xp_magnet_range = 150.0f + total.xp_magnet;  /* XP orbs start moving toward player */
   float pickup_range = 20.0f;        /* actual pickup distance */
   float health_pickup_range = 30.0f; /* health pickup distance */
   
@@ -1104,6 +1385,7 @@ static void handle_player_pickups(Game *g, float dt) {
 static void update_bullets(Game *g, float dt) {
   Player *p = &g->player;
   Stats stats = player_total_stats(p);
+  float item_burn = player_burn_on_hit(p, &g->db);
   for (int i = 0; i < MAX_BULLETS; i++) {
     Bullet *b = &g->bullets[i];
     if (!b->active) continue;
@@ -1149,17 +1431,20 @@ static void update_bullets(Game *g, float dt) {
             b->active = 0;
             break;
           }
-          float dmg = b->damage;
-          if (en->armor_shred_timer > 0.0f) dmg *= 1.2f;
+          float dmg = player_apply_hit_mods(g, en, b->damage);
           en->hp -= dmg;
           if (b->bleed_chance > 0.0f && frandf() < b->bleed_chance) {
             en->bleed_stacks = (en->bleed_stacks < 5) ? en->bleed_stacks + 1 : 5;
             en->bleed_timer = 4.0f;
           }
           if (b->burn_chance > 0.0f && frandf() < b->burn_chance) en->burn_timer = 4.0f;
+          if (item_burn > 0.0f && en->burn_timer > 0.0f) {
+            log_combatf(g, "burn_on_hit applied to %s", enemy_label(g, en));
+          }
           if (b->slow_chance > 0.0f && frandf() < b->slow_chance) en->slow_timer = 2.5f;
           if (b->stun_chance > 0.0f && frandf() < b->stun_chance) en->stun_timer = 0.6f;
           if (b->armor_shred_chance > 0.0f && frandf() < b->armor_shred_chance) en->armor_shred_timer = 3.0f;
+          player_try_item_proc(g, e, &stats);
           b->pierce -= 1;
           if (b->pierce < 0) { b->active = 0; }
           break;
@@ -1209,6 +1494,15 @@ static void update_enemies(Game *g, float dt) {
       e->slow_timer = 0.5f; /* Keep refreshing while in range */
     }
 
+    /* Burn aura from items - constantly burns enemies in range */
+    float burn_range = player_burn_aura(p, &g->db);
+    if (burn_range > 0.0f && dist < burn_range) {
+      if (e->burn_timer <= 0.0f) {
+        log_combatf(g, "burn_aura applied to %s", enemy_label(g, e));
+      }
+      e->burn_timer = 0.5f; /* Keep refreshing while in range */
+    }
+
     if (e->stun_timer <= 0.0f &&
         (strcmp(def->role, "ranged") == 0 || strcmp(def->role, "boss") == 0 || strcmp(def->role, "turret") == 0)) {
       e->cooldown -= dt;
@@ -1252,12 +1546,24 @@ static void update_enemies(Game *g, float dt) {
 
     if (dist < 20.0f) {
       float dmg = damage_after_armor(def->damage, stats.armor);
-      p->hp -= dmg * dt;
+      float applied = dmg * dt;
+      p->hp -= applied;
+      float thorns = player_thorns_percent(p, &g->db);
+      if (thorns > 0.0f) {
+        e->hp -= applied * thorns;
+        log_combatf(g, "thorns reflect %.1f to %s", applied * thorns, enemy_label(g, e));
+      }
     }
 
     if (strcmp(def->role, "exploder") == 0 && dist < 28.0f) {
       float dmg = damage_after_armor(def->damage, stats.armor);
-      p->hp -= dmg * 2.0f;
+      float applied = dmg * 2.0f;
+      p->hp -= applied;
+      float thorns = player_thorns_percent(p, &g->db);
+      if (thorns > 0.0f) {
+        e->hp -= applied * thorns;
+        log_combatf(g, "thorns reflect %.1f to %s", applied * thorns, enemy_label(g, e));
+      }
       e->hp = 0;
     }
 
@@ -1265,6 +1571,11 @@ static void update_enemies(Game *g, float dt) {
       e->active = 0;
       g->kills += 1;
       if (e->spawn_invuln <= 0.0f) {
+        float lifesteal = player_lifesteal_on_kill(p, &g->db);
+        if (lifesteal > 0.0f) {
+          p->hp = clampf(p->hp + lifesteal, 0.0f, stats.max_hp);
+          log_combatf(g, "lifesteal_on_kill +%.1f HP", lifesteal);
+        }
         /* Drop XP orb */
         spawn_drop(g, e->x, e->y, 0, 1 + rand() % 2);
         /* Drop health pickup sometimes */
@@ -1278,7 +1589,8 @@ static void fire_weapons(Game *g, float dt) {
   Player *p = &g->player;
   Stats stats = player_total_stats(p);
   float attack_speed = 1.0f + stats.attack_speed;
-  float cooldown_scale = 1.0f;
+  float cooldown_scale = clampf(1.0f - stats.cooldown_reduction, 0.4f, 1.0f);
+  float item_burn = player_burn_on_hit(p, &g->db);
 
   for (int i = 0; i < MAX_WEAPON_SLOTS; i++) {
     WeaponSlot *slot = &p->weapons[i];
@@ -1316,6 +1628,10 @@ static void fire_weapons(Game *g, float dt) {
     slow_chance += player_slow_on_hit(p, &g->db);
     slow_chance = clampf(slow_chance, 0.0f, 1.0f);
 
+    /* Add burn chance from items */
+    burn_chance += item_burn;
+    burn_chance = clampf(burn_chance, 0.0f, 1.0f);
+
     /* Lightning Zone - damages all enemies in circular range */
     if (weapon_is(w, "lightning_zone")) {
       float range = w->range * (1.0f + 0.1f * (slot->level - 1));
@@ -1328,9 +1644,10 @@ static void fire_weapons(Game *g, float dt) {
         float ey = en->y - p->y;
         float d2 = ex * ex + ey * ey;
         if (d2 <= range2) {
-          float final_dmg = damage;
-          if (en->armor_shred_timer > 0.0f) final_dmg *= 1.2f;
+          float final_dmg = player_roll_crit_damage(&stats, w, damage);
+          final_dmg = player_apply_hit_mods(g, en, final_dmg);
           en->hp -= final_dmg;
+          player_try_item_proc(g, e, &stats);
           /* Lightning has a chance to stun */
           if (frandf() < 0.15f) en->stun_timer = 0.3f;
         }
@@ -1353,17 +1670,21 @@ static void fire_weapons(Game *g, float dt) {
         if (perp <= half_width) {
           Enemy *en = &g->enemies[e];
           if (en->spawn_invuln > 0.0f) continue;
-          float final_dmg = damage;
-          if (en->armor_shred_timer > 0.0f) final_dmg *= 1.2f;
+          float final_dmg = player_roll_crit_damage(&stats, w, damage);
+          final_dmg = player_apply_hit_mods(g, en, final_dmg);
           en->hp -= final_dmg;
           if (bleed_chance > 0.0f && frandf() < bleed_chance) {
             en->bleed_stacks = (en->bleed_stacks < 5) ? en->bleed_stacks + 1 : 5;
             en->bleed_timer = 4.0f;
           }
           if (burn_chance > 0.0f && frandf() < burn_chance) en->burn_timer = 4.0f;
+          if (item_burn > 0.0f && en->burn_timer > 0.0f) {
+            log_combatf(g, "burn_on_hit applied to %s", enemy_label(g, en));
+          }
           if (slow_chance > 0.0f && frandf() < slow_chance) en->slow_timer = 2.5f;
           if (stun_chance > 0.0f && frandf() < stun_chance) en->stun_timer = 0.6f;
           if (shred_chance > 0.0f && frandf() < shred_chance) en->armor_shred_timer = 3.0f;
+          player_try_item_proc(g, e, &stats);
           if (weapon_is(w, "chain_blades")) {
             en->x -= tx * 20.0f;
             en->y -= ty * 20.0f;
@@ -1399,13 +1720,18 @@ static void fire_weapons(Game *g, float dt) {
         if (dot >= arc_cos) {  /* In front 180 degrees */
           Enemy *en = &g->enemies[e];
           if (en->spawn_invuln > 0.0f) continue;
-          float final_dmg = damage;
-          if (en->armor_shred_timer > 0.0f) final_dmg *= 1.2f;
+          float final_dmg = player_roll_crit_damage(&stats, w, damage);
+          final_dmg = player_apply_hit_mods(g, en, final_dmg);
           en->hp -= final_dmg;
           if (bleed_chance > 0.0f && frandf() < bleed_chance) {
             en->bleed_stacks = (en->bleed_stacks < 5) ? en->bleed_stacks + 1 : 5;
             en->bleed_timer = 4.0f;
           }
+          if (burn_chance > 0.0f && frandf() < burn_chance) en->burn_timer = 4.0f;
+          if (slow_chance > 0.0f && frandf() < slow_chance) en->slow_timer = 2.5f;
+          if (stun_chance > 0.0f && frandf() < stun_chance) en->stun_timer = 0.6f;
+          if (shred_chance > 0.0f && frandf() < shred_chance) en->armor_shred_timer = 3.0f;
+          player_try_item_proc(g, e, &stats);
           /* Lifesteal on kill */
           if (en->hp <= 0.0f) {
             p->hp = clampf(p->hp + 6.0f, 0.0f, stats.max_hp);
@@ -1430,13 +1756,18 @@ static void fire_weapons(Game *g, float dt) {
         float ey = en->y - p->y;
         float d2 = ex * ex + ey * ey;
         if (d2 <= range2) {
-          float final_dmg = damage;
-          if (en->armor_shred_timer > 0.0f) final_dmg *= 1.2f;
+          float final_dmg = player_roll_crit_damage(&stats, w, damage);
+          final_dmg = player_apply_hit_mods(g, en, final_dmg);
           en->hp -= final_dmg;
           /* Spawn bite effect on enemy */
           spawn_weapon_fx(g, 1, en->x, en->y, 0.0f, 0.6f, e);
           /* Lifesteal */
           p->hp = clampf(p->hp + final_dmg * 0.15f, 0.0f, stats.max_hp);
+          if (burn_chance > 0.0f && frandf() < burn_chance) en->burn_timer = 4.0f;
+          if (slow_chance > 0.0f && frandf() < slow_chance) en->slow_timer = 2.5f;
+          if (stun_chance > 0.0f && frandf() < stun_chance) en->stun_timer = 0.6f;
+          if (shred_chance > 0.0f && frandf() < shred_chance) en->armor_shred_timer = 3.0f;
+          player_try_item_proc(g, e, &stats);
           hits++;
         }
       }
@@ -1492,13 +1823,18 @@ static void fire_weapons(Game *g, float dt) {
         /* Spawn dagger visual and damage */
         spawn_weapon_fx(g, 2, p->x, p->y, angle, 0.25f, targets[t]);
         
-        float final_dmg = damage;
-        if (en->armor_shred_timer > 0.0f) final_dmg *= 1.2f;
+        float final_dmg = player_roll_crit_damage(&stats, w, damage);
+        final_dmg = player_apply_hit_mods(g, en, final_dmg);
         en->hp -= final_dmg;
         if (bleed_chance > 0.0f && frandf() < bleed_chance) {
           en->bleed_stacks = (en->bleed_stacks < 5) ? en->bleed_stacks + 1 : 5;
           en->bleed_timer = 4.0f;
         }
+        if (burn_chance > 0.0f && frandf() < burn_chance) en->burn_timer = 4.0f;
+        if (slow_chance > 0.0f && frandf() < slow_chance) en->slow_timer = 2.5f;
+        if (stun_chance > 0.0f && frandf() < stun_chance) en->stun_timer = 0.6f;
+        if (shred_chance > 0.0f && frandf() < shred_chance) en->armor_shred_timer = 3.0f;
+        player_try_item_proc(g, targets[t], &stats);
       }
       
       float level_cd = clampf(1.0f - 0.05f * (slot->level - 1), 0.7f, 1.0f);
@@ -1526,8 +1862,8 @@ static void fire_weapons(Game *g, float dt) {
         if (dot >= arc_cos) {
           Enemy *en = &g->enemies[e];
           if (en->spawn_invuln > 0.0f) continue;
-          float final_dmg = damage;
-          if (en->armor_shred_timer > 0.0f) final_dmg *= 1.2f;
+          float final_dmg = player_roll_crit_damage(&stats, w, damage);
+          final_dmg = player_apply_hit_mods(g, en, final_dmg);
           en->hp -= final_dmg;
           if (bleed_chance > 0.0f && frandf() < bleed_chance) {
             en->bleed_stacks = (en->bleed_stacks < 5) ? en->bleed_stacks + 1 : 5;
@@ -1537,6 +1873,7 @@ static void fire_weapons(Game *g, float dt) {
           if (slow_chance > 0.0f && frandf() < slow_chance) en->slow_timer = 2.5f;
           if (stun_chance > 0.0f && frandf() < stun_chance) en->stun_timer = 0.6f;
           if (shred_chance > 0.0f && frandf() < shred_chance) en->armor_shred_timer = 3.0f;
+          player_try_item_proc(g, e, &stats);
         }
       }
       float level_cd = clampf(1.0f - 0.05f * (slot->level - 1), 0.7f, 1.0f);
@@ -1552,7 +1889,8 @@ static void fire_weapons(Game *g, float dt) {
       float angle = atan2f(ty, tx) + frand_range(-spread, spread) * (3.14159f / 180.0f);
       float vx = cosf(angle) * speed;
       float vy = sinf(angle) * speed;
-      spawn_bullet(g, p->x, p->y, vx, vy, damage, w->pierce, w->homing, 1,
+      float shot_damage = player_roll_crit_damage(&stats, w, damage);
+      spawn_bullet(g, p->x, p->y, vx, vy, shot_damage, w->pierce, w->homing, 1,
                    bleed_chance, burn_chance, slow_chance, stun_chance, shred_chance);
     }
 
