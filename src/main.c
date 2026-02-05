@@ -241,6 +241,7 @@ typedef struct {
   float slow_timer;
   float stun_timer;
   float armor_shred_timer;
+  float hit_timer;
 } Enemy;
 
 typedef struct {
@@ -340,6 +341,11 @@ typedef struct {
   SDL_Texture *tex_bite;
   SDL_Texture *tex_dagger;
   SDL_Texture *tex_exp_orb;
+  SDL_Texture *tex_orb_common;
+  SDL_Texture *tex_orb_uncommon;
+  SDL_Texture *tex_orb_rare;
+  SDL_Texture *tex_orb_epic;
+  SDL_Texture *tex_orb_legendary;
   int running;
   GameMode mode;
   float time_scale;
@@ -823,6 +829,8 @@ static int find_weapon(Database *db, const char *id) {
   return -1;
 }
 
+static float player_hp_regen_amp(Player *p, Database *db);
+
 static Stats player_total_stats(Player *p, Database *db) {
   Stats s = p->base;
   stats_add(&s, &p->bonus);
@@ -982,6 +990,11 @@ static float player_roll_crit_damage(Stats *stats, WeaponDef *w, float dmg) {
   return dmg;
 }
 
+static void mark_enemy_hit(Enemy *en) {
+  if (!en) return;
+  en->hit_timer = (float)SDL_GetTicks() / 1000.0f;
+}
+
 static float player_apply_hit_mods(Game *g, Enemy *en, float dmg) {
   if (en->armor_shred_timer > 0.0f) dmg *= 1.2f;
   float slow_bonus = player_slow_bonus_damage(&g->player, &g->db);
@@ -1015,6 +1028,7 @@ static void proc_chain_lightning(Game *g, int start_idx, float dmg, int bounces,
     }
     if (next < 0) break;
     Enemy *en = &g->enemies[next];
+    mark_enemy_hit(en);
     float hit = player_apply_hit_mods(g, en, dmg);
     en->hp -= hit;
     log_combatf(g, "chain_lightning hit %s for %.1f", enemy_label(g, en), hit);
@@ -1054,6 +1068,7 @@ static void spawn_enemy(Game *g, int def_index) {
       e->hp = def->hp;
       e->max_hp = def->hp;
       e->spawn_invuln = 1.0f;
+      e->hit_timer = -1.0f;
       float x = 0.0f;
       float y = 0.0f;
       /* Spawn enemies around the player, just outside the view */
@@ -1348,6 +1363,20 @@ static SDL_Color rarity_color(const char *rarity) {
   return (SDL_Color){ 230, 231, 234, 255 };
 }
 
+static SDL_Texture *rarity_orb_texture(Game *g, const char *rarity) {
+  if (!g || !rarity) return NULL;
+  if (strcmp(rarity, "uncommon") == 0) return g->tex_orb_uncommon;
+  if (strcmp(rarity, "rare") == 0) return g->tex_orb_rare;
+  if (strcmp(rarity, "epic") == 0) return g->tex_orb_epic;
+  if (strcmp(rarity, "legendary") == 0) return g->tex_orb_legendary;
+  return g->tex_orb_common;
+}
+
+static int levelup_orb_size(const SDL_Rect *rect) {
+  int base = rect->w < rect->h ? rect->w : rect->h;
+  return (int)(base * 2.4f);
+}
+
 static int rarity_rank(const char *rarity) {
   if (strcmp(rarity, "uncommon") == 0) return 1;
   if (strcmp(rarity, "rare") == 0) return 2;
@@ -1560,6 +1589,7 @@ static void update_bullets(Game *g, float dt) {
             b->active = 0;
             break;
           }
+          mark_enemy_hit(en);
           float dmg = player_apply_hit_mods(g, en, b->damage);
           en->hp -= dmg;
           if (b->weapon_index >= 0 && b->weapon_index < g->db.weapon_count) {
@@ -1795,6 +1825,7 @@ static void fire_weapons(Game *g, float dt) {
         float ey = en->y - p->y;
         float d2 = ex * ex + ey * ey;
         if (d2 <= range2) {
+          mark_enemy_hit(en);
           float final_dmg = player_roll_crit_damage(&stats, w, damage);
           final_dmg = player_apply_hit_mods(g, en, final_dmg);
           en->hp -= final_dmg;
@@ -1835,6 +1866,7 @@ static void fire_weapons(Game *g, float dt) {
         if (perp <= half_width) {
           Enemy *en = &g->enemies[e];
           if (en->spawn_invuln > 0.0f) continue;
+          mark_enemy_hit(en);
           float final_dmg = player_roll_crit_damage(&stats, w, damage);
           final_dmg = player_apply_hit_mods(g, en, final_dmg);
           en->hp -= final_dmg;
@@ -1899,6 +1931,7 @@ static void fire_weapons(Game *g, float dt) {
         if (dot >= arc_cos) {  /* In front 180 degrees */
           Enemy *en = &g->enemies[e];
           if (en->spawn_invuln > 0.0f) continue;
+          mark_enemy_hit(en);
           float final_dmg = player_roll_crit_damage(&stats, w, damage);
           final_dmg = player_apply_hit_mods(g, en, final_dmg);
           en->hp -= final_dmg;
@@ -1949,6 +1982,7 @@ static void fire_weapons(Game *g, float dt) {
         float ey = en->y - p->y;
         float d2 = ex * ex + ey * ey;
         if (d2 <= range2) {
+          mark_enemy_hit(en);
           float final_dmg = player_roll_crit_damage(&stats, w, damage);
           final_dmg = player_apply_hit_mods(g, en, final_dmg);
           en->hp -= final_dmg;
@@ -2029,6 +2063,7 @@ static void fire_weapons(Game *g, float dt) {
         /* Spawn dagger visual and damage */
         spawn_weapon_fx(g, 2, p->x, p->y, angle, 0.25f, targets[t]);
         
+        mark_enemy_hit(en);
         float final_dmg = player_roll_crit_damage(&stats, w, damage);
         final_dmg = player_apply_hit_mods(g, en, final_dmg);
         en->hp -= final_dmg;
@@ -2082,6 +2117,7 @@ static void fire_weapons(Game *g, float dt) {
         if (dot >= arc_cos) {
           Enemy *en = &g->enemies[e];
           if (en->spawn_invuln > 0.0f) continue;
+          mark_enemy_hit(en);
           float final_dmg = player_roll_crit_damage(&stats, w, damage);
           final_dmg = player_apply_hit_mods(g, en, final_dmg);
           en->hp -= final_dmg;
@@ -2341,10 +2377,16 @@ static void render_game(Game *g) {
       draw_glow(g->renderer, ex, ey, size/2 + 8, (SDL_Color){255, 100, 0, 100});
     }
     
+    float now = (float)SDL_GetTicks() / 1000.0f;
+    float hit_age = (g->enemies[i].hit_timer > 0.0f) ? (now - g->enemies[i].hit_timer) : 999.0f;
+    int hit_flash = (hit_age >= 0.0f && hit_age < 0.5f);
+
     /* Draw enemy sprite with color tint for slow */
     if (g->tex_enemy) {
-      /* Tint blue when slowed */
-      if (g->enemies[i].slow_timer > 0.0f) {
+      /* Tint red when hit, blue when slowed */
+      if (hit_flash) {
+        SDL_SetTextureColorMod(g->tex_enemy, 255, 120, 120);
+      } else if (g->enemies[i].slow_timer > 0.0f) {
         SDL_SetTextureColorMod(g->tex_enemy, 150, 180, 255);
       } else {
         SDL_SetTextureColorMod(g->tex_enemy, 255, 255, 255);
@@ -2353,11 +2395,20 @@ static void render_game(Game *g) {
       SDL_RenderCopy(g->renderer, g->tex_enemy, NULL, &dst);
     } else {
       /* Fallback circle - tint blue when slowed */
-      if (g->enemies[i].slow_timer > 0.0f) {
+      if (hit_flash) {
+        draw_filled_circle(g->renderer, ex, ey, size/2, (SDL_Color){220, 100, 100, 255});
+      } else if (g->enemies[i].slow_timer > 0.0f) {
         draw_filled_circle(g->renderer, ex, ey, size/2, (SDL_Color){100, 150, 200, 255});
       } else {
         draw_filled_circle(g->renderer, ex, ey, size/2, (SDL_Color){100, 200, 100, 255});
       }
+    }
+
+    /* Hit flash overlay for visibility */
+    if (hit_flash) {
+      float t = clampf(1.0f - (hit_age / 0.5f), 0.0f, 1.0f);
+      Uint8 alpha = (Uint8)(120.0f * t + 40.0f);
+      draw_glow(g->renderer, ex, ey, size/2 + 6, (SDL_Color){255, 80, 80, alpha});
     }
 
     /* Health bar for all enemies */
@@ -2541,32 +2592,39 @@ static void render_game(Game *g) {
     SDL_Color text = { 230, 231, 234, 255 };
     char buf[128];
     Stats stats = player_total_stats(&g->player, &g->db);
-    snprintf(buf, sizeof(buf), "HP %.0f / %.0f", g->player.hp, stats.max_hp);
-    draw_text(g->renderer, g->font, 70, 12, text, buf);
+
+    /* Top bar */
+    SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g->renderer, 10, 12, 18, 210);
+    SDL_Rect top_bar = { 0, 0, WINDOW_W, 38 };
+    SDL_RenderFillRect(g->renderer, &top_bar);
+
+    snprintf(buf, sizeof(buf), "HP %.0f/%.0f", g->player.hp, stats.max_hp);
+    draw_text(g->renderer, g->font, 20, 10, text, buf);
     snprintf(buf, sizeof(buf), "Lv %d  XP %d/%d", g->level, g->xp, g->xp_to_next);
-    draw_text(g->renderer, g->font, 260, 12, text, buf);
+    draw_text(g->renderer, g->font, 170, 10, text, buf);
     int mins = (int)(g->game_time / 60.0f);
     int secs = (int)g->game_time % 60;
     snprintf(buf, sizeof(buf), "Time %d:%02d", mins, secs);
-    draw_text(g->renderer, g->font, 430, 12, text, buf);
+    draw_text(g->renderer, g->font, 380, 10, text, buf);
     snprintf(buf, sizeof(buf), "Kills %d", g->kills);
-    draw_text(g->renderer, g->font, 560, 12, text, buf);
-    snprintf(buf, sizeof(buf), "HP %.0f  Dmg +%.0f%%  AS +%.0f%%", stats.max_hp, stats.damage * 100.0f, stats.attack_speed * 100.0f);
-    draw_text(g->renderer, g->font, 70, 32, text, buf);
-    snprintf(buf, sizeof(buf), "Armor %.0f  Speed +%.0f%%  Dodge %.0f%%", stats.armor, stats.move_speed * 100.0f, stats.dodge * 100.0f);
-    draw_text(g->renderer, g->font, 70, 52, text, buf);
-    snprintf(buf, sizeof(buf), "Speed x%.1f  DebugRange %s", g->time_scale, g->debug_show_range ? "ON" : "OFF");
-    draw_text(g->renderer, g->font, 70, 72, text, buf);
+    draw_text(g->renderer, g->font, 520, 10, text, buf);
+
+    /* Compact HUD */
+    snprintf(buf, sizeof(buf), "Dmg +%.0f%%  AS +%.0f%%  Armor %.0f  Spd +%.0f%%", stats.damage * 100.0f, stats.attack_speed * 100.0f, stats.armor, stats.move_speed * 100.0f);
+    draw_text(g->renderer, g->font, 20, 48, text, buf);
+    snprintf(buf, sizeof(buf), "Dodge %.0f%%  Crit %.0f%%  CDR %.0f%%  Regen %.1f", stats.dodge * 100.0f, stats.crit_chance * 100.0f, stats.cooldown_reduction * 100.0f, stats.hp_regen);
+    draw_text(g->renderer, g->font, 20, 68, text, buf);
     if (g->ultimate_cd > 0.0f) {
       snprintf(buf, sizeof(buf), "[SPACE] Ultimate: %.0fs", g->ultimate_cd);
     } else {
       snprintf(buf, sizeof(buf), "[SPACE] Ultimate: READY!");
     }
-    draw_text(g->renderer, g->font, 70, 92, text, buf);
-    draw_text(g->renderer, g->font, 70, 112, text, "F1 spawn  F2/F3 speed  F4 range  F5 pause  P pause");
+    draw_text(g->renderer, g->font, 20, 88, text, buf);
+    draw_text(g->renderer, g->font, 20, 108, text, "TAB/P pause  F1 spawn  F2/F3 speed  F4 range");
 
-    int wx = 70;
-    int wy = 132;
+    int wx = 20;
+    int wy = 130;
     draw_text(g->renderer, g->font, wx, wy, text, "Weapons:");
     wy += 18;
     for (int i = 0; i < MAX_WEAPON_SLOTS; i++) {
@@ -2608,28 +2666,42 @@ static void render_game(Game *g) {
     for (int i = 0; i < g->choice_count; i++) {
       LevelUpChoice *choice = &g->choices[i];
       
-      /* Card background */
-      SDL_SetRenderDrawColor(g->renderer, 28, 34, 50, 255);
-      SDL_RenderFillRect(g->renderer, &choice->rect);
-      
-      /* Border based on rarity */
+      /* Rarity orb background (no card box) */
       const char *rarity_str = (choice->type == 0) ? g->db.items[choice->index].rarity : g->db.weapons[choice->index].rarity;
-      SDL_Color border = {60, 70, 90, 255};
-      if (strcmp(rarity_str, "uncommon") == 0) border = (SDL_Color){80, 180, 120, 255};
-      else if (strcmp(rarity_str, "rare") == 0) border = (SDL_Color){80, 140, 255, 255};
-      else if (strcmp(rarity_str, "epic") == 0) border = (SDL_Color){180, 100, 255, 255};
-      else if (strcmp(rarity_str, "legendary") == 0) border = (SDL_Color){255, 180, 60, 255};
-      SDL_SetRenderDrawColor(g->renderer, border.r, border.g, border.b, border.a);
-      SDL_RenderDrawRect(g->renderer, &choice->rect);
+      SDL_Texture *orb_tex = rarity_orb_texture(g, rarity_str);
+      if (orb_tex) {
+        int orb_size = levelup_orb_size(&choice->rect);
+        SDL_Rect orb_dst = {
+          choice->rect.x + (choice->rect.w - orb_size) / 2,
+          choice->rect.y + (choice->rect.h - orb_size) / 2,
+          orb_size,
+          orb_size
+        };
+        SDL_SetTextureAlphaMod(orb_tex, 235);
+        SDL_RenderCopy(g->renderer, orb_tex, NULL, &orb_dst);
+        SDL_SetTextureAlphaMod(orb_tex, 255);
+      }
 
       if (choice->type == 0) {
         ItemDef *it = &g->db.items[choice->index];
-        SDL_Color rc = rarity_color(it->rarity);
-        draw_text(g->renderer, g->font, choice->rect.x + 8, choice->rect.y + 8, rc, it->name);
+        SDL_Color outline = {0, 0, 0, 255};
+        SDL_Color white = {255, 255, 255, 255};
+        int cx = choice->rect.x + choice->rect.w / 2;
+        int y = choice->rect.y + 18;
+        draw_text_centered(g->renderer, g->font_title, cx - 1, y, outline, it->name);
+        draw_text_centered(g->renderer, g->font_title, cx + 1, y, outline, it->name);
+        draw_text_centered(g->renderer, g->font_title, cx, y - 1, outline, it->name);
+        draw_text_centered(g->renderer, g->font_title, cx, y + 1, outline, it->name);
+        draw_text_centered(g->renderer, g->font_title, cx, y, white, it->name);
         
         if (it->desc[0]) {
           SDL_Color desc_color = {180, 180, 190, 255};
-          draw_text(g->renderer, g->font, choice->rect.x + 8, choice->rect.y + 30, desc_color, it->desc);
+          int dy = choice->rect.y + 38;
+          draw_text_centered(g->renderer, g->font_title, cx - 1, dy, outline, it->desc);
+          draw_text_centered(g->renderer, g->font_title, cx + 1, dy, outline, it->desc);
+          draw_text_centered(g->renderer, g->font_title, cx, dy - 1, outline, it->desc);
+          draw_text_centered(g->renderer, g->font_title, cx, dy + 1, outline, it->desc);
+          draw_text_centered(g->renderer, g->font_title, cx, dy, white, it->desc);
         }
         
         char statline[128];
@@ -2644,23 +2716,39 @@ static void render_game(Game *g) {
         if (s->dodge != 0) pos += snprintf(statline + pos, sizeof(statline) - pos, "DDG%+.0f%% ", s->dodge * 100);
         if (s->hp_regen != 0) pos += snprintf(statline + pos, sizeof(statline) - pos, "REG%+.1f ", s->hp_regen);
         SDL_Color stat_color = {140, 200, 140, 255};
-        draw_text(g->renderer, g->font, choice->rect.x + 8, choice->rect.y + 52, stat_color, statline);
-        
-        SDL_Color item_label_color = {150, 150, 160, 255};
-        draw_text(g->renderer, g->font, choice->rect.x + 8, choice->rect.y + 95, item_label_color, "ITEM");
+        int sy = choice->rect.y + 60;
+        draw_text_centered(g->renderer, g->font_title, cx - 1, sy, outline, statline);
+        draw_text_centered(g->renderer, g->font_title, cx + 1, sy, outline, statline);
+        draw_text_centered(g->renderer, g->font_title, cx, sy - 1, outline, statline);
+        draw_text_centered(g->renderer, g->font_title, cx, sy + 1, outline, statline);
+        draw_text_centered(g->renderer, g->font_title, cx, sy, white, statline);
       } else {
         WeaponDef *w = &g->db.weapons[choice->index];
-        SDL_Color rc = rarity_color(w->rarity);
-        draw_text(g->renderer, g->font, choice->rect.x + 8, choice->rect.y + 8, rc, w->name);
+        SDL_Color outline = {0, 0, 0, 255};
+        SDL_Color white = {255, 255, 255, 255};
+        int cx = choice->rect.x + choice->rect.w / 2;
+        int y = choice->rect.y + 18;
+        draw_text_centered(g->renderer, g->font_title, cx - 1, y, outline, w->name);
+        draw_text_centered(g->renderer, g->font_title, cx + 1, y, outline, w->name);
+        draw_text_centered(g->renderer, g->font_title, cx, y - 1, outline, w->name);
+        draw_text_centered(g->renderer, g->font_title, cx, y + 1, outline, w->name);
+        draw_text_centered(g->renderer, g->font_title, cx, y, white, w->name);
         char statline[128];
         snprintf(statline, sizeof(statline), "%s  DMG %.0f", w->type, w->damage);
         SDL_Color wep_color = {180, 180, 190, 255};
-        draw_text(g->renderer, g->font, choice->rect.x + 8, choice->rect.y + 30, wep_color, statline);
+        int dy = choice->rect.y + 38;
+        draw_text_centered(g->renderer, g->font_title, cx - 1, dy, outline, statline);
+        draw_text_centered(g->renderer, g->font_title, cx + 1, dy, outline, statline);
+        draw_text_centered(g->renderer, g->font_title, cx, dy - 1, outline, statline);
+        draw_text_centered(g->renderer, g->font_title, cx, dy + 1, outline, statline);
+        draw_text_centered(g->renderer, g->font_title, cx, dy, white, statline);
         snprintf(statline, sizeof(statline), "CD %.2fs  RNG %.0f", w->cooldown, w->range);
-        draw_text(g->renderer, g->font, choice->rect.x + 8, choice->rect.y + 52, wep_color, statline);
-        
-        SDL_Color type_color = {150, 150, 160, 255};
-        draw_text(g->renderer, g->font, choice->rect.x + 8, choice->rect.y + 95, type_color, "WEAPON");
+        int sy = choice->rect.y + 60;
+        draw_text_centered(g->renderer, g->font_title, cx - 1, sy, outline, statline);
+        draw_text_centered(g->renderer, g->font_title, cx + 1, sy, outline, statline);
+        draw_text_centered(g->renderer, g->font_title, cx, sy - 1, outline, statline);
+        draw_text_centered(g->renderer, g->font_title, cx, sy + 1, outline, statline);
+        draw_text_centered(g->renderer, g->font_title, cx, sy, white, statline);
       }
     }
     
@@ -2708,6 +2796,78 @@ static void render_game(Game *g) {
       SDL_RenderDrawRect(g->renderer, &g->highroll_button);
       draw_text_centered(g->renderer, g->font, btn_x + btn_w / 2, hr_btn_y + 10, (SDL_Color){80, 85, 95, 255}, "Used");
     }
+  }
+
+  if (g->mode == MODE_PAUSE) {
+    SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g->renderer, 8, 8, 12, 200);
+    SDL_Rect overlay = { 0, 0, WINDOW_W, WINDOW_H };
+    SDL_RenderFillRect(g->renderer, &overlay);
+    draw_text_centered(g->renderer, g->font_title, WINDOW_W / 2, 180, (SDL_Color){255, 215, 100, 255}, "PAUSED");
+
+    Stats stats = player_total_stats(&g->player, &g->db);
+    SDL_Color label = {170, 175, 190, 255};
+    SDL_Color val = {230, 231, 234, 255};
+    int x = WINDOW_W / 2 - 160;
+    int y = 240;
+    int line = 20;
+
+    draw_text(g->renderer, g->font, x, y, label, "Max HP:");
+    snprintf(buf, sizeof(buf), "%.0f", stats.max_hp);
+    draw_text(g->renderer, g->font, x + 160, y, val, buf);
+    y += line;
+
+    draw_text(g->renderer, g->font, x, y, label, "Damage:");
+    snprintf(buf, sizeof(buf), "+%.0f%%", stats.damage * 100.0f);
+    draw_text(g->renderer, g->font, x + 160, y, val, buf);
+    y += line;
+
+    draw_text(g->renderer, g->font, x, y, label, "Attack Speed:");
+    snprintf(buf, sizeof(buf), "+%.0f%%", stats.attack_speed * 100.0f);
+    draw_text(g->renderer, g->font, x + 160, y, val, buf);
+    y += line;
+
+    draw_text(g->renderer, g->font, x, y, label, "Move Speed:");
+    snprintf(buf, sizeof(buf), "+%.0f%%", stats.move_speed * 100.0f);
+    draw_text(g->renderer, g->font, x + 160, y, val, buf);
+    y += line;
+
+    draw_text(g->renderer, g->font, x, y, label, "Armor:");
+    snprintf(buf, sizeof(buf), "%.0f", stats.armor);
+    draw_text(g->renderer, g->font, x + 160, y, val, buf);
+    y += line;
+
+    draw_text(g->renderer, g->font, x, y, label, "Dodge:");
+    snprintf(buf, sizeof(buf), "%.0f%%", stats.dodge * 100.0f);
+    draw_text(g->renderer, g->font, x + 160, y, val, buf);
+    y += line;
+
+    draw_text(g->renderer, g->font, x, y, label, "Crit Chance:");
+    snprintf(buf, sizeof(buf), "%.0f%%", stats.crit_chance * 100.0f);
+    draw_text(g->renderer, g->font, x + 160, y, val, buf);
+    y += line;
+
+    draw_text(g->renderer, g->font, x, y, label, "Crit Damage:");
+    snprintf(buf, sizeof(buf), "+%.0f%%", stats.crit_damage * 100.0f);
+    draw_text(g->renderer, g->font, x + 160, y, val, buf);
+    y += line;
+
+    draw_text(g->renderer, g->font, x, y, label, "Cooldown Red:");
+    snprintf(buf, sizeof(buf), "%.0f%%", stats.cooldown_reduction * 100.0f);
+    draw_text(g->renderer, g->font, x + 160, y, val, buf);
+    y += line;
+
+    draw_text(g->renderer, g->font, x, y, label, "XP Magnet:");
+    snprintf(buf, sizeof(buf), "%.0f", stats.xp_magnet);
+    draw_text(g->renderer, g->font, x + 160, y, val, buf);
+    y += line;
+
+    draw_text(g->renderer, g->font, x, y, label, "HP Regen:");
+    snprintf(buf, sizeof(buf), "%.1f/s", stats.hp_regen);
+    draw_text(g->renderer, g->font, x + 160, y, val, buf);
+    y += line;
+
+    draw_text_centered(g->renderer, g->font, WINDOW_W / 2, y + 20, (SDL_Color){140, 140, 160, 255}, "Press TAB or P to resume");
   }
 
   /* Alchemist puddles (hide under levelup overlay) */
@@ -3021,7 +3181,13 @@ static void handle_levelup_click(Game *g, int mx, int my) {
   
   for (int i = 0; i < g->choice_count; i++) {
     SDL_Rect r = g->choices[i].rect;
-    if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
+    int orb_size = levelup_orb_size(&r);
+    float cx = (float)(r.x + r.w / 2);
+    float cy = (float)(r.y + r.h / 2);
+    float radius = (float)orb_size * 0.5f;
+    float dx = (float)mx - cx;
+    float dy = (float)my - cy;
+    if (dx * dx + dy * dy <= radius * radius) {
       if (g->choices[i].type == 0) {
         ItemDef *it = &g->db.items[g->choices[i].index];
         apply_item(&g->player, &g->db, it, g->choices[i].index);
@@ -3128,6 +3294,22 @@ int main(int argc, char **argv) {
   game.tex_exp_orb = IMG_LoadTexture(game.renderer, "data/assets/exp_orb.png");
   if (game.tex_exp_orb) log_line("Loaded exp_orb sprite");
   else log_linef("Failed to load exp_orb.png: %s", IMG_GetError());
+
+  game.tex_orb_common = IMG_LoadTexture(game.renderer, "data/assets/orbs_rarity/common_orb.png");
+  game.tex_orb_uncommon = IMG_LoadTexture(game.renderer, "data/assets/orbs_rarity/uncommon_orb.png");
+  game.tex_orb_rare = IMG_LoadTexture(game.renderer, "data/assets/orbs_rarity/rare_orb.png");
+  game.tex_orb_epic = IMG_LoadTexture(game.renderer, "data/assets/orbs_rarity/epic_orb.png");
+  game.tex_orb_legendary = IMG_LoadTexture(game.renderer, "data/assets/orbs_rarity/legendary_orb.png");
+  if (game.tex_orb_common) log_line("Loaded common_orb.png");
+  else log_linef("Failed to load common_orb.png: %s", IMG_GetError());
+  if (game.tex_orb_uncommon) log_line("Loaded uncommon_orb.png");
+  else log_linef("Failed to load uncommon_orb.png: %s", IMG_GetError());
+  if (game.tex_orb_rare) log_line("Loaded rare_orb.png");
+  else log_linef("Failed to load rare_orb.png: %s", IMG_GetError());
+  if (game.tex_orb_epic) log_line("Loaded epic_orb.png");
+  else log_linef("Failed to load epic_orb.png: %s", IMG_GetError());
+  if (game.tex_orb_legendary) log_line("Loaded legendary_orb.png");
+  else log_linef("Failed to load legendary_orb.png: %s", IMG_GetError());
   
   /* Load character portraits */
   for (int i = 0; i < game.db.character_count && i < MAX_CHARACTERS; i++) {
@@ -3143,7 +3325,10 @@ int main(int argc, char **argv) {
     log_linef("Font load failed. Continuing without text. %s", TTF_GetError());
   }
   /* Try to load a nicer game font for titles - Impact or Georgia Bold */
-  game.font_title = TTF_OpenFont("C:/Windows/Fonts/impact.ttf", 18);
+  game.font_title = TTF_OpenFont("C:/Windows/Fonts/segoescb.ttf", 20);
+  if (!game.font_title) {
+    game.font_title = TTF_OpenFont("C:/Windows/Fonts/impact.ttf", 18);
+  }
   if (!game.font_title) {
     game.font_title = TTF_OpenFont("C:/Windows/Fonts/georgiab.ttf", 18);
   }
@@ -3180,6 +3365,7 @@ int main(int argc, char **argv) {
       if (e.type == SDL_KEYDOWN) {
         if (e.key.keysym.sym == SDLK_ESCAPE) game.running = 0;
         if (e.key.keysym.sym == SDLK_p) game.mode = (game.mode == MODE_PAUSE ? MODE_WAVE : MODE_PAUSE);
+        if (e.key.keysym.sym == SDLK_TAB) game.mode = (game.mode == MODE_PAUSE ? MODE_WAVE : MODE_PAUSE);
         if (e.key.keysym.sym == SDLK_r && game.mode == MODE_GAMEOVER) game_reset(&game);
         if (e.key.keysym.sym == SDLK_F1) {
           if (game.db.enemy_count > 0) {
@@ -3274,6 +3460,11 @@ int main(int argc, char **argv) {
   if (game.tex_bite) SDL_DestroyTexture(game.tex_bite);
   if (game.tex_dagger) SDL_DestroyTexture(game.tex_dagger);
   if (game.tex_exp_orb) SDL_DestroyTexture(game.tex_exp_orb);
+  if (game.tex_orb_common) SDL_DestroyTexture(game.tex_orb_common);
+  if (game.tex_orb_uncommon) SDL_DestroyTexture(game.tex_orb_uncommon);
+  if (game.tex_orb_rare) SDL_DestroyTexture(game.tex_orb_rare);
+  if (game.tex_orb_epic) SDL_DestroyTexture(game.tex_orb_epic);
+  if (game.tex_orb_legendary) SDL_DestroyTexture(game.tex_orb_legendary);
   for (int i = 0; i < MAX_CHARACTERS; i++) {
     if (game.tex_portraits[i]) SDL_DestroyTexture(game.tex_portraits[i]);
   }

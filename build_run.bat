@@ -2,6 +2,8 @@
 setlocal EnableExtensions EnableDelayedExpansion
 echo Starting build...
 
+pushd "%~dp0"
+
 set BUILD_DIR=build
 set EXE_RELEASE=%BUILD_DIR%\Release\buh.exe
 set EXE_DEBUG=%BUILD_DIR%\Debug\buh.exe
@@ -57,11 +59,12 @@ goto :fail
 :fail
 echo.
 echo Build failed. See messages above.
+popd
 pause
 exit /b 1
 
 :done
 echo.
 echo Done.
-pause
+popd
 exit /b 0

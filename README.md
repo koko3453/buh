@@ -6,6 +6,7 @@ A Vampire Survivors-style endless survival game built in C with SDL2. Features:
 - Enemies spawn continuously with scaling difficulty over time
 - Ultimate ability (SPACE) with 2-minute cooldown
 - Data-driven content via JSON
+ - Item effects: regen, chain procs, XP pickup effects
 
 ## Gameplay
 
@@ -53,13 +54,18 @@ build\Release\buh.exe
 | Mouse | Select upgrades on level up |
 
 ## Stats
-The game uses 6 core stats:
+The game uses these core stats:
 - **Damage** - Attack damage
 - **Health** - Maximum HP
 - **Move Speed** - Movement speed
 - **Attack Speed** - Auto-attack rate
 - **Armor** - Damage reduction
 - **Dodge** - Chance to avoid damage
+ - **Crit Chance** - Chance to crit (if weapon scales crit)
+ - **Crit Damage** - Bonus crit multiplier
+ - **Cooldown Reduction** - Faster weapon cooldowns
+ - **XP Magnet** - XP pull range
+ - **HP Regen** - HP per second
 
 ## Project Structure
 ```
