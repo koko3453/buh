@@ -14,7 +14,15 @@ data/assets/
 log.txt
 *.log
 
+# Local docs
+SYSTEM_DESCRIPTION.md
+todo_ideas.md
+
 # IDE
 .vs/
 .vscode/
 *.user
+
+# Website (local only, not tracked)
+website/
+my-website/
