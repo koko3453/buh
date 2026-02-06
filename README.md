@@ -2,7 +2,7 @@
 
 A Vampire Survivors-style endless survival game built in C with SDL2. Features:
 - Endless auto-attacking combat with infinite scrolling map
-- Level up system - choose 1 of 4 upgrades on each level
+- Level up system - choose 1 of 3 upgrades on each level
 - Enemies spawn continuously with scaling difficulty over time
 - Ultimate ability (SPACE) with 2-minute cooldown
 - Data-driven content via JSON
