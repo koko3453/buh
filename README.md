@@ -10,7 +10,7 @@ A Vampire Survivors-style endless survival game built in C with SDL2. Features:
 
 ## Gameplay
 
-Kill enemies to collect XP orbs. When you level up, choose 1 of 4 random upgrades:
+Kill enemies to collect XP orbs. When you level up, choose 1 of 3 random upgrades:
 - **Items** - Passive stat boosts (damage, health, speed, armor, etc.)
 - **Weapons** - Add new weapons or upgrade existing ones
 
