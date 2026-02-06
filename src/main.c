@@ -8,6 +8,7 @@
 #include <math.h>
 #include <time.h>
 #include <stdarg.h>
+#include <ctype.h>
 #include <windows.h>
 
 static FILE *g_log = NULL;
@@ -109,6 +110,7 @@ static LONG WINAPI crash_handler(EXCEPTION_POINTERS *e) {
 #define ARENA_H 4000
 #define VIEW_W 1180
 #define VIEW_H 640
+#define ITEM_POPUP_DURATION 4.5f
 
 #define MAX_LEVELUP_CHOICES 16
 
@@ -342,6 +344,10 @@ typedef struct {
   TTF_Font *font;
   TTF_Font *font_title;
   TTF_Font *font_title_big;
+  int window_w;
+  int window_h;
+  int view_w;
+  int view_h;
   SDL_Texture *tex_ground;
   SDL_Texture *tex_wall;
   SDL_Texture *tex_health_flask;
@@ -392,6 +398,8 @@ typedef struct {
   int xp_to_next;
   float game_time;
   int last_item_index; /* most recently received item index */
+  float item_popup_timer;
+  char item_popup_name[64];
 
   LevelUpChoice choices[MAX_LEVELUP_CHOICES];
   int choice_count;
@@ -1102,19 +1110,29 @@ static void spawn_enemy(Game *g, int def_index) {
       e->hit_timer = -1.0f;
       float x = 0.0f;
       float y = 0.0f;
-      /* Spawn enemies around the player, just outside the view */
-      float spawn_dist = 400.0f + frandf() * 200.0f;
-      for (int tries = 0; tries < 12; tries++) {
-        float angle = frandf() * 6.28318f;
-        x = g->player.x + cosf(angle) * spawn_dist;
-        y = g->player.y + sinf(angle) * spawn_dist;
-        /* Clamp to world bounds */
-        x = clampf(x, 40.0f, ARENA_W - 40.0f);
-        y = clampf(y, 40.0f, ARENA_H - 40.0f);
-        float dx = x - g->player.x;
-        float dy = y - g->player.y;
-        if (dx * dx + dy * dy > 200.0f * 200.0f) break;
+      /* Spawn at the edge of the view */
+      float margin = 20.0f;
+      float cam_min_x = g->camera_x;
+      float cam_max_x = g->camera_x + g->view_w;
+      float cam_min_y = g->camera_y;
+      float cam_max_y = g->camera_y + g->view_h;
+      int side = rand() % 4; /* 0=left,1=right,2=top,3=bottom */
+      if (side == 0) {
+        x = cam_min_x - margin;
+        y = cam_min_y + frandf() * g->view_h;
+      } else if (side == 1) {
+        x = cam_max_x + margin;
+        y = cam_min_y + frandf() * g->view_h;
+      } else if (side == 2) {
+        x = cam_min_x + frandf() * g->view_w;
+        y = cam_min_y - margin;
+      } else {
+        x = cam_min_x + frandf() * g->view_w;
+        y = cam_max_y + margin;
       }
+      /* Clamp to world bounds */
+      x = clampf(x, 40.0f, ARENA_W - 40.0f);
+      y = clampf(y, 40.0f, ARENA_H - 40.0f);
       e->x = x;
       e->y = y;
       return;
@@ -1443,7 +1461,7 @@ static void build_start_page(Game *g) {
 }
 
 static float start_scroll_max(Game *g) {
-  int split_x = (WINDOW_W * 2) / 3;
+  int split_x = (g->window_w * 2) / 3;
   int margin = 25;
   int cols = 4;
   int name_area_h = 32;
@@ -1454,7 +1472,7 @@ static float start_scroll_max(Game *g) {
   int shown = g->choice_count;
   int rows = (shown + cols - 1) / cols;
   int total_grid_h = rows * (total_h + 12) - 12;
-  int view_h = WINDOW_H - start_y - 20;
+  int view_h = g->window_h - start_y - 20;
   if (total_grid_h <= view_h) return 0.0f;
   return (float)(total_grid_h - view_h);
 }
@@ -1605,7 +1623,40 @@ static void draw_text_centered_outline(SDL_Renderer *r, TTF_Font *font, int cx, 
   draw_text_centered(r, font, cx, y, text, msg);
 }
 
+static void trigger_item_popup(Game *g, ItemDef *it) {
+  if (!g || !it) return;
+  snprintf(g->item_popup_name, sizeof(g->item_popup_name), "%s", it->name);
+  g->item_popup_timer = ITEM_POPUP_DURATION;
+}
+
+static void update_window_view(Game *g) {
+  int w = WINDOW_W;
+  int h = WINDOW_H;
+  if (g && g->window) SDL_GetWindowSize(g->window, &w, &h);
+  g->window_w = w;
+  g->window_h = h;
+  g->view_w = w;
+  g->view_h = h;
+  if (g->view_w < 200) g->view_w = 200;
+  if (g->view_h < 200) g->view_h = 200;
+}
+
+static int strcasestr_simple(const char *haystack, const char *needle) {
+  if (!haystack || !needle || !needle[0]) return 0;
+  size_t nlen = strlen(needle);
+  for (const char *h = haystack; *h; h++) {
+    size_t i = 0;
+    for (; i < nlen; i++) {
+      if (!h[i]) return 0;
+      if (tolower((unsigned char)h[i]) != tolower((unsigned char)needle[i])) break;
+    }
+    if (i == nlen) return 1;
+  }
+  return 0;
+}
+
 static void game_reset(Game *g) {
+  update_window_view(g);
   g->spawn_timer = 0.0f;
   g->kills = 0;
   g->xp = 0;
@@ -1613,6 +1664,8 @@ static void game_reset(Game *g) {
   g->xp_to_next = 10;
   g->game_time = 0.0f;
   g->last_item_index = -1;
+  g->item_popup_timer = 0.0f;
+  g->item_popup_name[0] = '\0';
   g->mode = MODE_START;
   g->pause_return_mode = MODE_START;
   g->time_scale = 1.0f;
@@ -1634,10 +1687,14 @@ static void game_reset(Game *g) {
   p->x = ARENA_W * 0.5f;
   p->y = ARENA_H * 0.5f;
   /* Center camera on player */
-  g->camera_x = p->x - VIEW_W * 0.5f;
-  g->camera_y = p->y - VIEW_H * 0.5f;
-  g->camera_x = clampf(g->camera_x, 0.0f, ARENA_W - VIEW_W);
-  g->camera_y = clampf(g->camera_y, 0.0f, ARENA_H - VIEW_H);
+  g->camera_x = p->x - g->view_w * 0.5f;
+  g->camera_y = p->y - g->view_h * 0.5f;
+  float max_cam_x = ARENA_W - g->view_w;
+  float max_cam_y = ARENA_H - g->view_h;
+  if (max_cam_x < 0.0f) max_cam_x = 0.0f;
+  if (max_cam_y < 0.0f) max_cam_y = 0.0f;
+  g->camera_x = clampf(g->camera_x, 0.0f, max_cam_x);
+  g->camera_y = clampf(g->camera_y, 0.0f, max_cam_y);
   p->base = (Stats){0};
   p->base.max_hp = 1100;
   p->base.move_speed = 1.0f;
@@ -1957,9 +2014,9 @@ static void fire_weapons(Game *g, float dt) {
     if (weapon_is(w, "alchemist_puddle")) {
       int onscreen_count = 0;
       float cam_min_x = g->camera_x;
-      float cam_max_x = g->camera_x + VIEW_W;
+      float cam_max_x = g->camera_x + g->view_w;
       float cam_min_y = g->camera_y;
-      float cam_max_y = g->camera_y + VIEW_H;
+      float cam_max_y = g->camera_y + g->view_h;
       for (int e = 0; e < MAX_ENEMIES; e++) {
         if (!g->enemies[e].active) continue;
         if (g->enemies[e].spawn_invuln > 0.0f) continue;
@@ -2404,6 +2461,7 @@ static void update_game(Game *g, float dt) {
   /* Ultimate cooldown tick */
   if (g->ultimate_cd > 0.0f) g->ultimate_cd -= dt;
   if (g->ultimate_cd < 0.0f) g->ultimate_cd = 0.0f;
+  if (g->item_popup_timer > 0.0f) g->item_popup_timer -= dt;
 
   float speed = 150.0f * (1.0f + stats.move_speed);
   float vx = 0.0f;
@@ -2421,25 +2479,29 @@ static void update_game(Game *g, float dt) {
   }
 
   /* Update camera - scroll when player reaches 4/5 of view edge */
-  float scroll_margin_x = VIEW_W * 0.2f;
-  float scroll_margin_y = VIEW_H * 0.2f;
+  float scroll_margin_x = g->view_w * 0.2f;
+  float scroll_margin_y = g->view_h * 0.2f;
   float player_screen_x = p->x - g->camera_x;
   float player_screen_y = p->y - g->camera_y;
   
-  if (player_screen_x > VIEW_W - scroll_margin_x) {
-    g->camera_x = p->x - (VIEW_W - scroll_margin_x);
+  if (player_screen_x > g->view_w - scroll_margin_x) {
+    g->camera_x = p->x - (g->view_w - scroll_margin_x);
   }
   if (player_screen_x < scroll_margin_x) {
     g->camera_x = p->x - scroll_margin_x;
   }
-  if (player_screen_y > VIEW_H - scroll_margin_y) {
-    g->camera_y = p->y - (VIEW_H - scroll_margin_y);
+  if (player_screen_y > g->view_h - scroll_margin_y) {
+    g->camera_y = p->y - (g->view_h - scroll_margin_y);
   }
   if (player_screen_y < scroll_margin_y) {
     g->camera_y = p->y - scroll_margin_y;
   }
-  g->camera_x = clampf(g->camera_x, 0.0f, ARENA_W - VIEW_W);
-  g->camera_y = clampf(g->camera_y, 0.0f, ARENA_H - VIEW_H);
+  float max_cam_x = ARENA_W - g->view_w;
+  float max_cam_y = ARENA_H - g->view_h;
+  if (max_cam_x < 0.0f) max_cam_x = 0.0f;
+  if (max_cam_y < 0.0f) max_cam_y = 0.0f;
+  g->camera_x = clampf(g->camera_x, 0.0f, max_cam_x);
+  g->camera_y = clampf(g->camera_y, 0.0f, max_cam_y);
 
   fire_weapons(g, dt);
   update_bullets(g, dt);
@@ -2502,10 +2564,15 @@ static void render_game(Game *g) {
   SDL_SetRenderDrawColor(g->renderer, 8, 10, 16, 255);
   SDL_RenderClear(g->renderer);
 
+  int win_w = g->window_w;
+  int win_h = g->window_h;
+  int view_w = g->view_w;
+  int view_h = g->view_h;
+
   int cam_x = (int)g->camera_x;
   int cam_y = (int)g->camera_y;
-  int offset_x = 50;
-  int offset_y = 40;
+  int offset_x = 0;
+  int offset_y = 0;
 
   /* Arena background - tile 128x128 ground texture with camera offset */
   /* Buffer of 2 tiles beyond visible area for smoother scrolling */
@@ -2514,20 +2581,20 @@ static void render_game(Game *g) {
     int buffer = tile_size * 2;  /* 2 extra tiles on each side */
     int start_tx = ((cam_x - buffer) / tile_size) * tile_size;
     int start_ty = ((cam_y - buffer) / tile_size) * tile_size;
-    for (int ty = start_ty; ty < cam_y + VIEW_H + buffer; ty += tile_size) {
-      for (int tx = start_tx; tx < cam_x + VIEW_W + buffer; tx += tile_size) {
+    for (int ty = start_ty; ty < cam_y + view_h + buffer; ty += tile_size) {
+      for (int tx = start_tx; tx < cam_x + view_w + buffer; tx += tile_size) {
         SDL_Rect dst = { offset_x + tx - cam_x, offset_y + ty - cam_y, tile_size, tile_size };
         SDL_RenderCopy(g->renderer, g->tex_ground, NULL, &dst);
       }
     }
   } else {
-    SDL_Rect arena = { offset_x, offset_y, VIEW_W, VIEW_H };
+    SDL_Rect arena = { offset_x, offset_y, view_w, view_h };
     SDL_SetRenderDrawColor(g->renderer, 15, 18, 28, 255);
     SDL_RenderFillRect(g->renderer, &arena);
   }
   
   /* No wall border for infinite map - just clip rendering */
-  SDL_Rect clip = { offset_x, offset_y, VIEW_W, VIEW_H };
+  SDL_Rect clip = { offset_x, offset_y, view_w, view_h };
   SDL_RenderSetClipRect(g->renderer, &clip);
 
   /* Alchemist puddles (above ground, behind player/enemies) */
@@ -2831,7 +2898,7 @@ static void render_game(Game *g) {
     /* Top bar */
     SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(g->renderer, 10, 12, 18, 210);
-    SDL_Rect top_bar = { 0, 0, WINDOW_W, 38 };
+    SDL_Rect top_bar = { 0, 0, win_w, 38 };
     SDL_RenderFillRect(g->renderer, &top_bar);
 
     /* HP bar */
@@ -2870,6 +2937,16 @@ static void render_game(Game *g) {
     draw_text(g->renderer, g->font, 20, 88, text, buf);
     draw_text(g->renderer, g->font, 20, 108, text, "TAB/P pause  F1 spawn  F2/F3 speed  F4 range");
 
+    if (g->item_popup_timer > 0.0f && g->item_popup_name[0]) {
+      float t = clampf(g->item_popup_timer / ITEM_POPUP_DURATION, 0.0f, 1.0f);
+      SDL_Color c = {255, 220, 120, (Uint8)(255.0f * t)};
+      int tw = 0, th = 0;
+      if (g->font) TTF_SizeText(g->font, g->item_popup_name, &tw, &th);
+      int tx = win_w - tw - 20;
+      if (tx < 20) tx = 20;
+      draw_text(g->renderer, g->font, tx, 50, c, g->item_popup_name);
+    }
+
     int wx = 20;
     int wy = 130;
     draw_text(g->renderer, g->font, wx, wy, text, "Weapons:");
@@ -2899,17 +2976,17 @@ static void render_game(Game *g) {
   if (g->mode == MODE_LEVELUP) {
     SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(g->renderer, 5, 8, 15, 200);
-    SDL_Rect overlay = { 0, 0, WINDOW_W, WINDOW_H };
+    SDL_Rect overlay = { 0, 0, win_w, win_h };
     SDL_RenderFillRect(g->renderer, &overlay);
     
     /* Level up title */
     SDL_Color gold = {255, 215, 100, 255};
     char lvl_str[64];
     snprintf(lvl_str, sizeof(lvl_str), "LEVEL UP! (Lv %d)", g->level);
-    draw_text(g->renderer, g->font, WINDOW_W / 2 - 80, 200, gold, lvl_str);
-    draw_text(g->renderer, g->font, WINDOW_W / 2 - 60, 230, text, "Choose one:");
+    draw_text(g->renderer, g->font, win_w / 2 - 80, 200, gold, lvl_str);
+    draw_text(g->renderer, g->font, win_w / 2 - 60, 230, text, "Choose one:");
     
-    layout_levelup(g, WINDOW_W, WINDOW_H);
+    layout_levelup(g, win_w, win_h);
     int mx, my;
     SDL_GetMouseState(&mx, &my);
     float fade = 1.0f;
@@ -2969,6 +3046,8 @@ static void render_game(Game *g) {
         SDL_Color outline = {0, 0, 0, (Uint8)(220.0f * alpha_mul)};
         SDL_Color white = hovered ? (SDL_Color){255, 245, 210, (Uint8)(255.0f * alpha_mul)} : (SDL_Color){255, 255, 255, (Uint8)(255.0f * alpha_mul)};
         int tx = choice->rect.x + choice->rect.w / 2;
+        SDL_Color tag_color = {200, 220, 255, (Uint8)(220.0f * alpha_mul)};
+        draw_text_centered_outline(g->renderer, g->font, tx, choice->rect.y + 2, tag_color, outline, 1, "ITEM");
         int y = choice->rect.y + 18;
         TTF_Font *font_main = hovered ? (g->font_title_big ? g->font_title_big : g->font_title) : g->font_title;
         draw_text_centered_outline(g->renderer, font_main, tx, y, white, outline, 2, it->name);
@@ -2981,16 +3060,24 @@ static void render_game(Game *g) {
         char statline[128];
         Stats *s = &it->stats;
         int pos = 0;
+        const char *desc = it->desc;
         statline[0] = 0;
-        if (s->damage != 0) pos += snprintf(statline + pos, sizeof(statline) - pos, "DMG%+.0f%% ", s->damage * 100);
-        if (s->max_hp != 0) pos += snprintf(statline + pos, sizeof(statline) - pos, "HP%+.0f ", s->max_hp);
-        if (s->attack_speed != 0) pos += snprintf(statline + pos, sizeof(statline) - pos, "AS%+.0f%% ", s->attack_speed * 100);
-        if (s->move_speed != 0) pos += snprintf(statline + pos, sizeof(statline) - pos, "SPD%+.0f%% ", s->move_speed * 100);
-        if (s->armor != 0) pos += snprintf(statline + pos, sizeof(statline) - pos, "ARM%+.0f ", s->armor);
-        if (s->dodge != 0) pos += snprintf(statline + pos, sizeof(statline) - pos, "DDG%+.0f%% ", s->dodge * 100);
-        if (s->hp_regen != 0) pos += snprintf(statline + pos, sizeof(statline) - pos, "REG%+.1f ", s->hp_regen);
+        int show_damage = (s->damage != 0) && !strcasestr_simple(desc, "dmg") && !strcasestr_simple(desc, "damage");
+        int show_hp = (s->max_hp != 0) && !strcasestr_simple(desc, "hp");
+        int show_as = (s->attack_speed != 0) && !strcasestr_simple(desc, "attack speed") && !strcasestr_simple(desc, " as");
+        int show_speed = (s->move_speed != 0) && !strcasestr_simple(desc, "speed") && !strcasestr_simple(desc, "spd");
+        int show_armor = (s->armor != 0) && !strcasestr_simple(desc, "armor") && !strcasestr_simple(desc, "arm");
+        int show_dodge = (s->dodge != 0) && !strcasestr_simple(desc, "dodge");
+        int show_regen = (s->hp_regen != 0) && !strcasestr_simple(desc, "regen") && !strcasestr_simple(desc, "hp/s");
+        if (show_damage) pos += snprintf(statline + pos, sizeof(statline) - pos, "DMG%+.0f%% ", s->damage * 100);
+        if (show_hp) pos += snprintf(statline + pos, sizeof(statline) - pos, "HP%+.0f ", s->max_hp);
+        if (show_as) pos += snprintf(statline + pos, sizeof(statline) - pos, "AS%+.0f%% ", s->attack_speed * 100);
+        if (show_speed) pos += snprintf(statline + pos, sizeof(statline) - pos, "SPD%+.0f%% ", s->move_speed * 100);
+        if (show_armor) pos += snprintf(statline + pos, sizeof(statline) - pos, "ARM%+.0f ", s->armor);
+        if (show_dodge) pos += snprintf(statline + pos, sizeof(statline) - pos, "DDG%+.0f%% ", s->dodge * 100);
+        if (show_regen) pos += snprintf(statline + pos, sizeof(statline) - pos, "REG%+.1f ", s->hp_regen);
         int sy = choice->rect.y + 60;
-        draw_text_centered_outline(g->renderer, font_main, tx, sy, white, outline, 2, statline);
+        if (pos > 0) draw_text_centered_outline(g->renderer, font_main, tx, sy, white, outline, 2, statline);
       } else {
         WeaponDef *w = &g->db.weapons[choice->index];
         float alpha_mul = 1.0f;
@@ -3006,6 +3093,8 @@ static void render_game(Game *g) {
         SDL_Color outline = {0, 0, 0, (Uint8)(220.0f * alpha_mul)};
         SDL_Color white = hovered ? (SDL_Color){255, 245, 210, (Uint8)(255.0f * alpha_mul)} : (SDL_Color){255, 255, 255, (Uint8)(255.0f * alpha_mul)};
         int tx = choice->rect.x + choice->rect.w / 2;
+        SDL_Color tag_color = {255, 200, 140, (Uint8)(220.0f * alpha_mul)};
+        draw_text_centered_outline(g->renderer, g->font, tx, choice->rect.y + 2, tag_color, outline, 1, "WEAPON");
         int y = choice->rect.y + 18;
         TTF_Font *font_main = hovered ? (g->font_title_big ? g->font_title_big : g->font_title) : g->font_title;
         draw_text_centered_outline(g->renderer, font_main, tx, y, white, outline, 2, w->name);
@@ -3019,11 +3108,17 @@ static void render_game(Game *g) {
       }
     }
     
+    int max_orb_bottom = 0;
+    for (int i = 0; i < g->choice_count; i++) {
+      int bottom = g->choices[i].rect.y + g->choices[i].rect.h;
+      if (bottom > max_orb_bottom) max_orb_bottom = bottom;
+    }
+
     /* Reroll button */
     int btn_w = 140;
     int btn_h = 36;
-    int btn_x = WINDOW_W / 2 - btn_w / 2;
-    int btn_y = 520;
+    int btn_x = win_w / 2 - btn_w / 2;
+    int btn_y = max_orb_bottom + 20;
     g->reroll_button = (SDL_Rect){ btn_x, btn_y, btn_w, btn_h };
     
     if (g->rerolls > 0) {
@@ -3068,14 +3163,17 @@ static void render_game(Game *g) {
   if (g->mode == MODE_PAUSE) {
     SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(g->renderer, 8, 8, 12, 200);
-    SDL_Rect overlay = { 0, 0, WINDOW_W, WINDOW_H };
+    SDL_Rect overlay = { 0, 0, win_w, win_h };
     SDL_RenderFillRect(g->renderer, &overlay);
-    draw_text_centered(g->renderer, g->font_title, WINDOW_W / 2, 180, (SDL_Color){255, 215, 100, 255}, "PAUSED");
+    draw_text_centered(g->renderer, g->font_title, win_w / 2, 180, (SDL_Color){255, 215, 100, 255}, "PAUSED");
+
+    int mx, my;
+    SDL_GetMouseState(&mx, &my);
 
     Stats stats = player_total_stats(&g->player, &g->db);
     SDL_Color label = {170, 175, 190, 255};
     SDL_Color val = {230, 231, 234, 255};
-    int x = WINDOW_W / 2 - 420;
+    int x = win_w / 2 - 420;
     int y = 240;
     int line = 20;
 
@@ -3135,10 +3233,22 @@ static void render_game(Game *g) {
     y += line;
 
     int panel_w = 320;
-    int panel_x = WINDOW_W / 2 + 40;
+    int panel_x = win_w / 2 + 40;
     int panel_y = 240;
     int line_h = 18;
     int max_visible = 12;
+    int weapon_indices[MAX_WEAPON_SLOTS];
+    int weapon_count = 0;
+    for (int i = 0; i < MAX_WEAPON_SLOTS; i++) {
+      if (!g->player.weapons[i].active) continue;
+      weapon_indices[weapon_count++] = i;
+    }
+    int show_weapons = weapon_count;
+    int extra_weapons = 0;
+    if (show_weapons > max_visible) {
+      show_weapons = max_visible;
+      extra_weapons = 1;
+    }
     int item_counts[MAX_ITEMS] = {0};
     int unique_indices[MAX_ITEMS];
     int unique_count = 0;
@@ -3154,8 +3264,15 @@ static void render_game(Game *g) {
       show_items = max_visible;
       extra_more = 1;
     }
-    int list_lines = (show_items > 0 ? show_items : 1) + extra_more;
-    int panel_h = 120 + list_lines * line_h;
+    int list_lines = 0;
+    list_lines += 2; /* LAST ITEM header + value */
+    list_lines += 1; /* spacer */
+    list_lines += 1; /* WEAPONS header */
+    list_lines += (show_weapons > 0 ? show_weapons : 1) + extra_weapons;
+    list_lines += 1; /* spacer */
+    list_lines += 1; /* ITEMS header */
+    list_lines += (show_items > 0 ? show_items : 1) + extra_more;
+    int panel_h = 20 + list_lines * line_h;
 
     SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(g->renderer, 12, 14, 20, 210);
@@ -3177,12 +3294,36 @@ static void render_game(Game *g) {
     } else {
       draw_text(g->renderer, g->font, panel_x + 12, py, dim, "(none)");
     }
-    py += line_h + 8;
+    py += line_h;
+
+    draw_text(g->renderer, g->font, panel_x + 10, py, header, "WEAPONS");
+    py += line_h + 2;
+    if (weapon_count == 0) {
+      draw_text(g->renderer, g->font, panel_x + 12, py, dim, "(none)");
+      py += line_h;
+    } else {
+      for (int i = 0; i < weapon_count && i < show_weapons; i++) {
+        int slot = weapon_indices[i];
+        WeaponDef *w = &g->db.weapons[g->player.weapons[slot].def_index];
+        SDL_Color rc = rarity_color(w->rarity);
+        snprintf(buf, sizeof(buf), "%s Lv%d", w->name, g->player.weapons[slot].level);
+        draw_text(g->renderer, g->font, panel_x + 12, py, rc, buf);
+        py += line_h;
+      }
+      if (extra_weapons) {
+        int remaining = weapon_count - show_weapons;
+        snprintf(buf, sizeof(buf), "... +%d more", remaining);
+        draw_text(g->renderer, g->font, panel_x + 12, py, dim, buf);
+        py += line_h;
+      }
+    }
+    py += line_h / 2;
 
     snprintf(buf, sizeof(buf), "ITEMS (%d)", g->player.passive_count);
     draw_text(g->renderer, g->font, panel_x + 10, py, header, buf);
     py += line_h + 2;
 
+    int hovered_item_index = -1;
     if (unique_count == 0) {
       draw_text(g->renderer, g->font, panel_x + 12, py, dim, "(none)");
       py += line_h;
@@ -3191,6 +3332,10 @@ static void render_game(Game *g) {
         int idx = unique_indices[i];
         ItemDef *it = &g->db.items[idx];
         SDL_Color rc = rarity_color(it->rarity);
+        SDL_Rect row = { panel_x + 12, py, panel_w - 24, line_h };
+        if (mx >= row.x && mx <= row.x + row.w && my >= row.y && my <= row.y + row.h) {
+          hovered_item_index = idx;
+        }
         if (item_counts[idx] > 1) {
           snprintf(buf, sizeof(buf), "%s x%d", it->name, item_counts[idx]);
           draw_text(g->renderer, g->font, panel_x + 12, py, rc, buf);
@@ -3207,7 +3352,36 @@ static void render_game(Game *g) {
       }
     }
 
-    draw_text_centered(g->renderer, g->font, WINDOW_W / 2, y + 20, (SDL_Color){140, 140, 160, 255}, "Press TAB or P to resume");
+    draw_text_centered(g->renderer, g->font, win_w / 2, y + 20, (SDL_Color){140, 140, 160, 255}, "Press TAB or P to resume");
+
+    if (hovered_item_index >= 0 && hovered_item_index < g->db.item_count) {
+      ItemDef *it = &g->db.items[hovered_item_index];
+      if (it->desc[0]) {
+        int name_w = 0, name_h = 0, desc_w = 0, desc_h = 0;
+        if (g->font) {
+          TTF_SizeText(g->font, it->name, &name_w, &name_h);
+          TTF_SizeText(g->font, it->desc, &desc_w, &desc_h);
+        }
+        int pad = 8;
+        int box_w = (name_w > desc_w ? name_w : desc_w) + pad * 2;
+        int box_h = name_h + desc_h + pad * 3;
+        int box_x = win_w - box_w - 20;
+        int box_y = win_h - box_h - 20;
+        if (box_x < 20) box_x = 20;
+        if (box_y < 20) box_y = 20;
+        SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(g->renderer, 12, 14, 20, 235);
+        SDL_Rect tip = { box_x, box_y, box_w, box_h };
+        SDL_RenderFillRect(g->renderer, &tip);
+        SDL_SetRenderDrawColor(g->renderer, 70, 80, 100, 255);
+        SDL_RenderDrawRect(g->renderer, &tip);
+
+        SDL_Color name_c = rarity_color(it->rarity);
+        SDL_Color desc_c = (SDL_Color){190, 195, 210, 255};
+        draw_text(g->renderer, g->font, box_x + pad, box_y + pad, name_c, it->name);
+        draw_text(g->renderer, g->font, box_x + pad, box_y + pad * 2 + name_h, desc_c, it->desc);
+      }
+    }
   }
 
 
@@ -3216,14 +3390,14 @@ static void render_game(Game *g) {
     SDL_SetRenderDrawColor(g->renderer, 8, 8, 12, 255);
     SDL_RenderClear(g->renderer);
 
-    int split_x = (WINDOW_W * 2) / 3;
+    int split_x = (win_w * 2) / 3;
 
     /* Right Panel Background */
-    SDL_Rect right_panel = { split_x, 0, WINDOW_W - split_x, WINDOW_H };
+    SDL_Rect right_panel = { split_x, 0, win_w - split_x, win_h };
     SDL_SetRenderDrawColor(g->renderer, 12, 14, 20, 255);
     SDL_RenderFillRect(g->renderer, &right_panel);
     SDL_SetRenderDrawColor(g->renderer, 40, 45, 60, 255);
-    SDL_RenderDrawLine(g->renderer, split_x, 0, split_x, WINDOW_H);
+    SDL_RenderDrawLine(g->renderer, split_x, 0, split_x, win_h);
 
     /* Left Panel: Character Grid */
     int margin = 25;
@@ -3257,7 +3431,7 @@ static void render_game(Game *g) {
       SDL_Rect click_r = { card_x, card_y, card_w, total_h };
       g->choices[i].rect = click_r;
 
-      if (card_y + total_h < start_y - 10 || card_y > WINDOW_H) {
+      if (card_y + total_h < start_y - 10 || card_y > win_h) {
         continue;
       }
 
@@ -3305,7 +3479,7 @@ static void render_game(Game *g) {
       CharacterDef *c = &g->db.characters[char_idx];
       int rx = split_x + 20;
       int ry = 30;
-      int panel_w = WINDOW_W - split_x - 40;
+      int panel_w = win_w - split_x - 40;
       
       /* Large portrait on right panel */
       int big_portrait_w = 200;
@@ -3360,31 +3534,31 @@ static void render_game(Game *g) {
       }
     } else {
       int rx = split_x + 20;
-      int panel_w = WINDOW_W - split_x - 40;
-      draw_text_centered(g->renderer, g->font, rx + panel_w / 2, WINDOW_H / 2 - 20, (SDL_Color){80, 80, 100, 255}, "Hover over a character");
-      draw_text_centered(g->renderer, g->font, rx + panel_w / 2, WINDOW_H / 2 + 5, (SDL_Color){80, 80, 100, 255}, "to see details");
+      int panel_w = win_w - split_x - 40;
+      draw_text_centered(g->renderer, g->font, rx + panel_w / 2, win_h / 2 - 20, (SDL_Color){80, 80, 100, 255}, "Hover over a character");
+      draw_text_centered(g->renderer, g->font, rx + panel_w / 2, win_h / 2 + 5, (SDL_Color){80, 80, 100, 255}, "to see details");
     }
   }
 
   if (g->mode == MODE_GAMEOVER) {
     SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(g->renderer, 0, 0, 0, 180);
-    SDL_Rect overlay = { 0, 0, WINDOW_W, WINDOW_H };
+    SDL_Rect overlay = { 0, 0, win_w, win_h };
     SDL_RenderFillRect(g->renderer, &overlay);
     char buf[128];
     snprintf(buf, sizeof(buf), "Game Over - Level %d", g->level);
-    draw_text(g->renderer, g->font, WINDOW_W / 2 - 80, WINDOW_H / 2 - 40, text, buf);
+    draw_text(g->renderer, g->font, win_w / 2 - 80, win_h / 2 - 40, text, buf);
     int mins = (int)(g->game_time / 60.0f);
     int secs = (int)g->game_time % 60;
     snprintf(buf, sizeof(buf), "Survived %d:%02d  Kills: %d", mins, secs, g->kills);
-    draw_text(g->renderer, g->font, WINDOW_W / 2 - 100, WINDOW_H / 2 - 10, text, buf);
-    draw_text(g->renderer, g->font, WINDOW_W / 2 - 80, WINDOW_H / 2 + 20, text, "Press R to restart");
+    draw_text(g->renderer, g->font, win_w / 2 - 100, win_h / 2 - 10, text, buf);
+    draw_text(g->renderer, g->font, win_w / 2 - 80, win_h / 2 + 20, text, "Press R to restart");
   }
 
   /* Debug item/weapon list panel (toggle with key 8) */
   if (g->debug_show_items) {
     int panel_w = 220;
-    int panel_x = WINDOW_W - panel_w - 10;
+    int panel_x = win_w - panel_w - 10;
     int panel_y = 10;
     int line_h = 18;
     
@@ -3483,15 +3657,48 @@ static void handle_levelup_click(Game *g, int mx, int my) {
     }
 
     g->levelup_selected_count = 0;
-    for (int k = 0; k < items_to_grant; k++) {
+    int active_weapons = 0;
+    for (int w = 0; w < MAX_WEAPON_SLOTS; w++) {
+      if (g->player.weapons[w].active) active_weapons++;
+    }
+    int free_slots = MAX_WEAPON_SLOTS - active_weapons;
+    for (int k = 0; k < g->choice_count && g->levelup_selected_count < items_to_grant; k++) {
       int i = indices[k];
-      g->levelup_selected[g->levelup_selected_count++] = i;
       if (g->choices[i].type == 0) {
+        g->levelup_selected[g->levelup_selected_count++] = i;
+        continue;
+      }
+      int level = 0;
+      int wi = g->choices[i].index;
+      int owned = weapon_is_owned(&g->player, wi, &level);
+      if (owned) {
+        if (level < MAX_WEAPON_LEVEL) {
+          g->levelup_selected[g->levelup_selected_count++] = i;
+        }
+      } else if (free_slots > 0) {
+        g->levelup_selected[g->levelup_selected_count++] = i;
+        free_slots--;
+      }
+    }
+
+    int applied_indices[MAX_LEVELUP_CHOICES];
+    int applied_count = 0;
+    for (int k = 0; k < g->levelup_selected_count; k++) {
+      int i = g->levelup_selected[k];
+      int applied = 0;
+      if (g->choices[i].type == 0) {
+        int before = g->player.passive_count;
         ItemDef *it = &g->db.items[g->choices[i].index];
         apply_item(&g->player, &g->db, it, g->choices[i].index);
-        g->last_item_index = g->choices[i].index;
+        if (g->player.passive_count > before) {
+          g->last_item_index = g->choices[i].index;
+          trigger_item_popup(g, it);
+          applied = 1;
+        }
       } else {
         int wi = g->choices[i].index;
+        int before_level = 0;
+        int before_owned = weapon_is_owned(&g->player, wi, &before_level);
         if (can_equip_weapon(&g->player, wi)) {
           equip_weapon(&g->player, wi);
         } else {
@@ -3502,8 +3709,14 @@ static void handle_levelup_click(Game *g, int mx, int my) {
             }
           }
         }
+        int after_level = 0;
+        int after_owned = weapon_is_owned(&g->player, wi, &after_level);
+        if ((!before_owned && after_owned) || (after_owned && after_level > before_level)) applied = 1;
       }
+      if (applied) applied_indices[applied_count++] = i;
     }
+    for (int k = 0; k < applied_count; k++) g->levelup_selected[k] = applied_indices[k];
+    g->levelup_selected_count = applied_count;
     g->levelup_chosen = -1;
     g->levelup_fade = (float)SDL_GetTicks() / 1000.0f;
     return;
@@ -3522,6 +3735,7 @@ static void handle_levelup_click(Game *g, int mx, int my) {
         ItemDef *it = &g->db.items[g->choices[i].index];
         apply_item(&g->player, &g->db, it, g->choices[i].index);
         g->last_item_index = g->choices[i].index;
+        trigger_item_popup(g, it);
       } else {
         int wi = g->choices[i].index;
         if (can_equip_weapon(&g->player, wi)) {
@@ -3575,7 +3789,8 @@ int main(int argc, char **argv) {
   log_linef("Counts: weapons=%d items=%d enemies=%d characters=%d", game.db.weapon_count, game.db.item_count, game.db.enemy_count, game.db.character_count);
   log_line("Data load ok");
 
-  game.window = SDL_CreateWindow("buh", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_W, WINDOW_H, SDL_WINDOW_SHOWN);
+  game.window = SDL_CreateWindow("buh", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_W, WINDOW_H,
+                                 SDL_WINDOW_SHOWN | SDL_WINDOW_MAXIMIZED | SDL_WINDOW_RESIZABLE);
   game.renderer = SDL_CreateRenderer(game.window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
   log_line("Window/renderer created");
   
@@ -3701,6 +3916,7 @@ int main(int argc, char **argv) {
     double frame = (double)(now - last) / frequency;
     if (frame > 0.25) frame = 0.25;
     accumulator += frame;
+    update_window_view(&game);
 
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
@@ -3751,10 +3967,12 @@ int main(int argc, char **argv) {
         }
       }
       if (e.type == SDL_MOUSEBUTTONDOWN && game.mode == MODE_START) {
+        int mx = e.button.x;
+        int my = e.button.y;
         int shown = game.choice_count;
         for (int i = 0; i < shown; i++) {
           SDL_Rect r = game.choices[i].rect;
-          if (e.button.x >= r.x && e.button.x <= r.x + r.w && e.button.y >= r.y && e.button.y <= r.y + r.h) {
+          if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
             CharacterDef *c = &game.db.characters[game.choices[i].index];
             game.selected_character = game.choices[i].index;
             /* Apply character stats to base */
