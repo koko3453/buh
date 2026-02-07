@@ -34,7 +34,7 @@
       "weapon": "fists",
       "stats": {"max_hp": 30, "move_speed": 0.15},
       "rule": "adapt",
-      "ultimate": "kill_all"
+      "ultimate": "shift_speed"
     },
     {
       "id": "vampire",

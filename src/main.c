@@ -234,6 +234,7 @@ typedef struct {
   WeaponSlot weapons[MAX_WEAPON_SLOTS];
   int passive_items[MAX_ITEMS];
   int passive_count;
+  float ultimate_move_to_as_timer;
 } Player;
 
 typedef struct {
@@ -280,7 +281,7 @@ typedef struct {
 
 typedef struct {
   int active;
-  int type; /* 0 xp orb, 1 heal */
+  int type; /* 0 xp orb, 1 heal, 2 chest */
   float x;
   float y;
   float value;
@@ -873,6 +874,11 @@ static float player_hp_regen_amp(Player *p, Database *db);
 static Stats player_total_stats(Player *p, Database *db) {
   Stats s = p->base;
   stats_add(&s, &p->bonus);
+  if (p->ultimate_move_to_as_timer > 0.0f) {
+    float ms = s.move_speed;
+    s.move_speed = 0.0f;
+    s.attack_speed += ms;
+  }
   s.max_hp = clampf(s.max_hp, 1.0f, 9999.0f);
   s.attack_speed = clampf(s.attack_speed, -0.5f, 3.0f);
   s.move_speed = clampf(s.move_speed, -0.3f, 2.0f);
@@ -1179,6 +1185,22 @@ static void spawn_drop(Game *g, float x, float y, int type, float value) {
       d->y = y;
       d->value = value;
       d->ttl = 10.0f;
+      return;
+    }
+  }
+}
+
+static void spawn_chest(Game *g, float x, float y) {
+  for (int i = 0; i < MAX_DROPS; i++) {
+    if (!g->drops[i].active) {
+      Drop *d = &g->drops[i];
+      memset(d, 0, sizeof(*d));
+      d->active = 1;
+      d->type = 2;
+      d->x = x;
+      d->y = y;
+      d->value = 0.0f;
+      d->ttl = 9999.0f;
       return;
     }
   }
@@ -1699,6 +1721,28 @@ static void game_reset(Game *g) {
   p->base.max_hp = 1100;
   p->base.move_speed = 1.0f;
   p->hp = p->base.max_hp;
+  p->ultimate_move_to_as_timer = 0.0f;
+
+  int chest_spawned = 0;
+  int attempts = 0;
+  while (chest_spawned < 3 && attempts++ < 200) {
+    float x = 80.0f + frandf() * (ARENA_W - 160.0f);
+    float y = 80.0f + frandf() * (ARENA_H - 160.0f);
+    float dx = x - p->x;
+    float dy = y - p->y;
+    if (dx * dx + dy * dy < 600.0f * 600.0f) continue;
+    int too_close = 0;
+    for (int i = 0; i < MAX_DROPS; i++) {
+      if (!g->drops[i].active) continue;
+      if (g->drops[i].type != 2) continue;
+      float ddx = x - g->drops[i].x;
+      float ddy = y - g->drops[i].y;
+      if (ddx * ddx + ddy * ddy < 400.0f * 400.0f) { too_close = 1; break; }
+    }
+    if (too_close) continue;
+    spawn_chest(g, x, y);
+    chest_spawned++;
+  }
   stats_clear(&p->bonus);
   weapons_clear(p);
   p->passive_count = 0;
@@ -1723,6 +1767,7 @@ static void handle_player_pickups(Game *g, float dt) {
   float xp_magnet_range = 150.0f + total.xp_magnet;  /* XP orbs start moving toward player */
   float pickup_range = 20.0f;        /* actual pickup distance */
   float health_pickup_range = 30.0f; /* health pickup distance */
+  float chest_pickup_range = 26.0f;
   
   for (int i = 0; i < MAX_DROPS; i++) {
     Drop *d = &g->drops[i];
@@ -1732,7 +1777,7 @@ static void handle_player_pickups(Game *g, float dt) {
     float dist2 = dx * dx + dy * dy;
     float dist = sqrtf(dist2);
     
-    float pickup_dist = (d->type == 0) ? pickup_range : health_pickup_range;
+    float pickup_dist = (d->type == 0) ? pickup_range : (d->type == 1 ? health_pickup_range : chest_pickup_range);
     if (dist < pickup_dist) {
       if (d->type == 0) {
         g->xp += (int)d->value;
@@ -1748,15 +1793,17 @@ static void handle_player_pickups(Game *g, float dt) {
             log_combatf(g, "xp_kill proc on %s", enemy_label(g, &g->enemies[nearest]));
           }
         }
-      } else {
+      } else if (d->type == 1) {
         p->hp = clampf(p->hp + d->value, 0.0f, total.max_hp);
+      } else {
+        level_up(g);
       }
       d->active = 0;
       continue;
     }
 
     /* Once magnetized, keep flying until picked up */
-    if (dist < xp_magnet_range || d->magnetized) {
+    if (d->type != 2 && (dist < xp_magnet_range || d->magnetized)) {
       d->magnetized = 1;
       /* Accelerate magnet speed over time */
       d->magnet_speed += 400.0f * dt;
@@ -2437,6 +2484,11 @@ static void ultimate_kill_all(Game *g) {
   }
 }
 
+static void ultimate_shift_speed(Game *g) {
+  if (!g) return;
+  g->player.ultimate_move_to_as_timer = 30.0f;
+}
+
 static void activate_ultimate(Game *g) {
   /* Get character's ultimate type */
   const char *ult_type = "kill_all";
@@ -2447,6 +2499,8 @@ static void activate_ultimate(Game *g) {
   /* Dispatch to appropriate ultimate */
   if (strcmp(ult_type, "kill_all") == 0) {
     ultimate_kill_all(g);
+  } else if (strcmp(ult_type, "shift_speed") == 0) {
+    ultimate_shift_speed(g);
   } else {
     /* Unknown ultimate - fallback to kill_all */
     ultimate_kill_all(g);
@@ -2462,6 +2516,10 @@ static void update_game(Game *g, float dt) {
   if (g->ultimate_cd > 0.0f) g->ultimate_cd -= dt;
   if (g->ultimate_cd < 0.0f) g->ultimate_cd = 0.0f;
   if (g->item_popup_timer > 0.0f) g->item_popup_timer -= dt;
+  if (p->ultimate_move_to_as_timer > 0.0f) {
+    p->ultimate_move_to_as_timer -= dt;
+    if (p->ultimate_move_to_as_timer < 0.0f) p->ultimate_move_to_as_timer = 0.0f;
+  }
 
   float speed = 150.0f * (1.0f + stats.move_speed);
   float vx = 0.0f;
@@ -2876,7 +2934,7 @@ static void render_game(Game *g) {
         draw_glow(g->renderer, dx, dy, 6, (SDL_Color){80, 180, 255, 80});
         draw_filled_circle(g->renderer, dx, dy, 3, (SDL_Color){100, 200, 255, 255});
       }
-    } else {
+    } else if (g->drops[i].type == 1) {
       /* Health pack */
       if (g->tex_health_flask) {
         SDL_Rect dst = { dx - 10, dy - 10, 20, 20 };
@@ -2885,6 +2943,17 @@ static void render_game(Game *g) {
         draw_glow(g->renderer, dx, dy, 12, (SDL_Color){255, 80, 120, 100});
         draw_diamond(g->renderer, dx, dy, 6, (SDL_Color){255, 100, 130, 255});
       }
+    } else {
+      /* Chest */
+      draw_glow(g->renderer, dx, dy, 16, (SDL_Color){255, 200, 90, 120});
+      SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
+      SDL_SetRenderDrawColor(g->renderer, 140, 90, 30, 255);
+      SDL_Rect box = { dx - 13, dy - 10, 26, 20 };
+      SDL_RenderFillRect(g->renderer, &box);
+      SDL_SetRenderDrawColor(g->renderer, 230, 190, 90, 255);
+      SDL_RenderDrawRect(g->renderer, &box);
+      SDL_RenderDrawLine(g->renderer, dx - 10, dy, dx + 10, dy);
+      SDL_RenderDrawLine(g->renderer, dx, dy - 10, dx, dy + 10);
     }
   }
 
