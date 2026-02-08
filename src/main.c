@@ -211,6 +211,26 @@ typedef struct {
 typedef struct {
   char id[32];
   char name[32];
+  float hp;
+  float speed;
+  float damage;
+  float radius;
+  float attack_cooldown;
+  float beam_cooldown;
+  float beam_duration;
+  float beam_dps;
+  float beam_width;
+  float wave_cooldown;
+  int wave_bullets;
+  float wave_speed;
+  float slam_cooldown;
+  float slam_radius;
+  float slam_damage;
+} BossDef;
+
+typedef struct {
+  char id[32];
+  char name[32];
   char portrait[48];
   char weapon[32];
   Stats stats;
@@ -236,6 +256,21 @@ typedef struct {
   int passive_count;
   float ultimate_move_to_as_timer;
 } Player;
+
+typedef struct {
+  int active;
+  int def_index;
+  float x;
+  float y;
+  float hp;
+  float max_hp;
+  float attack_timer;
+  float beam_timer;
+  float beam_cd;
+  float beam_angle;
+  float wave_cd;
+  float slam_cd;
+} Boss;
 
 typedef struct {
   int active;
@@ -323,8 +358,35 @@ typedef enum {
   MODE_WAVE,
   MODE_LEVELUP,
   MODE_PAUSE,
+  MODE_BOSS_EVENT,
   MODE_GAMEOVER
 } GameMode;
+
+typedef struct {
+  int valid;
+  GameMode mode;
+  Player player;
+  Enemy enemies[MAX_ENEMIES];
+  Bullet bullets[MAX_BULLETS];
+  Drop drops[MAX_DROPS];
+  Puddle puddles[MAX_PUDDLES];
+  WeaponFX weapon_fx[MAX_WEAPON_FX];
+  float spawn_timer;
+  int kills;
+  int xp;
+  int level;
+  int xp_to_next;
+  float game_time;
+  int last_item_index;
+  float item_popup_timer;
+  char item_popup_name[64];
+  float camera_x;
+  float camera_y;
+  float ultimate_cd;
+  float time_scale;
+  int rerolls;
+  int high_roll_used;
+} BossSnapshot;
 
 #define MAX_CHARACTERS 16
 
@@ -391,6 +453,14 @@ typedef struct {
   Drop drops[MAX_DROPS];
   Puddle puddles[MAX_PUDDLES];
   WeaponFX weapon_fx[MAX_WEAPON_FX];
+  Boss boss;
+  int boss_def_index;
+  float boss_event_cd;
+  float boss_countdown_timer;
+  float boss_timer;
+  float boss_room_x;
+  float boss_room_y;
+  BossSnapshot boss_snapshot;
 
   float spawn_timer;
   int kills;
@@ -429,6 +499,70 @@ static void log_combatf(Game *g, const char *fmt, ...) {
   fputs(line, g_combat_log);
   fputs("\n", g_combat_log);
   fflush(g_combat_log);
+}
+
+static const BossDef g_boss_defs[] = {
+  { "proto_beast", "Proto Behemoth", 1800.0f, 90.0f, 30.0f, 26.0f, 0.7f,
+    6.0f, 2.2f, 45.0f, 26.0f,
+    5.0f, 16, 220.0f,
+    4.0f, 80.0f, 45.0f }
+};
+
+static int boss_def_count(void) {
+  return (int)(sizeof(g_boss_defs) / sizeof(g_boss_defs[0]));
+}
+
+static void boss_snapshot_save(Game *g) {
+  if (!g) return;
+  g->boss_snapshot.valid = 1;
+  g->boss_snapshot.mode = g->mode;
+  g->boss_snapshot.player = g->player;
+  memcpy(g->boss_snapshot.enemies, g->enemies, sizeof(g->enemies));
+  memcpy(g->boss_snapshot.bullets, g->bullets, sizeof(g->bullets));
+  memcpy(g->boss_snapshot.drops, g->drops, sizeof(g->drops));
+  memcpy(g->boss_snapshot.puddles, g->puddles, sizeof(g->puddles));
+  memcpy(g->boss_snapshot.weapon_fx, g->weapon_fx, sizeof(g->weapon_fx));
+  g->boss_snapshot.spawn_timer = g->spawn_timer;
+  g->boss_snapshot.kills = g->kills;
+  g->boss_snapshot.xp = g->xp;
+  g->boss_snapshot.level = g->level;
+  g->boss_snapshot.xp_to_next = g->xp_to_next;
+  g->boss_snapshot.game_time = g->game_time;
+  g->boss_snapshot.last_item_index = g->last_item_index;
+  g->boss_snapshot.item_popup_timer = g->item_popup_timer;
+  snprintf(g->boss_snapshot.item_popup_name, sizeof(g->boss_snapshot.item_popup_name), "%s", g->item_popup_name);
+  g->boss_snapshot.camera_x = g->camera_x;
+  g->boss_snapshot.camera_y = g->camera_y;
+  g->boss_snapshot.ultimate_cd = g->ultimate_cd;
+  g->boss_snapshot.time_scale = g->time_scale;
+  g->boss_snapshot.rerolls = g->rerolls;
+  g->boss_snapshot.high_roll_used = g->high_roll_used;
+}
+
+static void boss_snapshot_restore(Game *g) {
+  if (!g || !g->boss_snapshot.valid) return;
+  g->mode = g->boss_snapshot.mode;
+  g->player = g->boss_snapshot.player;
+  memcpy(g->enemies, g->boss_snapshot.enemies, sizeof(g->enemies));
+  memcpy(g->bullets, g->boss_snapshot.bullets, sizeof(g->bullets));
+  memcpy(g->drops, g->boss_snapshot.drops, sizeof(g->drops));
+  memcpy(g->puddles, g->boss_snapshot.puddles, sizeof(g->puddles));
+  memcpy(g->weapon_fx, g->boss_snapshot.weapon_fx, sizeof(g->weapon_fx));
+  g->spawn_timer = g->boss_snapshot.spawn_timer;
+  g->kills = g->boss_snapshot.kills;
+  g->xp = g->boss_snapshot.xp;
+  g->level = g->boss_snapshot.level;
+  g->xp_to_next = g->boss_snapshot.xp_to_next;
+  g->game_time = g->boss_snapshot.game_time;
+  g->last_item_index = g->boss_snapshot.last_item_index;
+  g->item_popup_timer = g->boss_snapshot.item_popup_timer;
+  snprintf(g->item_popup_name, sizeof(g->item_popup_name), "%s", g->boss_snapshot.item_popup_name);
+  g->camera_x = g->boss_snapshot.camera_x;
+  g->camera_y = g->boss_snapshot.camera_y;
+  g->ultimate_cd = g->boss_snapshot.ultimate_cd;
+  g->time_scale = g->boss_snapshot.time_scale;
+  g->rerolls = g->boss_snapshot.rerolls;
+  g->high_roll_used = g->boss_snapshot.high_roll_used;
 }
 
 static int find_nearest_enemy(Game *g, float x, float y) {
@@ -1146,6 +1280,101 @@ static void spawn_enemy(Game *g, int def_index) {
   }
 }
 
+static void clear_boss_room(Game *g) {
+  for (int i = 0; i < MAX_ENEMIES; i++) g->enemies[i].active = 0;
+  for (int i = 0; i < MAX_BULLETS; i++) g->bullets[i].active = 0;
+  for (int i = 0; i < MAX_DROPS; i++) g->drops[i].active = 0;
+  for (int i = 0; i < MAX_PUDDLES; i++) g->puddles[i].active = 0;
+  for (int i = 0; i < MAX_WEAPON_FX; i++) g->weapon_fx[i].active = 0;
+}
+
+static void spawn_boss(Game *g, float x, float y) {
+  if (!g) return;
+  int idx = g->boss_def_index;
+  if (idx < 0 || idx >= boss_def_count()) idx = 0;
+  const BossDef *def = &g_boss_defs[idx];
+  g->boss.active = 1;
+  g->boss.def_index = idx;
+  g->boss.x = x;
+  g->boss.y = y;
+  g->boss.hp = def->hp;
+  g->boss.max_hp = def->hp;
+  g->boss.attack_timer = 0.0f;
+  g->boss.beam_timer = 0.0f;
+  g->boss.beam_cd = def->beam_cooldown * 0.5f;
+  g->boss.beam_angle = 0.0f;
+  g->boss.wave_cd = def->wave_cooldown * 0.5f;
+  g->boss.slam_cd = def->slam_cooldown * 0.5f;
+}
+
+static void start_boss_event(Game *g) {
+  if (!g) return;
+  boss_snapshot_save(g);
+  g->mode = MODE_BOSS_EVENT;
+  g->boss_countdown_timer = 3.0f;
+  g->boss_timer = 180.0f;
+  g->boss.active = 0;
+  g->boss.def_index = 0;
+
+  float margin = 200.0f;
+  g->boss_room_x = margin + frandf() * (ARENA_W - margin * 2.0f);
+  g->boss_room_y = margin + frandf() * (ARENA_H - margin * 2.0f);
+  g->player.x = g->boss_room_x;
+  g->player.y = g->boss_room_y;
+  clear_boss_room(g);
+
+  g->camera_x = g->player.x - g->view_w * 0.5f;
+  g->camera_y = g->player.y - g->view_h * 0.5f;
+  float max_cam_x = ARENA_W - g->view_w;
+  float max_cam_y = ARENA_H - g->view_h;
+  if (max_cam_x < 0.0f) max_cam_x = 0.0f;
+  if (max_cam_y < 0.0f) max_cam_y = 0.0f;
+  g->camera_x = clampf(g->camera_x, 0.0f, max_cam_x);
+  g->camera_y = clampf(g->camera_y, 0.0f, max_cam_y);
+}
+
+static void build_boss_reward_choices(Game *g) {
+  g->choice_count = 0;
+  int legendary_indices[MAX_ITEMS];
+  int legendary_count = 0;
+  for (int i = 0; i < g->db.item_count; i++) {
+    if (strcmp(g->db.items[i].rarity, "legendary") == 0) {
+      legendary_indices[legendary_count++] = i;
+    }
+  }
+  if (legendary_count == 0) return;
+
+  int picks = legendary_count < 3 ? legendary_count : 3;
+  for (int i = legendary_count - 1; i > 0; i--) {
+    int j = rand() % (i + 1);
+    int tmp = legendary_indices[i];
+    legendary_indices[i] = legendary_indices[j];
+    legendary_indices[j] = tmp;
+  }
+  for (int i = 0; i < picks; i++) {
+    g->choices[g->choice_count++] = (LevelUpChoice){ .type = 0, .index = legendary_indices[i] };
+  }
+}
+
+static void end_boss_event(Game *g, int success) {
+  if (!g) return;
+  g->boss.active = 0;
+  g->boss_timer = 0.0f;
+  g->boss_countdown_timer = 0.0f;
+  boss_snapshot_restore(g);
+  if (success) {
+    build_boss_reward_choices(g);
+    g->levelup_chosen = -1;
+    g->levelup_selected_count = 0;
+    g->levelup_fade = 0.0f;
+    if (g->choice_count > 0) g->mode = MODE_LEVELUP;
+    else g->mode = MODE_WAVE;
+  } else {
+    g->mode = MODE_WAVE;
+  }
+  g->boss_snapshot.valid = 0;
+}
+
 static void spawn_bullet(Game *g, float x, float y, float vx, float vy, float damage, int pierce, int homing, int from_player,
                          int weapon_index, float bleed_chance, float burn_chance, float slow_chance, float stun_chance, float armor_shred_chance) {
   for (int i = 0; i < MAX_BULLETS; i++) {
@@ -1691,6 +1920,12 @@ static void game_reset(Game *g) {
   g->mode = MODE_START;
   g->pause_return_mode = MODE_START;
   g->time_scale = 1.0f;
+  g->boss_event_cd = 0.0f;
+  g->boss_countdown_timer = 0.0f;
+  g->boss_timer = 0.0f;
+  g->boss.active = 0;
+  g->boss_def_index = 0;
+  g->boss_snapshot.valid = 0;
   g->debug_show_range = 1;
   g->debug_show_items = 0;  /* hidden by default, toggle with key 8 */
   g->start_page = 0;
@@ -1857,6 +2092,18 @@ static void update_bullets(Game *g, float dt) {
     }
 
     if (b->from_player) {
+      if (g->mode == MODE_BOSS_EVENT && g->boss.active) {
+        const BossDef *bdef = &g_boss_defs[g->boss.def_index];
+        float dx = g->boss.x - b->x;
+        float dy = g->boss.y - b->y;
+        float r = bdef->radius;
+        if (dx * dx + dy * dy < r * r) {
+          g->boss.hp -= b->damage;
+          b->pierce -= 1;
+          if (b->pierce < 0) { b->active = 0; }
+          continue;
+        }
+      }
       for (int e = 0; e < MAX_ENEMIES; e++) {
         Enemy *en = &g->enemies[e];
         if (!en->active) continue;
@@ -2058,7 +2305,17 @@ static void fire_weapons(Game *g, float dt) {
 
     float best = 999999.0f;
     int target = -1;
-    if (weapon_is(w, "alchemist_puddle")) {
+    int target_is_boss = 0;
+    float target_x = 0.0f;
+    float target_y = 0.0f;
+    if (g->mode == MODE_BOSS_EVENT && g->boss.active) {
+      target_is_boss = 1;
+      target_x = g->boss.x;
+      target_y = g->boss.y;
+      float dx = target_x - p->x;
+      float dy = target_y - p->y;
+      best = dx * dx + dy * dy;
+    } else if (weapon_is(w, "alchemist_puddle")) {
       int onscreen_count = 0;
       float cam_min_x = g->camera_x;
       float cam_max_x = g->camera_x + g->view_w;
@@ -2100,8 +2357,8 @@ static void fire_weapons(Game *g, float dt) {
       if (range > 0.0f && best > range * range) continue;
     }
 
-    float tx = g->enemies[target].x - p->x;
-    float ty = g->enemies[target].y - p->y;
+    float tx = (target_is_boss ? target_x : g->enemies[target].x) - p->x;
+    float ty = (target_is_boss ? target_y : g->enemies[target].y) - p->y;
     vec_norm(&tx, &ty);
 
     float level_mul = 1.0f + 0.2f * (slot->level - 1);
@@ -2122,24 +2379,34 @@ static void fire_weapons(Game *g, float dt) {
     if (weapon_is(w, "lightning_zone")) {
       float range = w->range * (1.0f + 0.1f * (slot->level - 1));
       float range2 = range * range;
-      for (int e = 0; e < MAX_ENEMIES; e++) {
-        if (!g->enemies[e].active) continue;
-        Enemy *en = &g->enemies[e];
-        if (en->spawn_invuln > 0.0f) continue;
-        float ex = en->x - p->x;
-        float ey = en->y - p->y;
+      if (g->mode == MODE_BOSS_EVENT && g->boss.active) {
+        float ex = g->boss.x - p->x;
+        float ey = g->boss.y - p->y;
         float d2 = ex * ex + ey * ey;
         if (d2 <= range2) {
-          mark_enemy_hit(en);
           float final_dmg = player_roll_crit_damage(&stats, w, damage);
-          final_dmg = player_apply_hit_mods(g, en, final_dmg);
-          en->hp -= final_dmg;
-          log_combatf(g, "hit %s with %s for %.1f", enemy_label(g, en), w->name, final_dmg);
-          player_try_item_proc(g, e, &stats);
-          /* Lightning has a chance to stun */
-          if (frandf() < 0.15f) {
-            en->stun_timer = 0.3f;
-            log_combatf(g, "stun applied to %s", enemy_label(g, en));
+          g->boss.hp -= final_dmg;
+        }
+      } else {
+        for (int e = 0; e < MAX_ENEMIES; e++) {
+          if (!g->enemies[e].active) continue;
+          Enemy *en = &g->enemies[e];
+          if (en->spawn_invuln > 0.0f) continue;
+          float ex = en->x - p->x;
+          float ey = en->y - p->y;
+          float d2 = ex * ex + ey * ey;
+          if (d2 <= range2) {
+            mark_enemy_hit(en);
+            float final_dmg = player_roll_crit_damage(&stats, w, damage);
+            final_dmg = player_apply_hit_mods(g, en, final_dmg);
+            en->hp -= final_dmg;
+            log_combatf(g, "hit %s with %s for %.1f", enemy_label(g, en), w->name, final_dmg);
+            player_try_item_proc(g, e, &stats);
+            /* Lightning has a chance to stun */
+            if (frandf() < 0.15f) {
+              en->stun_timer = 0.3f;
+              log_combatf(g, "stun applied to %s", enemy_label(g, en));
+            }
           }
         }
       }
@@ -2151,7 +2418,9 @@ static void fire_weapons(Game *g, float dt) {
     if (weapon_is(w, "alchemist_puddle")) {
       float range = (w->range > 0.0f ? w->range : 90.0f);
       float dps = damage;
-      spawn_puddle(g, g->enemies[target].x, g->enemies[target].y, range, dps, 5.0f);
+      float px = target_is_boss ? target_x : g->enemies[target].x;
+      float py = target_is_boss ? target_y : g->enemies[target].y;
+      spawn_puddle(g, px, py, range, dps, 5.0f);
       log_combatf(g, "puddle spawned (r=%.0f dps=%.1f)", range, dps);
       float level_cd = clampf(1.0f - 0.05f * (slot->level - 1), 0.7f, 1.0f);
       slot->cd_timer = w->cooldown * cooldown_scale * level_cd;
@@ -2161,6 +2430,18 @@ static void fire_weapons(Game *g, float dt) {
     if (weapon_is(w, "laser") || weapon_is(w, "whip") || weapon_is(w, "chain_blades")) {
       float range = w->range;
       float half_width = weapon_is(w, "whip") ? 8.0f : 10.0f;
+      if (g->mode == MODE_BOSS_EVENT && g->boss.active) {
+        float ex = g->boss.x - p->x;
+        float ey = g->boss.y - p->y;
+        float proj = ex * tx + ey * ty;
+        if (proj > 0.0f && proj <= range) {
+          float perp = fabsf(ex * (-ty) + ey * tx);
+          if (perp <= half_width + g_boss_defs[g->boss.def_index].radius) {
+            float final_dmg = player_roll_crit_damage(&stats, w, damage);
+            g->boss.hp -= final_dmg;
+          }
+        }
+      }
       for (int e = 0; e < MAX_ENEMIES; e++) {
         if (!g->enemies[e].active) continue;
         float ex = g->enemies[e].x - p->x;
@@ -2603,6 +2884,172 @@ static void update_game(Game *g, float dt) {
   }
 }
 
+static void update_boss_event(Game *g, float dt) {
+  const Uint8 *keys = SDL_GetKeyboardState(NULL);
+  Player *p = &g->player;
+  Stats stats = player_total_stats(p, &g->db);
+
+  if (g->boss_event_cd > 0.0f) {
+    g->boss_event_cd -= dt;
+    if (g->boss_event_cd < 0.0f) g->boss_event_cd = 0.0f;
+  }
+
+  if (g->boss_countdown_timer > 0.0f) {
+    g->boss_countdown_timer -= dt;
+    if (g->boss_countdown_timer <= 0.0f) {
+      float angle = frandf() * 6.28318f;
+      float dist = 280.0f + frandf() * 80.0f;
+      float bx = clampf(g->player.x + cosf(angle) * dist, 40.0f, ARENA_W - 40.0f);
+      float by = clampf(g->player.y + sinf(angle) * dist, 40.0f, ARENA_H - 40.0f);
+      spawn_boss(g, bx, by);
+    }
+  }
+
+  if (g->boss_timer > 0.0f) {
+    g->boss_timer -= dt;
+    if (g->boss_timer < 0.0f) g->boss_timer = 0.0f;
+  }
+
+  /* Ultimate cooldown tick */
+  if (g->ultimate_cd > 0.0f) g->ultimate_cd -= dt;
+  if (g->ultimate_cd < 0.0f) g->ultimate_cd = 0.0f;
+  if (g->item_popup_timer > 0.0f) g->item_popup_timer -= dt;
+  if (g->boss_event_cd > 0.0f) {
+    g->boss_event_cd -= dt;
+    if (g->boss_event_cd < 0.0f) g->boss_event_cd = 0.0f;
+  }
+  if (p->ultimate_move_to_as_timer > 0.0f) {
+    p->ultimate_move_to_as_timer -= dt;
+    if (p->ultimate_move_to_as_timer < 0.0f) p->ultimate_move_to_as_timer = 0.0f;
+  }
+
+  float speed = 150.0f * (1.0f + stats.move_speed);
+  float vx = 0.0f;
+  float vy = 0.0f;
+  if (keys[SDL_SCANCODE_W]) vy -= 1.0f;
+  if (keys[SDL_SCANCODE_S]) vy += 1.0f;
+  if (keys[SDL_SCANCODE_A]) vx -= 1.0f;
+  if (keys[SDL_SCANCODE_D]) vx += 1.0f;
+  vec_norm(&vx, &vy);
+  p->x = clampf(p->x + vx * speed * dt, 20.0f, ARENA_W - 20.0f);
+  p->y = clampf(p->y + vy * speed * dt, 20.0f, ARENA_H - 20.0f);
+
+  if (stats.hp_regen > 0.0f) {
+    p->hp = clampf(p->hp + stats.hp_regen * dt, 0.0f, stats.max_hp);
+  }
+
+  float scroll_margin_x = g->view_w * 0.2f;
+  float scroll_margin_y = g->view_h * 0.2f;
+  float player_screen_x = p->x - g->camera_x;
+  float player_screen_y = p->y - g->camera_y;
+
+  if (player_screen_x > g->view_w - scroll_margin_x) {
+    g->camera_x = p->x - (g->view_w - scroll_margin_x);
+  }
+  if (player_screen_x < scroll_margin_x) {
+    g->camera_x = p->x - scroll_margin_x;
+  }
+  if (player_screen_y > g->view_h - scroll_margin_y) {
+    g->camera_y = p->y - (g->view_h - scroll_margin_y);
+  }
+  if (player_screen_y < scroll_margin_y) {
+    g->camera_y = p->y - scroll_margin_y;
+  }
+  float max_cam_x = ARENA_W - g->view_w;
+  float max_cam_y = ARENA_H - g->view_h;
+  if (max_cam_x < 0.0f) max_cam_x = 0.0f;
+  if (max_cam_y < 0.0f) max_cam_y = 0.0f;
+  g->camera_x = clampf(g->camera_x, 0.0f, max_cam_x);
+  g->camera_y = clampf(g->camera_y, 0.0f, max_cam_y);
+
+  fire_weapons(g, dt);
+  update_bullets(g, dt);
+  update_weapon_fx(g, dt);
+  update_puddles(g, dt);
+
+  if (g->boss.active) {
+    const BossDef *def = &g_boss_defs[g->boss.def_index];
+    float dx = p->x - g->boss.x;
+    float dy = p->y - g->boss.y;
+    float dist2 = dx * dx + dy * dy;
+    float dist = sqrtf(dist2);
+    if (dist > 0.001f) {
+      float nx = dx / dist;
+      float ny = dy / dist;
+      g->boss.x += nx * def->speed * dt;
+      g->boss.y += ny * def->speed * dt;
+    }
+
+    if (g->boss.attack_timer > 0.0f) g->boss.attack_timer -= dt;
+    float hit_range = def->radius + 14.0f;
+    if (dist < hit_range && g->boss.attack_timer <= 0.0f) {
+      float dmg = damage_after_armor(def->damage, stats.armor);
+      p->hp -= dmg;
+      g->boss.attack_timer = def->attack_cooldown;
+    }
+
+    if (g->boss.beam_cd > 0.0f) g->boss.beam_cd -= dt;
+    if (g->boss.wave_cd > 0.0f) g->boss.wave_cd -= dt;
+    if (g->boss.slam_cd > 0.0f) g->boss.slam_cd -= dt;
+
+    if (g->boss.beam_timer > 0.0f) {
+      g->boss.beam_timer -= dt;
+      float angle = g->boss.beam_angle;
+      float lx = cosf(angle);
+      float ly = sinf(angle);
+      float proj = dx * lx + dy * ly;
+      if (proj > 0.0f && proj < 900.0f) {
+        float perp = fabsf(dx * (-ly) + dy * lx);
+        if (perp <= def->beam_width) {
+          float dmg = damage_after_armor(def->beam_dps * dt, stats.armor);
+          p->hp -= dmg;
+        }
+      }
+      if (g->boss.beam_timer <= 0.0f) {
+        g->boss.beam_timer = 0.0f;
+      }
+    } else if (g->boss.beam_cd <= 0.0f) {
+      g->boss.beam_angle = atan2f(dy, dx);
+      g->boss.beam_timer = def->beam_duration;
+      g->boss.beam_cd = def->beam_cooldown;
+    }
+
+    if (g->boss.wave_cd <= 0.0f) {
+      int n = def->wave_bullets;
+      if (n < 6) n = 6;
+      for (int i = 0; i < n; i++) {
+        float a = (6.28318f * i) / n;
+        float vx = cosf(a) * def->wave_speed;
+        float vy = sinf(a) * def->wave_speed;
+        spawn_bullet(g, g->boss.x, g->boss.y, vx, vy, def->damage * 0.7f, 0, 0, 0,
+                     -1, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+      }
+      g->boss.wave_cd = def->wave_cooldown;
+    }
+
+    if (g->boss.slam_cd <= 0.0f && dist < def->slam_radius) {
+      float dmg = damage_after_armor(def->slam_damage, stats.armor);
+      p->hp -= dmg;
+      if (dist > 0.001f) {
+        float nx = dx / dist;
+        float ny = dy / dist;
+        p->x = clampf(p->x + nx * 80.0f, 20.0f, ARENA_W - 20.0f);
+        p->y = clampf(p->y + ny * 80.0f, 20.0f, ARENA_H - 20.0f);
+      }
+      g->boss.slam_cd = def->slam_cooldown;
+    }
+
+    if (g->boss.hp <= 0.0f) {
+      end_boss_event(g, 1);
+      return;
+    }
+  }
+
+  if (p->hp <= 0.0f || g->boss_timer <= 0.0f) {
+    end_boss_event(g, 0);
+  }
+}
+
 static void layout_levelup(Game *g, int screen_w, int screen_h) {
   int card_w = 260;
   int card_h = 120;
@@ -2781,6 +3228,44 @@ static void render_game(Game *g) {
       SDL_RenderFillRect(g->renderer, &bar_bg);
       SDL_SetRenderDrawColor(g->renderer, 90, 220, 90, 255);
       SDL_RenderFillRect(g->renderer, &bar_fg);
+    }
+  }
+
+  if (g->mode == MODE_BOSS_EVENT && g->boss.active) {
+    const BossDef *def = &g_boss_defs[g->boss.def_index];
+    int bx = (int)(offset_x + g->boss.x - cam_x);
+    int by = (int)(offset_y + g->boss.y - cam_y);
+    int br = (int)def->radius;
+    draw_glow(g->renderer, bx, by, br + 14, (SDL_Color){255, 120, 60, 140});
+    draw_filled_circle(g->renderer, bx, by, br + 6, (SDL_Color){160, 60, 40, 255});
+    draw_circle(g->renderer, bx, by, br + 6, (SDL_Color){240, 200, 120, 255});
+
+    float hp_pct = clampf(g->boss.hp / g->boss.max_hp, 0.0f, 1.0f);
+    int bar_w = br * 2 + 12;
+    SDL_Rect bar_bg = { bx - bar_w/2, by - br - 16, bar_w, 6 };
+    SDL_Rect bar_fg = { bx - bar_w/2, by - br - 16, (int)(bar_w * hp_pct), 6 };
+    SDL_SetRenderDrawColor(g->renderer, 20, 20, 20, 220);
+    SDL_RenderFillRect(g->renderer, &bar_bg);
+    SDL_SetRenderDrawColor(g->renderer, 240, 120, 80, 255);
+    SDL_RenderFillRect(g->renderer, &bar_fg);
+  }
+
+  if (g->mode == MODE_BOSS_EVENT && g->boss.active && g->boss.beam_timer > 0.0f) {
+    const BossDef *def = &g_boss_defs[g->boss.def_index];
+    float angle = g->boss.beam_angle;
+    int bx = (int)(offset_x + g->boss.x - cam_x);
+    int by = (int)(offset_y + g->boss.y - cam_y);
+    int ex = (int)(bx + cosf(angle) * 900.0f);
+    int ey = (int)(by + sinf(angle) * 900.0f);
+    SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g->renderer, 120, 220, 255, 120);
+    SDL_RenderDrawLine(g->renderer, bx, by, ex, ey);
+    SDL_SetRenderDrawColor(g->renderer, 60, 170, 255, 200);
+    for (int i = 1; i <= (int)(def->beam_width / 6.0f); i++) {
+      int ox = (int)(-sinf(angle) * i * 3.0f);
+      int oy = (int)(cosf(angle) * i * 3.0f);
+      SDL_RenderDrawLine(g->renderer, bx + ox, by + oy, ex + ox, ey + oy);
+      SDL_RenderDrawLine(g->renderer, bx - ox, by - oy, ex - ox, ey - oy);
     }
   }
 
@@ -3005,6 +3490,35 @@ static void render_game(Game *g) {
     }
     draw_text(g->renderer, g->font, 20, 88, text, buf);
     draw_text(g->renderer, g->font, 20, 108, text, "TAB/P pause  F1 spawn  F2/F3 speed  F4 range");
+
+    if (g->mode == MODE_BOSS_EVENT) {
+      int mins = (int)(g->boss_timer / 60.0f);
+      int secs = (int)g->boss_timer % 60;
+      snprintf(buf, sizeof(buf), "Boss Time: %d:%02d", mins, secs);
+      draw_text(g->renderer, g->font, win_w - 220, 10, text, buf);
+
+      if (g->boss.active) {
+        const BossDef *def = &g_boss_defs[g->boss.def_index];
+        float hp_pct = clampf(g->boss.hp / g->boss.max_hp, 0.0f, 1.0f);
+        int bar_w = 200;
+        SDL_Rect bar_bg = { win_w - bar_w - 20, 32, bar_w, 8 };
+        SDL_Rect bar_fg = { win_w - bar_w - 20, 32, (int)(bar_w * hp_pct), 8 };
+        SDL_SetRenderDrawColor(g->renderer, 20, 20, 20, 220);
+        SDL_RenderFillRect(g->renderer, &bar_bg);
+        SDL_SetRenderDrawColor(g->renderer, 240, 120, 80, 255);
+        SDL_RenderFillRect(g->renderer, &bar_fg);
+        draw_text(g->renderer, g->font, win_w - bar_w - 20, 44, text, def->name);
+      }
+
+      if (g->boss_countdown_timer > 0.0f) {
+        int count = (int)ceilf(g->boss_countdown_timer);
+        SDL_Color c = {255, 220, 120, 255};
+        char cbuf[8];
+        snprintf(cbuf, sizeof(cbuf), "%d", count);
+        draw_text_centered_outline(g->renderer, g->font_title_big ? g->font_title_big : g->font_title,
+                                   win_w / 2, win_h / 2 - 40, c, (SDL_Color){0, 0, 0, 200}, 2, cbuf);
+      }
+    }
 
     if (g->item_popup_timer > 0.0f && g->item_popup_name[0]) {
       float t = clampf(g->item_popup_timer / ITEM_POPUP_DURATION, 0.0f, 1.0f);
@@ -4009,6 +4523,12 @@ int main(int argc, char **argv) {
         if (e.key.keysym.sym == SDLK_F5) {
           toggle_pause(&game);
         }
+        if (e.key.keysym.sym == SDLK_5) {
+          if (game.mode == MODE_WAVE && game.boss_event_cd <= 0.0f) {
+            game.boss_event_cd = 5.0f;
+            start_boss_event(&game);
+          }
+        }
         if (e.key.keysym.sym == SDLK_8) {
           game.debug_show_items = !game.debug_show_items;
         }
@@ -4069,6 +4589,7 @@ int main(int argc, char **argv) {
     const double dt = 1.0 / 60.0;
     while (accumulator >= dt) {
       if (game.mode == MODE_WAVE) update_game(&game, (float)(dt * game.time_scale));
+      if (game.mode == MODE_BOSS_EVENT) update_boss_event(&game, (float)(dt * game.time_scale));
       if (game.mode == MODE_LEVELUP && (game.levelup_chosen >= 0 || game.levelup_selected_count > 0) && game.levelup_fade > 0.0f) {
         float now = (float)SDL_GetTicks() / 1000.0f;
         if (now - game.levelup_fade >= 0.5f) {
