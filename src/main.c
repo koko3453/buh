@@ -216,8 +216,8 @@ typedef struct {
   float damage;
   float radius;
   float attack_cooldown;
-  float beam_cooldown;
-  float beam_duration;
+  float beam_rot_speed;
+  float beam_length;
   float beam_dps;
   float beam_width;
   float wave_cooldown;
@@ -226,6 +226,10 @@ typedef struct {
   float slam_cooldown;
   float slam_radius;
   float slam_damage;
+  float hazard_cooldown;
+  float hazard_duration;
+  float hazard_dps;
+  float hazard_safe_radius;
 } BossDef;
 
 typedef struct {
@@ -265,11 +269,13 @@ typedef struct {
   float hp;
   float max_hp;
   float attack_timer;
-  float beam_timer;
-  float beam_cd;
   float beam_angle;
   float wave_cd;
   float slam_cd;
+  float hazard_timer;
+  float hazard_cd;
+  float safe_x[3];
+  float safe_y[3];
 } Boss;
 
 typedef struct {
@@ -418,6 +424,7 @@ typedef struct {
   SDL_Texture *tex_player;
   SDL_Texture *tex_enemy_bolt;
   SDL_Texture *tex_lightning_zone;
+  SDL_Texture *tex_laser_beam;
   SDL_Texture *tex_portraits[MAX_CHARACTERS];
   SDL_Texture *tex_scythe;
   SDL_Texture *tex_bite;
@@ -503,9 +510,10 @@ static void log_combatf(Game *g, const char *fmt, ...) {
 
 static const BossDef g_boss_defs[] = {
   { "proto_beast", "Proto Behemoth", 1800.0f, 90.0f, 30.0f, 26.0f, 0.7f,
-    6.0f, 2.2f, 45.0f, 26.0f,
+    1.1f, 900.0f, 120.0f, 22.0f,
     5.0f, 16, 220.0f,
-    4.0f, 80.0f, 45.0f }
+    4.0f, 80.0f, 45.0f,
+    12.0f, 5.0f, 60.0f, 70.0f }
 };
 
 static int boss_def_count(void) {
@@ -1300,11 +1308,15 @@ static void spawn_boss(Game *g, float x, float y) {
   g->boss.hp = def->hp;
   g->boss.max_hp = def->hp;
   g->boss.attack_timer = 0.0f;
-  g->boss.beam_timer = 0.0f;
-  g->boss.beam_cd = def->beam_cooldown * 0.5f;
-  g->boss.beam_angle = 0.0f;
+  g->boss.beam_angle = frandf() * 6.28318f;
   g->boss.wave_cd = def->wave_cooldown * 0.5f;
   g->boss.slam_cd = def->slam_cooldown * 0.5f;
+  g->boss.hazard_timer = 0.0f;
+  g->boss.hazard_cd = def->hazard_cooldown * 0.5f;
+  for (int i = 0; i < 3; i++) {
+    g->boss.safe_x[i] = g->boss.x;
+    g->boss.safe_y[i] = g->boss.y;
+  }
 }
 
 static void start_boss_event(Game *g) {
@@ -2973,7 +2985,7 @@ static void update_boss_event(Game *g, float dt) {
     float dy = p->y - g->boss.y;
     float dist2 = dx * dx + dy * dy;
     float dist = sqrtf(dist2);
-    if (dist > 0.001f) {
+    if (dist > 0.001f && g->boss.hazard_timer <= 0.0f) {
       float nx = dx / dist;
       float ny = dy / dist;
       g->boss.x += nx * def->speed * dt;
@@ -2988,33 +3000,75 @@ static void update_boss_event(Game *g, float dt) {
       g->boss.attack_timer = def->attack_cooldown;
     }
 
-    if (g->boss.beam_cd > 0.0f) g->boss.beam_cd -= dt;
     if (g->boss.wave_cd > 0.0f) g->boss.wave_cd -= dt;
     if (g->boss.slam_cd > 0.0f) g->boss.slam_cd -= dt;
+    if (g->boss.hazard_cd > 0.0f) g->boss.hazard_cd -= dt;
 
-    if (g->boss.beam_timer > 0.0f) {
-      g->boss.beam_timer -= dt;
-      float angle = g->boss.beam_angle;
-      float lx = cosf(angle);
-      float ly = sinf(angle);
-      float proj = dx * lx + dy * ly;
-      if (proj > 0.0f && proj < 900.0f) {
-        float perp = fabsf(dx * (-ly) + dy * lx);
-        if (perp <= def->beam_width) {
-          float dmg = damage_after_armor(def->beam_dps * dt, stats.armor);
-          p->hp -= dmg;
-        }
+    g->boss.beam_angle += def->beam_rot_speed * dt;
+    if (g->boss.beam_angle > 6.28318f) g->boss.beam_angle -= 6.28318f;
+
+    float angle = g->boss.beam_angle;
+    float lx = cosf(angle);
+    float ly = sinf(angle);
+    float proj = dx * lx + dy * ly;
+    if (proj > 0.0f && proj < def->beam_length) {
+      float perp = fabsf(dx * (-ly) + dy * lx);
+      if (perp <= def->beam_width * 0.5f) {
+        float dmg = damage_after_armor(def->beam_dps * dt, stats.armor);
+        p->hp -= dmg;
       }
-      if (g->boss.beam_timer <= 0.0f) {
-        g->boss.beam_timer = 0.0f;
-      }
-    } else if (g->boss.beam_cd <= 0.0f) {
-      g->boss.beam_angle = atan2f(dy, dx);
-      g->boss.beam_timer = def->beam_duration;
-      g->boss.beam_cd = def->beam_cooldown;
     }
 
-    if (g->boss.wave_cd <= 0.0f) {
+    int hazard_active = 0;
+    if (g->boss.hazard_timer > 0.0f) {
+      g->boss.hazard_timer -= dt;
+      if (g->boss.hazard_timer < 0.0f) g->boss.hazard_timer = 0.0f;
+      hazard_active = 1;
+
+      float safe_r = def->hazard_safe_radius;
+      int safe = 0;
+      for (int i = 0; i < 3; i++) {
+        float sx = g->boss.safe_x[i];
+        float sy = g->boss.safe_y[i];
+        float ddx = p->x - sx;
+        float ddy = p->y - sy;
+        if (ddx * ddx + ddy * ddy <= safe_r * safe_r) {
+          safe = 1;
+          break;
+        }
+      }
+      if (!safe) {
+        float dmg = damage_after_armor(def->hazard_dps * dt, stats.armor);
+        p->hp -= dmg;
+      }
+    } else if (g->boss.hazard_cd <= 0.0f) {
+      g->boss.hazard_timer = def->hazard_duration;
+      g->boss.hazard_cd = def->hazard_cooldown;
+      float radius = (g->view_w < g->view_h ? g->view_w : g->view_h) * 0.35f;
+      if (radius < 120.0f) radius = 120.0f;
+      for (int i = 0; i < 3; i++) {
+        int attempts = 0;
+        while (attempts++ < 20) {
+          float angle = frandf() * 6.28318f;
+          float dist = radius * (0.4f + frandf() * 0.6f);
+          float sx = clampf(p->x + cosf(angle) * dist, 40.0f, ARENA_W - 40.0f);
+          float sy = clampf(p->y + sinf(angle) * dist, 40.0f, ARENA_H - 40.0f);
+          int ok = 1;
+          for (int j = 0; j < i; j++) {
+            float dxs = sx - g->boss.safe_x[j];
+            float dys = sy - g->boss.safe_y[j];
+            if (dxs * dxs + dys * dys < def->hazard_safe_radius * def->hazard_safe_radius * 3.0f) { ok = 0; break; }
+          }
+          if (!ok) continue;
+          g->boss.safe_x[i] = sx;
+          g->boss.safe_y[i] = sy;
+          break;
+        }
+      }
+      hazard_active = 1;
+    }
+
+    if (!hazard_active && g->boss.wave_cd <= 0.0f) {
       int n = def->wave_bullets;
       if (n < 6) n = 6;
       for (int i = 0; i < n; i++) {
@@ -3027,7 +3081,7 @@ static void update_boss_event(Game *g, float dt) {
       g->boss.wave_cd = def->wave_cooldown;
     }
 
-    if (g->boss.slam_cd <= 0.0f && dist < def->slam_radius) {
+    if (!hazard_active && g->boss.slam_cd <= 0.0f && dist < def->slam_radius) {
       float dmg = damage_after_armor(def->slam_damage, stats.armor);
       p->hp -= dmg;
       if (dist > 0.001f) {
@@ -3231,6 +3285,13 @@ static void render_game(Game *g) {
     }
   }
 
+  if (g->mode == MODE_BOSS_EVENT && g->boss.active && g->boss.hazard_timer > 0.0f) {
+    SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g->renderer, 140, 30, 30, 50);
+    SDL_Rect hazard = { offset_x, offset_y, view_w, view_h };
+    SDL_RenderFillRect(g->renderer, &hazard);
+  }
+
   if (g->mode == MODE_BOSS_EVENT && g->boss.active) {
     const BossDef *def = &g_boss_defs[g->boss.def_index];
     int bx = (int)(offset_x + g->boss.x - cam_x);
@@ -3250,22 +3311,50 @@ static void render_game(Game *g) {
     SDL_RenderFillRect(g->renderer, &bar_fg);
   }
 
-  if (g->mode == MODE_BOSS_EVENT && g->boss.active && g->boss.beam_timer > 0.0f) {
+  if (g->mode == MODE_BOSS_EVENT && g->boss.active) {
     const BossDef *def = &g_boss_defs[g->boss.def_index];
     float angle = g->boss.beam_angle;
     int bx = (int)(offset_x + g->boss.x - cam_x);
     int by = (int)(offset_y + g->boss.y - cam_y);
-    int ex = (int)(bx + cosf(angle) * 900.0f);
-    int ey = (int)(by + sinf(angle) * 900.0f);
+    int beam_w = (int)(def->beam_width * 2.0f);
+    int beam_len = (int)def->beam_length;
+    if (beam_w < 8) beam_w = 8;
+    if (beam_len < 200) beam_len = 200;
+
+    SDL_Rect dst = { bx, by - beam_w / 2, beam_len, beam_w };
+    SDL_Point pivot = { 0, beam_w / 2 };
+    double angle_deg = angle * (180.0 / 3.14159);
     SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(g->renderer, 120, 220, 255, 120);
-    SDL_RenderDrawLine(g->renderer, bx, by, ex, ey);
-    SDL_SetRenderDrawColor(g->renderer, 60, 170, 255, 200);
-    for (int i = 1; i <= (int)(def->beam_width / 6.0f); i++) {
-      int ox = (int)(-sinf(angle) * i * 3.0f);
-      int oy = (int)(cosf(angle) * i * 3.0f);
-      SDL_RenderDrawLine(g->renderer, bx + ox, by + oy, ex + ox, ey + oy);
-      SDL_RenderDrawLine(g->renderer, bx - ox, by - oy, ex - ox, ey - oy);
+    if (g->tex_laser_beam) {
+      SDL_SetTextureAlphaMod(g->tex_laser_beam, 220);
+      SDL_RenderCopyEx(g->renderer, g->tex_laser_beam, NULL, &dst, angle_deg, &pivot, SDL_FLIP_NONE);
+      SDL_SetTextureAlphaMod(g->tex_laser_beam, 255);
+    } else {
+      SDL_SetRenderDrawColor(g->renderer, 120, 220, 255, 140);
+      SDL_RenderDrawLine(g->renderer, bx, by,
+                         bx + (int)(cosf(angle) * beam_len),
+                         by + (int)(sinf(angle) * beam_len));
+      SDL_SetRenderDrawColor(g->renderer, 60, 170, 255, 200);
+      for (int i = 1; i <= beam_w / 6; i++) {
+        int ox = (int)(-sinf(angle) * i * 3.0f);
+        int oy = (int)(cosf(angle) * i * 3.0f);
+        SDL_RenderDrawLine(g->renderer, bx + ox, by + oy,
+                           bx + (int)(cosf(angle) * beam_len) + ox,
+                           by + (int)(sinf(angle) * beam_len) + oy);
+        SDL_RenderDrawLine(g->renderer, bx - ox, by - oy,
+                           bx + (int)(cosf(angle) * beam_len) - ox,
+                           by + (int)(sinf(angle) * beam_len) - oy);
+      }
+    }
+  }
+
+  if (g->mode == MODE_BOSS_EVENT && g->boss.active && g->boss.hazard_timer > 0.0f) {
+    const BossDef *def = &g_boss_defs[g->boss.def_index];
+    for (int i = 0; i < 3; i++) {
+      int sx = (int)(offset_x + g->boss.safe_x[i] - cam_x);
+      int sy = (int)(offset_y + g->boss.safe_y[i] - cam_y);
+      draw_glow(g->renderer, sx, sy, (int)def->hazard_safe_radius + 12, (SDL_Color){80, 220, 140, 120});
+      draw_circle(g->renderer, sx, sy, (int)def->hazard_safe_radius, (SDL_Color){120, 255, 170, 220});
     }
   }
 
@@ -4408,6 +4497,9 @@ int main(int argc, char **argv) {
   game.tex_enemy_bolt = IMG_LoadTexture(game.renderer, "data/assets/goo_bolt.png");
   if (game.tex_enemy_bolt) log_line("Loaded goo_bolt.png");
   else log_linef("Failed to load goo_bolt.png: %s", IMG_GetError());
+  game.tex_laser_beam = IMG_LoadTexture(game.renderer, "data/assets/laser_beam.png");
+  if (game.tex_laser_beam) log_line("Loaded laser_beam.png");
+  else log_linef("Failed to load laser_beam.png: %s", IMG_GetError());
   game.tex_lightning_zone = IMG_LoadTexture(game.renderer, "data/assets/lightning_zone.png");
   if (game.tex_lightning_zone) log_line("Loaded lightning_zone.png");
   else log_linef("Failed to load lightning_zone.png: %s", IMG_GetError());
@@ -4615,6 +4707,7 @@ int main(int argc, char **argv) {
   if (game.tex_enemy) SDL_DestroyTexture(game.tex_enemy);
   if (game.tex_player) SDL_DestroyTexture(game.tex_player);
   if (game.tex_enemy_bolt) SDL_DestroyTexture(game.tex_enemy_bolt);
+  if (game.tex_laser_beam) SDL_DestroyTexture(game.tex_laser_beam);
   if (game.tex_lightning_zone) SDL_DestroyTexture(game.tex_lightning_zone);
   if (game.tex_scythe) SDL_DestroyTexture(game.tex_scythe);
   if (game.tex_bite) SDL_DestroyTexture(game.tex_bite);
