@@ -39,11 +39,11 @@ if errorlevel 1 goto :fail
 cmake --build %BUILD_DIR% --config Release >> "%LOG_FILE%" 2>&1
 if errorlevel 1 goto :fail
 
-if not exist "%BUILD_DIR%\Release\data\assets\orbs_rarity" (
-  mkdir "%BUILD_DIR%\Release\data\assets\orbs_rarity"
+if not exist "%BUILD_DIR%\Release\data\assets" (
+  mkdir "%BUILD_DIR%\Release\data\assets"
 )
-echo Copying rarity orbs...
-robocopy "data\assets\orbs_rarity" "%BUILD_DIR%\Release\data\assets\orbs_rarity" /E /NFL /NDL /NJH /NJS /NC /NS >nul
+echo Copying assets...
+robocopy "data\assets" "%BUILD_DIR%\Release\data\assets" /E /NFL /NDL /NJH /NJS /NC /NS >nul
 if %ERRORLEVEL% GEQ 8 goto :fail
 goto :run
 
@@ -55,10 +55,10 @@ if exist %EXE_RELEASE% (
 )
 if exist %EXE_DEBUG% (
   echo Running %EXE_DEBUG%
-  if not exist "%BUILD_DIR%\Debug\data\assets\orbs_rarity" (
-    mkdir "%BUILD_DIR%\Debug\data\assets\orbs_rarity"
+  if not exist "%BUILD_DIR%\Debug\data\assets" (
+    mkdir "%BUILD_DIR%\Debug\data\assets"
   )
-  robocopy "data\assets\orbs_rarity" "%BUILD_DIR%\Debug\data\assets\orbs_rarity" /E /NFL /NDL /NJH /NJS /NC /NS >nul
+  robocopy "data\assets" "%BUILD_DIR%\Debug\data\assets" /E /NFL /NDL /NJH /NJS /NC /NS >nul
   if %ERRORLEVEL% GEQ 8 goto :fail
   "%EXE_DEBUG%"
   goto :done

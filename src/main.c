@@ -111,6 +111,10 @@ static LONG WINAPI crash_handler(EXCEPTION_POINTERS *e) {
 #define VIEW_W 1180
 #define VIEW_H 640
 #define ITEM_POPUP_DURATION 4.5f
+#define SWORD_ORBIT_SPEED 2.4f
+#define SWORD_ORBIT_RANGE_SCALE 1.25f
+#define SWORD_ORBIT_WIDTH 22
+#define SWORD_ORBIT_HIT_COOLDOWN 0.2f
 
 #define MAX_LEVELUP_CHOICES 16
 
@@ -263,6 +267,7 @@ typedef struct {
   float move_dir_y;
   int is_moving;
   float scythe_throw_angle;
+  float sword_orbit_angle;
 } Player;
 
 typedef struct {
@@ -278,6 +283,7 @@ typedef struct {
   float slam_cd;
   float hazard_timer;
   float hazard_cd;
+  float sword_hit_cd;
   float safe_x[3];
   float safe_y[3];
 } Boss;
@@ -302,6 +308,7 @@ typedef struct {
   float stun_timer;
   float armor_shred_timer;
   float hit_timer;
+  float sword_hit_cd;
   int scythe_hit_id;
 } Enemy;
 
@@ -481,6 +488,7 @@ typedef struct {
   float boss_event_cd;
   float boss_countdown_timer;
   float boss_timer;
+  float boss_timer_max;
   float boss_room_x;
   float boss_room_y;
   BossSnapshot boss_snapshot;
@@ -627,12 +635,21 @@ static void toggle_pause(Game *g) {
   g->mode = MODE_PAUSE;
 }
 
+static WeaponSlot *find_weapon_slot(Player *p, Database *db, const char *id);
+
 static void vec_norm(float *x, float *y) {
   float len = sqrtf((*x) * (*x) + (*y) * (*y));
   if (len > 0.0001f) {
     *x /= len;
     *y /= len;
   }
+}
+
+static void update_sword_orbit(Game *g, float dt) {
+  WeaponSlot *slot = find_weapon_slot(&g->player, &g->db, "sword");
+  if (!slot) return;
+  g->player.sword_orbit_angle += dt * SWORD_ORBIT_SPEED;
+  if (g->player.sword_orbit_angle > 6.28318f) g->player.sword_orbit_angle -= 6.28318f;
 }
 
 static char *read_file(const char *path) {
@@ -1028,6 +1045,16 @@ static int find_weapon(Database *db, const char *id) {
   return -1;
 }
 
+static WeaponSlot *find_weapon_slot(Player *p, Database *db, const char *id) {
+  if (!p || !db || !id) return NULL;
+  for (int i = 0; i < MAX_WEAPON_SLOTS; i++) {
+    if (!p->weapons[i].active) continue;
+    WeaponDef *w = &db->weapons[p->weapons[i].def_index];
+    if (weapon_is(w, id)) return &p->weapons[i];
+  }
+  return NULL;
+}
+
 static float player_hp_regen_amp(Player *p, Database *db);
 
 static Stats player_total_stats(Player *p, Database *db) {
@@ -1330,6 +1357,7 @@ static void spawn_boss(Game *g, float x, float y) {
   g->boss.slam_cd = def->slam_cooldown * 0.5f;
   g->boss.hazard_timer = 0.0f;
   g->boss.hazard_cd = def->hazard_cooldown * 0.5f;
+  g->boss.sword_hit_cd = 0.0f;
   for (int i = 0; i < 3; i++) {
     g->boss.safe_x[i] = g->boss.x;
     g->boss.safe_y[i] = g->boss.y;
@@ -1342,6 +1370,7 @@ static void start_boss_event(Game *g) {
   g->mode = MODE_BOSS_EVENT;
   g->boss_countdown_timer = 3.0f;
   g->boss_timer = 180.0f;
+  g->boss_timer_max = g->boss_timer;
   g->boss.active = 0;
   g->boss.def_index = 0;
 
@@ -1389,6 +1418,7 @@ static void end_boss_event(Game *g, int success) {
   if (!g) return;
   g->boss.active = 0;
   g->boss_timer = 0.0f;
+  g->boss_timer_max = 0.0f;
   g->boss_countdown_timer = 0.0f;
   boss_snapshot_restore(g);
   if (success) {
@@ -1967,6 +1997,65 @@ static void draw_text_centered_outline(SDL_Renderer *r, TTF_Font *font, int cx, 
   draw_text_centered(r, font, cx, y, text, msg);
 }
 
+static void draw_sword_orbit(Game *g, int offset_x, int offset_y, float cam_x, float cam_y) {
+  WeaponSlot *slot = find_weapon_slot(&g->player, &g->db, "sword");
+  if (!slot) return;
+  WeaponDef *w = &g->db.weapons[slot->def_index];
+  int count = slot->level;
+  if (count < 1) count = 1;
+  float orbit_radius = w->range * SWORD_ORBIT_RANGE_SCALE;
+  float base_angle = g->player.sword_orbit_angle;
+
+  for (int s = 0; s < count; s++) {
+    float angle = base_angle + (6.28318f * (float)s / (float)count);
+    float angle_hit = angle + 1.570796f;
+    float sx = g->player.x + cosf(angle) * orbit_radius;
+    float sy = g->player.y + sinf(angle) * orbit_radius;
+    float mid_x = g->player.x + cosf(angle) * (orbit_radius * 0.5f);
+    float mid_y = g->player.y + sinf(angle) * (orbit_radius * 0.5f);
+    int draw_x = (int)(offset_x + mid_x - cam_x);
+    int draw_y = (int)(offset_y + mid_y - cam_y);
+    float angle_deg = angle * (180.0f / 3.14159f) + 90.0f;
+
+    if (g->tex_dagger) {
+      int length = (int)orbit_radius;
+      int width = SWORD_ORBIT_WIDTH;
+      SDL_Rect dst = { draw_x - width / 2, draw_y - length / 2, width, length };
+      SDL_RenderCopyEx(g->renderer, g->tex_dagger, NULL, &dst, angle_deg, NULL, SDL_FLIP_NONE);
+    } else {
+      draw_glow(g->renderer, draw_x, draw_y, 12, (SDL_Color){255, 220, 150, 120});
+      draw_diamond(g->renderer, draw_x, draw_y, 10, (SDL_Color){255, 230, 180, 255});
+    }
+    {
+      float half_w = 0.5f * (float)SWORD_ORBIT_WIDTH;
+      float half_l = 0.5f * orbit_radius;
+      float cos_a = cosf(angle_hit);
+      float sin_a = sinf(angle_hit);
+      float cx0 = (-half_w) * cos_a - (-half_l) * sin_a;
+      float cy0 = (-half_w) * sin_a + (-half_l) * cos_a;
+      float cx1 = (half_w) * cos_a - (-half_l) * sin_a;
+      float cy1 = (half_w) * sin_a + (-half_l) * cos_a;
+      float cx2 = (half_w) * cos_a - (half_l) * sin_a;
+      float cy2 = (half_w) * sin_a + (half_l) * cos_a;
+      float cx3 = (-half_w) * cos_a - (half_l) * sin_a;
+      float cy3 = (-half_w) * sin_a + (half_l) * cos_a;
+      int x0 = draw_x + (int)cx0;
+      int y0 = draw_y + (int)cy0;
+      int x1 = draw_x + (int)cx1;
+      int y1 = draw_y + (int)cy1;
+      int x2 = draw_x + (int)cx2;
+      int y2 = draw_y + (int)cy2;
+      int x3 = draw_x + (int)cx3;
+      int y3 = draw_y + (int)cy3;
+      SDL_SetRenderDrawColor(g->renderer, 255, 220, 120, 160);
+      SDL_RenderDrawLine(g->renderer, x0, y0, x1, y1);
+      SDL_RenderDrawLine(g->renderer, x1, y1, x2, y2);
+      SDL_RenderDrawLine(g->renderer, x2, y2, x3, y3);
+      SDL_RenderDrawLine(g->renderer, x3, y3, x0, y0);
+    }
+  }
+}
+
 static void trigger_item_popup(Game *g, ItemDef *it) {
   if (!g || !it) return;
   snprintf(g->item_popup_name, sizeof(g->item_popup_name), "%s", it->name);
@@ -2017,6 +2106,7 @@ static void game_reset(Game *g) {
   g->boss_event_cd = 0.0f;
   g->boss_countdown_timer = 0.0f;
   g->boss_timer = 0.0f;
+  g->boss_timer_max = 0.0f;
   g->boss.active = 0;
   g->boss_def_index = 0;
   g->boss_snapshot.valid = 0;
@@ -2055,6 +2145,7 @@ static void game_reset(Game *g) {
   p->move_dir_y = 1.0f;
   p->is_moving = 0;
   p->scythe_throw_angle = 0.0f;
+  p->sword_orbit_angle = -1.570796f;
 
   int chest_spawned = 0;
   int attempts = 0;
@@ -2289,6 +2380,7 @@ static void update_enemies(Game *g, float dt) {
     if (e->slow_timer > 0.0f) e->slow_timer -= dt;
     if (e->stun_timer > 0.0f) e->stun_timer -= dt;
     if (e->armor_shred_timer > 0.0f) e->armor_shred_timer -= dt;
+    if (e->sword_hit_cd > 0.0f) e->sword_hit_cd -= dt;
     
     /* Slow aura from items - constantly slows enemies in range */
     float aura_range = player_slow_aura(p, &g->db);
@@ -2398,6 +2490,101 @@ static void fire_weapons(Game *g, float dt) {
     WeaponSlot *slot = &p->weapons[i];
     if (!slot->active) continue;
     WeaponDef *w = &g->db.weapons[slot->def_index];
+
+    if (weapon_is(w, "sword")) {
+      float level_mul = 1.0f + 0.2f * (slot->level - 1);
+      float damage = w->damage * level_mul * (1.0f + stats.damage);
+      float bleed_chance, burn_chance, slow_chance, stun_chance, shred_chance;
+      weapon_status_chances(w, &bleed_chance, &burn_chance, &slow_chance, &stun_chance, &shred_chance);
+      slow_chance += player_slow_on_hit(p, &g->db);
+      slow_chance = clampf(slow_chance, 0.0f, 1.0f);
+      burn_chance += item_burn;
+      burn_chance = clampf(burn_chance, 0.0f, 1.0f);
+
+      int sword_count = slot->level;
+      if (sword_count < 1) sword_count = 1;
+      float orbit_radius = w->range * SWORD_ORBIT_RANGE_SCALE;
+      float half_w = 0.5f * (float)SWORD_ORBIT_WIDTH;
+      float half_l = 0.5f * orbit_radius;
+
+      for (int s = 0; s < sword_count; s++) {
+        float angle = g->player.sword_orbit_angle + (6.28318f * (float)s / (float)sword_count);
+        float angle_hit = angle + 1.570796f;
+        float tip_x = p->x + cosf(angle) * orbit_radius;
+        float tip_y = p->y + sinf(angle) * orbit_radius;
+        float mid_x = (p->x + tip_x) * 0.5f;
+        float mid_y = (p->y + tip_y) * 0.5f;
+        float cos_a = cosf(angle_hit);
+        float sin_a = sinf(angle_hit);
+
+        if (g->mode == MODE_BOSS_EVENT && g->boss.active) {
+          if (g->boss.sword_hit_cd > 0.0f) {
+            /* skip boss hit this tick */
+          } else {
+            float dx = g->boss.x - mid_x;
+            float dy = g->boss.y - mid_y;
+            float local_x = -dx * sin_a + dy * cos_a;
+            float local_y = dx * cos_a + dy * sin_a;
+            float clamp_x = clampf(local_x, -half_w, half_w);
+            float clamp_y = clampf(local_y, -half_l, half_l);
+            float ddx = local_x - clamp_x;
+            float ddy = local_y - clamp_y;
+            float boss_r = g_boss_defs[g->boss.def_index].radius;
+            if (ddx * ddx + ddy * ddy <= boss_r * boss_r) {
+              float final_dmg = player_roll_crit_damage(&stats, w, damage);
+              g->boss.hp -= final_dmg;
+              g->boss.sword_hit_cd = SWORD_ORBIT_HIT_COOLDOWN / attack_speed;
+            }
+          }
+        }
+
+        for (int e = 0; e < MAX_ENEMIES; e++) {
+          Enemy *en = &g->enemies[e];
+          if (!en->active) continue;
+          if (en->spawn_invuln > 0.0f) continue;
+          if (en->sword_hit_cd > 0.0f) continue;
+          float dx = en->x - mid_x;
+          float dy = en->y - mid_y;
+          float local_x = -dx * sin_a + dy * cos_a;
+          float local_y = dx * cos_a + dy * sin_a;
+          if (fabsf(local_x) > half_w || fabsf(local_y) > half_l) continue;
+          mark_enemy_hit(en);
+          float final_dmg = player_roll_crit_damage(&stats, w, damage);
+          final_dmg = player_apply_hit_mods(g, en, final_dmg);
+          en->hp -= final_dmg;
+          en->sword_hit_cd = SWORD_ORBIT_HIT_COOLDOWN / attack_speed;
+          log_combatf(g, "hit %s with %s for %.1f", enemy_label(g, en), w->name, final_dmg);
+          if (bleed_chance > 0.0f && frandf() < bleed_chance) {
+            en->bleed_stacks = (en->bleed_stacks < 5) ? en->bleed_stacks + 1 : 5;
+            en->bleed_timer = 4.0f;
+            log_combatf(g, "bleed applied to %s", enemy_label(g, en));
+          }
+          if (burn_chance > 0.0f && frandf() < burn_chance) {
+            en->burn_timer = 4.0f;
+            log_combatf(g, "burn applied to %s", enemy_label(g, en));
+          }
+          if (item_burn > 0.0f && en->burn_timer > 0.0f) {
+            log_combatf(g, "burn_on_hit applied to %s", enemy_label(g, en));
+          }
+          if (slow_chance > 0.0f && frandf() < slow_chance) {
+            en->slow_timer = 2.5f;
+            log_combatf(g, "slow applied to %s", enemy_label(g, en));
+          }
+          if (stun_chance > 0.0f && frandf() < stun_chance) {
+            en->stun_timer = 0.6f;
+            log_combatf(g, "stun applied to %s", enemy_label(g, en));
+          }
+          if (shred_chance > 0.0f && frandf() < shred_chance) {
+            en->armor_shred_timer = 3.0f;
+            log_combatf(g, "armor_shred applied to %s", enemy_label(g, en));
+          }
+          player_try_item_proc(g, e, &stats);
+        }
+      }
+
+      continue;
+    }
+
     slot->cd_timer -= dt * attack_speed;
     if (slot->cd_timer > 0.0f) continue;
 
@@ -2732,7 +2919,7 @@ static void fire_weapons(Game *g, float dt) {
       continue;
     }
 
-    if (weapon_is(w, "sword") || weapon_is(w, "short_sword") || weapon_is(w, "longsword") || weapon_is(w, "axe") ||
+    if (weapon_is(w, "short_sword") || weapon_is(w, "longsword") || weapon_is(w, "axe") ||
         weapon_is(w, "greatsword") || weapon_is(w, "hammer") ||
         weapon_is(w, "fists")) {
       float range = w->range;
@@ -2896,6 +3083,7 @@ static void update_game(Game *g, float dt) {
   g->camera_x = clampf(g->camera_x, 0.0f, max_cam_x);
   g->camera_y = clampf(g->camera_y, 0.0f, max_cam_y);
 
+  update_sword_orbit(g, dt);
   fire_weapons(g, dt);
   update_bullets(g, dt);
   update_weapon_fx(g, dt);
@@ -2963,6 +3151,10 @@ static void update_boss_event(Game *g, float dt) {
     g->boss_timer -= dt;
     if (g->boss_timer < 0.0f) g->boss_timer = 0.0f;
   }
+  if (g->boss.sword_hit_cd > 0.0f) {
+    g->boss.sword_hit_cd -= dt;
+    if (g->boss.sword_hit_cd < 0.0f) g->boss.sword_hit_cd = 0.0f;
+  }
 
   /* Ultimate cooldown tick */
   if (g->ultimate_cd > 0.0f) g->ultimate_cd -= dt;
@@ -3026,6 +3218,7 @@ static void update_boss_event(Game *g, float dt) {
   g->camera_x = clampf(g->camera_x, 0.0f, max_cam_x);
   g->camera_y = clampf(g->camera_y, 0.0f, max_cam_y);
 
+  update_sword_orbit(g, dt);
   fire_weapons(g, dt);
   update_bullets(g, dt);
   update_weapon_fx(g, dt);
@@ -3291,6 +3484,8 @@ static void render_game(Game *g) {
     draw_circle(g->renderer, px, py, 12, (SDL_Color){255, 230, 150, 255});
   }
 
+  draw_sword_orbit(g, offset_x, offset_y, cam_x, cam_y);
+
   /* Enemies with sprite */
   for (int i = 0; i < MAX_ENEMIES; i++) {
     if (!g->enemies[i].active) continue;
@@ -3312,6 +3507,21 @@ static void render_game(Game *g) {
 
     /* Draw enemy sprite with color tint for slow */
     if (g->tex_enemy) {
+      float move_dx = 0.0f;
+      float move_dy = 0.0f;
+      SDL_RendererFlip enemy_flip = SDL_FLIP_NONE;
+      if (strcmp(def->role, "turret") != 0) {
+        if (g->enemies[i].charge_time > 0.0f) {
+          move_dx = g->enemies[i].vx;
+          move_dy = g->enemies[i].vy;
+        } else if (g->enemies[i].stun_timer <= 0.0f) {
+          move_dx = g->player.x - g->enemies[i].x;
+          move_dy = g->player.y - g->enemies[i].y;
+        }
+        if (fabsf(move_dx) > 0.01f || fabsf(move_dy) > 0.01f) {
+          if (move_dx < 0.0f) enemy_flip = SDL_FLIP_HORIZONTAL;
+        }
+      }
       /* Tint red when hit, blue when slowed */
       if (hit_flash) {
         SDL_SetTextureColorMod(g->tex_enemy, 255, 120, 120);
@@ -3321,7 +3531,7 @@ static void render_game(Game *g) {
         SDL_SetTextureColorMod(g->tex_enemy, 255, 255, 255);
       }
       SDL_Rect dst = { ex - size/2, ey - size/2, size, size };
-      SDL_RenderCopy(g->renderer, g->tex_enemy, NULL, &dst);
+      SDL_RenderCopyEx(g->renderer, g->tex_enemy, NULL, &dst, 0.0, NULL, enemy_flip);
     } else {
       /* Fallback circle - tint blue when slowed */
       if (hit_flash) {
@@ -3618,23 +3828,39 @@ static void render_game(Game *g) {
     draw_text(g->renderer, g->font, 20, 88, text, buf);
     draw_text(g->renderer, g->font, 20, 108, text, "TAB/P pause  F1 spawn  F2/F3 speed  F4 range");
 
-    if (g->mode == MODE_BOSS_EVENT) {
+  if (g->mode == MODE_BOSS_EVENT) {
+      float time_pct = 0.0f;
+      if (g->boss_timer_max > 0.0f) {
+        time_pct = clampf(g->boss_timer / g->boss_timer_max, 0.0f, 1.0f);
+      }
+      int time_bar_w = 200;
+      int time_bar_h = 8;
+      int time_bar_x = win_w - time_bar_w - 20;
+      int time_bar_y = 10;
+      SDL_Rect time_bg = { time_bar_x, time_bar_y, time_bar_w, time_bar_h };
+      SDL_Rect time_fg = { time_bar_x, time_bar_y, (int)(time_bar_w * time_pct), time_bar_h };
+      SDL_SetRenderDrawColor(g->renderer, 20, 20, 20, 220);
+      SDL_RenderFillRect(g->renderer, &time_bg);
+      SDL_SetRenderDrawColor(g->renderer, 80, 160, 230, 255);
+      SDL_RenderFillRect(g->renderer, &time_fg);
+      SDL_SetRenderDrawColor(g->renderer, 80, 100, 130, 255);
+      SDL_RenderDrawRect(g->renderer, &time_bg);
       int mins = (int)(g->boss_timer / 60.0f);
       int secs = (int)g->boss_timer % 60;
       snprintf(buf, sizeof(buf), "Boss Time: %d:%02d", mins, secs);
-      draw_text(g->renderer, g->font, win_w - 220, 10, text, buf);
+      draw_text(g->renderer, g->font, win_w - 220, 22, text, buf);
 
       if (g->boss.active) {
         const BossDef *def = &g_boss_defs[g->boss.def_index];
         float hp_pct = clampf(g->boss.hp / g->boss.max_hp, 0.0f, 1.0f);
         int bar_w = 200;
-        SDL_Rect bar_bg = { win_w - bar_w - 20, 32, bar_w, 8 };
-        SDL_Rect bar_fg = { win_w - bar_w - 20, 32, (int)(bar_w * hp_pct), 8 };
+        SDL_Rect bar_bg = { win_w - bar_w - 20, 36, bar_w, 8 };
+        SDL_Rect bar_fg = { win_w - bar_w - 20, 36, (int)(bar_w * hp_pct), 8 };
         SDL_SetRenderDrawColor(g->renderer, 20, 20, 20, 220);
         SDL_RenderFillRect(g->renderer, &bar_bg);
         SDL_SetRenderDrawColor(g->renderer, 240, 120, 80, 255);
         SDL_RenderFillRect(g->renderer, &bar_fg);
-        draw_text(g->renderer, g->font, win_w - bar_w - 20, 44, text, def->name);
+        draw_text(g->renderer, g->font, win_w - bar_w - 20, 48, text, def->name);
       }
 
       if (g->boss_countdown_timer > 0.0f) {
