@@ -259,6 +259,10 @@ typedef struct {
   int passive_items[MAX_ITEMS];
   int passive_count;
   float ultimate_move_to_as_timer;
+  float move_dir_x;
+  float move_dir_y;
+  int is_moving;
+  float scythe_throw_angle;
 } Player;
 
 typedef struct {
@@ -298,6 +302,7 @@ typedef struct {
   float stun_timer;
   float armor_shred_timer;
   float hit_timer;
+  int scythe_hit_id;
 } Enemy;
 
 typedef struct {
@@ -351,12 +356,19 @@ typedef struct {
 #define MAX_WEAPON_FX 16
 typedef struct {
   int active;
-  int type;       /* 0=scythe swing, 1=bite on enemy, 2=dagger projectile */
+  int type;       /* 0=scythe throw, 1=bite on enemy, 2=dagger projectile */
   float x, y;
   float angle;    /* direction of swing or projectile */
   float timer;    /* animation progress */
   float duration; /* total duration */
   int target_enemy; /* for bite effect - which enemy */
+  float radius;
+  float radial_speed;
+  float angle_speed;
+  float damage;
+  int scythe_id;
+  int scythe_hit_boss;
+  float start_angle;
 } WeaponFX;
 
 typedef enum {
@@ -422,6 +434,10 @@ typedef struct {
   SDL_Texture *tex_health_flask;
   SDL_Texture *tex_enemy;
   SDL_Texture *tex_player;
+  SDL_Texture *tex_player_front;
+  SDL_Texture *tex_player_back;
+  SDL_Texture *tex_player_right;
+  SDL_Texture *tex_player_left;
   SDL_Texture *tex_enemy_bolt;
   SDL_Texture *tex_lightning_zone;
   SDL_Texture *tex_laser_beam;
@@ -483,6 +499,7 @@ typedef struct {
   int choice_count;
   SDL_Rect reroll_button;  /* reroll button rect for levelup screen */
   SDL_Rect highroll_button; /* high roll button rect for levelup screen */
+  int scythe_id_counter;
   float camera_x;
   float camera_y;
 } Game;
@@ -1483,11 +1500,75 @@ static void spawn_weapon_fx(Game *g, int type, float x, float y, float angle, fl
   }
 }
 
+static void spawn_scythe_fx(Game *g, float cx, float cy, float angle, float radial_speed, float angle_speed, float damage) {
+  for (int i = 0; i < MAX_WEAPON_FX; i++) {
+    if (!g->weapon_fx[i].active) {
+      WeaponFX *fx = &g->weapon_fx[i];
+      memset(fx, 0, sizeof(*fx));
+      fx->active = 1;
+      fx->type = 0;
+      fx->x = cx;
+      fx->y = cy;
+      fx->angle = angle;
+      fx->timer = 0.0f;
+      fx->duration = 8.0f;
+      fx->radius = 0.0f;
+      fx->radial_speed = radial_speed;
+      fx->angle_speed = angle_speed;
+      fx->damage = damage;
+      fx->scythe_id = ++g->scythe_id_counter;
+      fx->scythe_hit_boss = 0;
+      fx->start_angle = angle;
+      return;
+    }
+  }
+}
+
 static void update_weapon_fx(Game *g, float dt) {
+  Stats stats = player_total_stats(&g->player, &g->db);
   for (int i = 0; i < MAX_WEAPON_FX; i++) {
     if (!g->weapon_fx[i].active) continue;
     WeaponFX *fx = &g->weapon_fx[i];
     fx->timer += dt;
+    if (fx->type == 0) {
+      fx->radius = fx->radial_speed * fx->timer;
+      fx->angle = fx->start_angle + fx->angle_speed * fx->timer;
+      float px = fx->x + cosf(fx->angle) * fx->radius;
+      float py = fx->y + sinf(fx->angle) * fx->radius;
+      if (px < -20.0f || px > ARENA_W + 20.0f || py < -20.0f || py > ARENA_H + 20.0f) {
+        fx->active = 0;
+        continue;
+      }
+      float hit_r = 34.0f;
+      float hit_r2 = hit_r * hit_r;
+      for (int e = 0; e < MAX_ENEMIES; e++) {
+        Enemy *en = &g->enemies[e];
+        if (!en->active) continue;
+        if (en->spawn_invuln > 0.0f) continue;
+        if (en->scythe_hit_id == fx->scythe_id) continue;
+        float dx = en->x - px;
+        float dy = en->y - py;
+        if (dx * dx + dy * dy <= hit_r2) {
+          mark_enemy_hit(en);
+          float final_dmg = player_apply_hit_mods(g, en, fx->damage);
+          en->hp -= final_dmg;
+          en->scythe_hit_id = fx->scythe_id;
+          player_try_item_proc(g, e, &stats);
+          if (en->hp <= 0.0f) {
+            g->player.hp = clampf(g->player.hp + 6.0f, 0.0f, stats.max_hp);
+          }
+        }
+      }
+      if (g->mode == MODE_BOSS_EVENT && g->boss.active && !fx->scythe_hit_boss) {
+        float dx = g->boss.x - px;
+        float dy = g->boss.y - py;
+        float r = g_boss_defs[g->boss.def_index].radius + hit_r;
+        if (dx * dx + dy * dy <= r * r) {
+          g->boss.hp -= fx->damage;
+          fx->scythe_hit_boss = 1;
+        }
+      }
+    }
     if (fx->timer >= fx->duration) {
       fx->active = 0;
     }
@@ -1929,6 +2010,7 @@ static void game_reset(Game *g) {
   g->last_item_index = -1;
   g->item_popup_timer = 0.0f;
   g->item_popup_name[0] = '\0';
+  g->scythe_id_counter = 0;
   g->mode = MODE_START;
   g->pause_return_mode = MODE_START;
   g->time_scale = 1.0f;
@@ -1969,6 +2051,10 @@ static void game_reset(Game *g) {
   p->base.move_speed = 1.0f;
   p->hp = p->base.max_hp;
   p->ultimate_move_to_as_timer = 0.0f;
+  p->move_dir_x = 0.0f;
+  p->move_dir_y = 1.0f;
+  p->is_moving = 0;
+  p->scythe_throw_angle = 0.0f;
 
   int chest_spawned = 0;
   int attempts = 0;
@@ -2505,63 +2591,14 @@ static void fire_weapons(Game *g, float dt) {
       continue;
     }
 
-    /* Scythe - 180 degree half-circle swing */
+    /* Scythe - spiral throw toward map edge */
     if (weapon_is(w, "scythe")) {
-      float range = w->range;
-      float arc_deg = 180.0f;  /* Half circle */
-      float arc_cos = cosf(arc_deg * 0.5f * (3.14159f / 180.0f)); /* cos(90) = 0, so anything in front half */
-      float base_angle = atan2f(ty, tx);
-      
-      /* Spawn swing visual effect */
-      spawn_weapon_fx(g, 0, p->x, p->y, base_angle, 0.35f, -1);
-      
-      for (int e = 0; e < MAX_ENEMIES; e++) {
-        if (!g->enemies[e].active) continue;
-        float ex = g->enemies[e].x - p->x;
-        float ey = g->enemies[e].y - p->y;
-        float d2 = ex * ex + ey * ey;
-        if (d2 > range * range) continue;
-        float len = sqrtf(d2);
-        if (len < 0.001f) len = 0.001f;
-        float nx = ex / len;
-        float ny = ey / len;
-        float dot = nx * tx + ny * ty;
-        if (dot >= arc_cos) {  /* In front 180 degrees */
-          Enemy *en = &g->enemies[e];
-          if (en->spawn_invuln > 0.0f) continue;
-          mark_enemy_hit(en);
-          float final_dmg = player_roll_crit_damage(&stats, w, damage);
-          final_dmg = player_apply_hit_mods(g, en, final_dmg);
-          en->hp -= final_dmg;
-          log_combatf(g, "hit %s with %s for %.1f", enemy_label(g, en), w->name, final_dmg);
-          if (bleed_chance > 0.0f && frandf() < bleed_chance) {
-            en->bleed_stacks = (en->bleed_stacks < 5) ? en->bleed_stacks + 1 : 5;
-            en->bleed_timer = 4.0f;
-            log_combatf(g, "bleed applied to %s", enemy_label(g, en));
-          }
-          if (burn_chance > 0.0f && frandf() < burn_chance) {
-            en->burn_timer = 4.0f;
-            log_combatf(g, "burn applied to %s", enemy_label(g, en));
-          }
-          if (slow_chance > 0.0f && frandf() < slow_chance) {
-            en->slow_timer = 2.5f;
-            log_combatf(g, "slow applied to %s", enemy_label(g, en));
-          }
-          if (stun_chance > 0.0f && frandf() < stun_chance) {
-            en->stun_timer = 0.6f;
-            log_combatf(g, "stun applied to %s", enemy_label(g, en));
-          }
-          if (shred_chance > 0.0f && frandf() < shred_chance) {
-            en->armor_shred_timer = 3.0f;
-            log_combatf(g, "armor_shred applied to %s", enemy_label(g, en));
-          }
-          player_try_item_proc(g, e, &stats);
-          /* Lifesteal on kill */
-          if (en->hp <= 0.0f) {
-            p->hp = clampf(p->hp + 6.0f, 0.0f, stats.max_hp);
-          }
-        }
-      }
+      float base_angle = atan2f(ty, tx) + p->scythe_throw_angle;
+      p->scythe_throw_angle -= (3.14159f / 4.0f);
+      float travel_speed = 140.0f + 12.0f * (slot->level - 1);
+      float angle_speed = 2.5f;
+      float final_dmg = player_roll_crit_damage(&stats, w, damage);
+      spawn_scythe_fx(g, p->x, p->y, base_angle, travel_speed, angle_speed, final_dmg);
       float level_cd = clampf(1.0f - 0.05f * (slot->level - 1), 0.7f, 1.0f);
       slot->cd_timer = w->cooldown * cooldown_scale * level_cd;
       continue;
@@ -2822,6 +2859,11 @@ static void update_game(Game *g, float dt) {
   if (keys[SDL_SCANCODE_A]) vx -= 1.0f;
   if (keys[SDL_SCANCODE_D]) vx += 1.0f;
   vec_norm(&vx, &vy);
+  p->is_moving = (vx != 0.0f || vy != 0.0f);
+  if (p->is_moving) {
+    p->move_dir_x = vx;
+    p->move_dir_y = vy;
+  }
   p->x = clampf(p->x + vx * speed * dt, 20.0f, ARENA_W - 20.0f);
   p->y = clampf(p->y + vy * speed * dt, 20.0f, ARENA_H - 20.0f);
 
@@ -2943,6 +2985,16 @@ static void update_boss_event(Game *g, float dt) {
   if (keys[SDL_SCANCODE_A]) vx -= 1.0f;
   if (keys[SDL_SCANCODE_D]) vx += 1.0f;
   vec_norm(&vx, &vy);
+  p->is_moving = (vx != 0.0f || vy != 0.0f);
+  if (p->is_moving) {
+    p->move_dir_x = vx;
+    p->move_dir_y = vy;
+  }
+  p->is_moving = (vx != 0.0f || vy != 0.0f);
+  if (p->is_moving) {
+    p->move_dir_x = vx;
+    p->move_dir_y = vy;
+  }
   p->x = clampf(p->x + vx * speed * dt, 20.0f, ARENA_W - 20.0f);
   p->y = clampf(p->y + vy * speed * dt, 20.0f, ARENA_H - 20.0f);
 
@@ -3180,7 +3232,7 @@ static void render_game(Game *g) {
   /* Player with sprite */
   int px = (int)(offset_x + g->player.x - cam_x);
   int py = (int)(offset_y + g->player.y - cam_y);
-  int player_size = 32;
+  int player_size = 90;
   
   /* Draw lightning zone effect if player has the weapon */
   for (int i = 0; i < MAX_WEAPON_SLOTS; i++) {
@@ -3214,9 +3266,25 @@ static void render_game(Game *g) {
     }
   }
   
-  if (g->tex_player) {
+  SDL_Texture *player_tex = g->tex_player_front;
+  SDL_RendererFlip flip = SDL_FLIP_NONE;
+  float mdx = g->player.move_dir_x;
+  float mdy = g->player.move_dir_y;
+  if (g->player.is_moving) {
+    if (fabsf(mdy) >= fabsf(mdx)) {
+      if (mdy < 0.0f && g->tex_player_back) player_tex = g->tex_player_back;
+      else if (g->tex_player_front) player_tex = g->tex_player_front;
+    } else {
+      if (mdx < 0.0f) player_tex = g->tex_player_left ? g->tex_player_left : g->tex_player_right;
+      else player_tex = g->tex_player_right ? g->tex_player_right : g->tex_player_left;
+    }
+  } else {
+    if (g->tex_player_front) player_tex = g->tex_player_front;
+  }
+
+  if (player_tex) {
     SDL_Rect dst = { px - player_size/2, py - player_size/2, player_size, player_size };
-    SDL_RenderCopy(g->renderer, g->tex_player, NULL, &dst);
+    SDL_RenderCopyEx(g->renderer, player_tex, NULL, &dst, 0.0, NULL, flip);
   } else {
     draw_glow(g->renderer, px, py, 25, (SDL_Color){255, 200, 80, 100});
     draw_filled_circle(g->renderer, px, py, 12, (SDL_Color){255, 200, 80, 255});
@@ -3230,8 +3298,8 @@ static void render_game(Game *g) {
     int ex = (int)(offset_x + g->enemies[i].x - cam_x);
     int ey = (int)(offset_y + g->enemies[i].y - cam_y);
     
-    int size = 32;
-    if (strcmp(def->role, "boss") == 0) size = 48;
+    int size = 64;
+    if (strcmp(def->role, "boss") == 0) size = 96;
     
     /* Status effect visuals - burn glow only */
     if (g->enemies[i].burn_timer > 0.0f) {
@@ -3369,7 +3437,7 @@ static void render_game(Game *g) {
     } else {
       /* Enemy projectile - use goo_bolt sprite */
       if (g->tex_enemy_bolt) {
-        SDL_Rect dst = { bx - 8, by - 8, 16, 16 };
+        SDL_Rect dst = { bx - 16, by - 16, 32, 32 };
         SDL_RenderCopy(g->renderer, g->tex_enemy_bolt, NULL, &dst);
       } else {
         draw_glow(g->renderer, bx, by, 8, (SDL_Color){255, 100, 100, 80});
@@ -3385,52 +3453,22 @@ static void render_game(Game *g) {
     float progress = fx->timer / fx->duration;
     
     if (fx->type == 0) {
-      /* Scythe swing - half circle arc from player */
-      int fxx = (int)(offset_x + fx->x - cam_x);
-      int fxy = (int)(offset_y + fx->y - cam_y);
-      float base_angle = fx->angle;
-      float swing_progress = progress;  /* 0 to 1 over duration */
-      /* Swing from -90 to +90 degrees relative to facing direction */
-      float start_offset = -90.0f * (3.14159f / 180.0f);
-      float end_offset = 90.0f * (3.14159f / 180.0f);
-      float current_offset = start_offset + (end_offset - start_offset) * swing_progress;
-      float swing_angle = base_angle + current_offset;
-      
-      /* Draw arc trail */
-      int alpha = (int)(200 * (1.0f - progress));
-      SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
-      
-      /* Draw multiple lines for the swing arc trail */
-      float range = 120.0f;  /* Scythe range */
-      for (float trail = 0.0f; trail <= swing_progress; trail += 0.05f) {
-        float trail_offset = start_offset + (end_offset - start_offset) * trail;
-        float trail_angle = base_angle + trail_offset;
-        int trail_alpha = (int)(alpha * (trail / swing_progress) * 0.5f);
-        SDL_SetRenderDrawColor(g->renderer, 180, 60, 200, (Uint8)trail_alpha);
-        int ex = fxx + (int)(cosf(trail_angle) * range);
-        int ey = fxy + (int)(sinf(trail_angle) * range);
-        SDL_RenderDrawLine(g->renderer, fxx, fxy, ex, ey);
-      }
-      
-      /* Draw scythe sprite at current swing position */
+      float sx = fx->x + cosf(fx->angle) * fx->radius;
+      float sy = fx->y + sinf(fx->angle) * fx->radius;
+      int draw_x = (int)(offset_x + sx - cam_x);
+      int draw_y = (int)(offset_y + sy - cam_y);
+      int scythe_size = 64;
+      int alpha = 220;
       if (g->tex_scythe) {
-        int sx = fxx + (int)(cosf(swing_angle) * range * 0.6f);
-        int sy = fxy + (int)(sinf(swing_angle) * range * 0.6f);
-        int scythe_size = 67;  /* 48 * 1.4 = ~67 */
-        SDL_Rect dst = { sx - scythe_size/2, sy - scythe_size/2, scythe_size, scythe_size };
-        /* Rotate sprite to match swing angle */
-        double angle_deg = swing_angle * (180.0 / 3.14159);
+        SDL_Rect dst = { draw_x - scythe_size/2, draw_y - scythe_size/2, scythe_size, scythe_size };
+        double angle_deg = fx->angle * (180.0 / 3.14159);
         SDL_SetTextureAlphaMod(g->tex_scythe, (Uint8)alpha);
         SDL_RenderCopyEx(g->renderer, g->tex_scythe, NULL, &dst, angle_deg + 90, NULL, SDL_FLIP_NONE);
         SDL_SetTextureAlphaMod(g->tex_scythe, 255);
       } else {
-        /* Fallback - draw a line for the scythe blade */
-        int ex = fxx + (int)(cosf(swing_angle) * range);
-        int ey = fxy + (int)(sinf(swing_angle) * range);
         SDL_SetRenderDrawColor(g->renderer, 200, 80, 220, (Uint8)alpha);
-        SDL_RenderDrawLine(g->renderer, fxx, fxy, ex, ey);
-        /* Draw blade tip */
-        draw_filled_circle(g->renderer, ex, ey, 6, (SDL_Color){220, 100, 240, (Uint8)alpha});
+        SDL_RenderDrawLine(g->renderer, draw_x - 10, draw_y - 10, draw_x + 10, draw_y + 10);
+        draw_filled_circle(g->renderer, draw_x, draw_y, 6, (SDL_Color){220, 100, 240, (Uint8)alpha});
       }
     }
     else if (fx->type == 1) {
@@ -4491,9 +4529,18 @@ int main(int argc, char **argv) {
   else log_linef("Failed to load wall.png: %s", IMG_GetError());
   if (game.tex_enemy) log_line("Loaded goo_green.png");
   else log_linef("Failed to load goo_green.png: %s", IMG_GetError());
-  game.tex_player = IMG_LoadTexture(game.renderer, "data/assets/player.png");
-  if (game.tex_player) log_line("Loaded player.png");
-  else log_linef("Failed to load player.png: %s", IMG_GetError());
+  game.tex_player_front = IMG_LoadTexture(game.renderer, "data/assets/player_front.png");
+  if (game.tex_player_front) log_line("Loaded player_front.png");
+  else log_linef("Failed to load player_front.png: %s", IMG_GetError());
+  game.tex_player_back = IMG_LoadTexture(game.renderer, "data/assets/player_back.png");
+  if (game.tex_player_back) log_line("Loaded player_back.png");
+  else log_linef("Failed to load player_back.png: %s", IMG_GetError());
+  game.tex_player_right = IMG_LoadTexture(game.renderer, "data/assets/player_right.png");
+  if (game.tex_player_right) log_line("Loaded player_right.png");
+  else log_linef("Failed to load player_right.png: %s", IMG_GetError());
+  game.tex_player_left = IMG_LoadTexture(game.renderer, "data/assets/player_left.png");
+  if (game.tex_player_left) log_line("Loaded player_left.png");
+  else log_linef("Failed to load player_left.png: %s", IMG_GetError());
   game.tex_enemy_bolt = IMG_LoadTexture(game.renderer, "data/assets/goo_bolt.png");
   if (game.tex_enemy_bolt) log_line("Loaded goo_bolt.png");
   else log_linef("Failed to load goo_bolt.png: %s", IMG_GetError());
@@ -4505,7 +4552,7 @@ int main(int argc, char **argv) {
   else log_linef("Failed to load lightning_zone.png: %s", IMG_GetError());
   
   /* Load weapon effect sprites */
-  game.tex_scythe = IMG_LoadTexture(game.renderer, "data/assets/weapons/sythe.png");
+  game.tex_scythe = IMG_LoadTexture(game.renderer, "data/assets/weapons/scythe.png");
   if (game.tex_scythe) log_line("Loaded scythe sprite");
   else log_linef("Failed to load scythe sprite: %s", IMG_GetError());
   game.tex_bite = IMG_LoadTexture(game.renderer, "data/assets/weapons/vampire_bite.png");
@@ -4705,7 +4752,10 @@ int main(int argc, char **argv) {
   if (game.tex_wall) SDL_DestroyTexture(game.tex_wall);
   if (game.tex_health_flask) SDL_DestroyTexture(game.tex_health_flask);
   if (game.tex_enemy) SDL_DestroyTexture(game.tex_enemy);
-  if (game.tex_player) SDL_DestroyTexture(game.tex_player);
+  if (game.tex_player_front) SDL_DestroyTexture(game.tex_player_front);
+  if (game.tex_player_back) SDL_DestroyTexture(game.tex_player_back);
+  if (game.tex_player_right) SDL_DestroyTexture(game.tex_player_right);
+  if (game.tex_player_left) SDL_DestroyTexture(game.tex_player_left);
   if (game.tex_enemy_bolt) SDL_DestroyTexture(game.tex_enemy_bolt);
   if (game.tex_laser_beam) SDL_DestroyTexture(game.tex_laser_beam);
   if (game.tex_lightning_zone) SDL_DestroyTexture(game.tex_lightning_zone);
