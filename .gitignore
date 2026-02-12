@@ -12,6 +12,8 @@ data/assets/
 
 # Logs
 log.txt
+combat_log.txt
+compile_message.txt
 *.log
 
 # Local docs
@@ -21,7 +23,17 @@ todo_ideas.md
 # IDE
 .vs/
 .vscode/
+.idea/
 *.user
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
 
 # Website (local only, not tracked)
 website/

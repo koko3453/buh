@@ -1,5 +1,5 @@
 #define UNIT_TESTS
-#include "../src/main.c"
+#include "../src/game.h"
 #include <assert.h>
 
 static void test_db_load() {

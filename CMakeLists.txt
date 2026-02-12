@@ -8,7 +8,13 @@ find_package(SDL2 CONFIG REQUIRED)
 find_package(SDL2_ttf CONFIG REQUIRED)
 find_package(SDL2_image CONFIG REQUIRED)
 
-add_executable(buh src/main.c)
+add_executable(buh
+  src/main.c
+  src/game.c
+  src/render.c
+  src/weapons.c
+  src/enemies.c
+)
 
 target_link_libraries(buh PRIVATE SDL2::SDL2 SDL2::SDL2main SDL2_ttf::SDL2_ttf $<IF:$<TARGET_EXISTS:SDL2_image::SDL2_image>,SDL2_image::SDL2_image,SDL2_image::SDL2_image-static>)
 
@@ -17,6 +23,12 @@ add_custom_command(TARGET buh POST_BUILD
     ${CMAKE_SOURCE_DIR}/data $<TARGET_FILE_DIR:buh>/data
 )
 
-add_executable(buh_tests tests/test_game.c)
+add_executable(buh_tests
+  tests/test_game.c
+  src/game.c
+  src/weapons.c
+  src/enemies.c
+  src/render.c
+)
 target_include_directories(buh_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(buh_tests PRIVATE SDL2::SDL2 SDL2::SDL2main SDL2_ttf::SDL2_ttf)
+target_link_libraries(buh_tests PRIVATE SDL2::SDL2 SDL2::SDL2main SDL2_ttf::SDL2_ttf $<IF:$<TARGET_EXISTS:SDL2_image::SDL2_image>,SDL2_image::SDL2_image,SDL2_image::SDL2_image-static>)
