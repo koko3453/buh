@@ -181,7 +181,7 @@ int main(int argc, char **argv) {
         if (e.key.keysym.sym == SDLK_ESCAPE) game.running = 0;
         if (e.key.keysym.sym == SDLK_p) toggle_pause(&game);
         if (e.key.keysym.sym == SDLK_TAB) toggle_pause(&game);
-        if (e.key.keysym.sym == SDLK_r && game.mode == MODE_GAMEOVER) game_reset(&game);
+        if (e.key.keysym.sym == SDLK_g && game.mode == MODE_GAMEOVER) game_reset(&game);
         if (e.key.keysym.sym == SDLK_F1) {
           if (game.db.enemy_count > 0) {
             for (int k = 0; k < 5; k++) spawn_enemy(&game, 0);
@@ -253,6 +253,14 @@ int main(int argc, char **argv) {
       if (e.type == SDL_MOUSEBUTTONDOWN &&
           (game.mode == MODE_LEVELUP || (game.mode == MODE_PAUSE && game.pause_return_mode == MODE_LEVELUP))) {
         handle_levelup_click(&game, e.button.x, e.button.y);
+      }
+      if (e.type == SDL_MOUSEBUTTONDOWN && game.mode == MODE_GAMEOVER) {
+        int mx = e.button.x;
+        int my = e.button.y;
+        SDL_Rect r = game.restart_button;
+        if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
+          game_reset(&game);
+        }
       }
     }
 

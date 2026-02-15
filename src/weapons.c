@@ -159,6 +159,7 @@ void update_puddles(Game *g, float dt) {
       float dy = en->y - p->y;
       float d2 = dx * dx + dy * dy;
       if (d2 <= radius2) {
+        mark_enemy_hit(en);
         en->hp -= p->dps * dt;
         if (p->log_timer <= 0.0f) {
           log_combatf(g, "puddle tick %s for %.1f", enemy_label(g, en), p->dps * dt);
@@ -240,27 +241,27 @@ void update_bullets(Game *g, float dt) {
             log_combatf(g, "hit %s for %.1f", enemy_label(g, en), dmg);
           }
           if (b->bleed_chance > 0.0f && frandf() < b->bleed_chance) {
-            en->bleed_stacks = (en->bleed_stacks < 5) ? en->bleed_stacks + 1 : 5;
-            en->bleed_timer = 4.0f;
+            en->debuffs.bleed_stacks = (en->debuffs.bleed_stacks < 5) ? en->debuffs.bleed_stacks + 1 : 5;
+            en->debuffs.bleed_timer = 4.0f;
             log_combatf(g, "bleed applied to %s", enemy_label(g, en));
           }
           if (b->burn_chance > 0.0f && frandf() < b->burn_chance) {
-            en->burn_timer = 4.0f;
+            en->debuffs.burn_timer = 4.0f;
             log_combatf(g, "burn applied to %s", enemy_label(g, en));
           }
-          if (item_burn > 0.0f && en->burn_timer > 0.0f) {
+          if (item_burn > 0.0f && en->debuffs.burn_timer > 0.0f) {
             log_combatf(g, "burn_on_hit applied to %s", enemy_label(g, en));
           }
           if (b->slow_chance > 0.0f && frandf() < b->slow_chance) {
-            en->slow_timer = 2.5f;
+            en->debuffs.slow_timer = 2.5f;
             log_combatf(g, "slow applied to %s", enemy_label(g, en));
           }
           if (b->stun_chance > 0.0f && frandf() < b->stun_chance) {
-            en->stun_timer = 0.6f;
+            en->debuffs.stun_timer = 0.6f;
             log_combatf(g, "stun applied to %s", enemy_label(g, en));
           }
           if (b->armor_shred_chance > 0.0f && frandf() < b->armor_shred_chance) {
-            en->armor_shred_timer = 3.0f;
+            en->debuffs.armor_shred_timer = 3.0f;
             log_combatf(g, "armor_shred applied to %s", enemy_label(g, en));
           }
           player_try_item_proc(g, e, &stats);
@@ -312,12 +313,11 @@ void fire_weapons(Game *g, float dt) {
     if (weapon_is(w, "sword")) {
       float level_mul = 1.0f + 0.2f * (slot->level - 1);
       float damage = w->damage * level_mul * (1.0f + stats.damage);
-      float bleed_chance, burn_chance, slow_chance, stun_chance, shred_chance;
-      weapon_status_chances(w, &bleed_chance, &burn_chance, &slow_chance, &stun_chance, &shred_chance);
-      slow_chance += player_slow_on_hit(p, &g->db);
-      slow_chance = clampf(slow_chance, 0.0f, 1.0f);
-      burn_chance += item_burn;
-      burn_chance = clampf(burn_chance, 0.0f, 1.0f);
+      WeaponStatusChances chances = weapon_status_chances(w);
+      chances.slow += player_slow_on_hit(p, &g->db);
+      chances.slow = clampf(chances.slow, 0.0f, 1.0f);
+      chances.burn += item_burn;
+      chances.burn = clampf(chances.burn, 0.0f, 1.0f);
 
       int sword_count = slot->level;
       if (sword_count < 1) sword_count = 1;
@@ -371,28 +371,28 @@ void fire_weapons(Game *g, float dt) {
           en->hp -= final_dmg;
           en->sword_hit_cd = SWORD_ORBIT_HIT_COOLDOWN / attack_speed;
           log_combatf(g, "hit %s with %s for %.1f", enemy_label(g, en), w->name, final_dmg);
-          if (bleed_chance > 0.0f && frandf() < bleed_chance) {
-            en->bleed_stacks = (en->bleed_stacks < 5) ? en->bleed_stacks + 1 : 5;
-            en->bleed_timer = 4.0f;
+          if (chances.bleed > 0.0f && frandf() < chances.bleed) {
+            en->debuffs.bleed_stacks = (en->debuffs.bleed_stacks < 5) ? en->debuffs.bleed_stacks + 1 : 5;
+            en->debuffs.bleed_timer = 4.0f;
             log_combatf(g, "bleed applied to %s", enemy_label(g, en));
           }
-          if (burn_chance > 0.0f && frandf() < burn_chance) {
-            en->burn_timer = 4.0f;
+          if (chances.burn > 0.0f && frandf() < chances.burn) {
+            en->debuffs.burn_timer = 4.0f;
             log_combatf(g, "burn applied to %s", enemy_label(g, en));
           }
-          if (item_burn > 0.0f && en->burn_timer > 0.0f) {
+          if (item_burn > 0.0f && en->debuffs.burn_timer > 0.0f) {
             log_combatf(g, "burn_on_hit applied to %s", enemy_label(g, en));
           }
-          if (slow_chance > 0.0f && frandf() < slow_chance) {
-            en->slow_timer = 2.5f;
+          if (chances.slow > 0.0f && frandf() < chances.slow) {
+            en->debuffs.slow_timer = 2.5f;
             log_combatf(g, "slow applied to %s", enemy_label(g, en));
           }
-          if (stun_chance > 0.0f && frandf() < stun_chance) {
-            en->stun_timer = 0.6f;
+          if (chances.stun > 0.0f && frandf() < chances.stun) {
+            en->debuffs.stun_timer = 0.6f;
             log_combatf(g, "stun applied to %s", enemy_label(g, en));
           }
-          if (shred_chance > 0.0f && frandf() < shred_chance) {
-            en->armor_shred_timer = 3.0f;
+          if (chances.shred > 0.0f && frandf() < chances.shred) {
+            en->debuffs.armor_shred_timer = 3.0f;
             log_combatf(g, "armor_shred applied to %s", enemy_label(g, en));
           }
           player_try_item_proc(g, e, &stats);
@@ -466,14 +466,13 @@ void fire_weapons(Game *g, float dt) {
     float level_mul = 1.0f + 0.2f * (slot->level - 1);
     float damage = w->damage * level_mul * (1.0f + stats.damage);
 
-    float bleed_chance, burn_chance, slow_chance, stun_chance, shred_chance;
-    weapon_status_chances(w, &bleed_chance, &burn_chance, &slow_chance, &stun_chance, &shred_chance);
+    WeaponStatusChances chances = weapon_status_chances(w);
 
-    slow_chance += player_slow_on_hit(p, &g->db);
-    slow_chance = clampf(slow_chance, 0.0f, 1.0f);
+    chances.slow += player_slow_on_hit(p, &g->db);
+    chances.slow = clampf(chances.slow, 0.0f, 1.0f);
 
-    burn_chance += item_burn;
-    burn_chance = clampf(burn_chance, 0.0f, 1.0f);
+    chances.burn += item_burn;
+    chances.burn = clampf(chances.burn, 0.0f, 1.0f);
 
     if (weapon_is(w, "lightning_zone")) {
       float range = w->range * (1.0f + 0.1f * (slot->level - 1));
@@ -502,7 +501,7 @@ void fire_weapons(Game *g, float dt) {
             log_combatf(g, "hit %s with %s for %.1f", enemy_label(g, en), w->name, final_dmg);
             player_try_item_proc(g, e, &stats);
             if (frandf() < 0.15f) {
-              en->stun_timer = 0.3f;
+              en->debuffs.stun_timer = 0.3f;
               log_combatf(g, "stun applied to %s", enemy_label(g, en));
             }
           }
@@ -555,28 +554,28 @@ void fire_weapons(Game *g, float dt) {
           final_dmg = player_apply_hit_mods(g, en, final_dmg);
           en->hp -= final_dmg;
           log_combatf(g, "hit %s with %s for %.1f", enemy_label(g, en), w->name, final_dmg);
-          if (bleed_chance > 0.0f && frandf() < bleed_chance) {
-            en->bleed_stacks = (en->bleed_stacks < 5) ? en->bleed_stacks + 1 : 5;
-            en->bleed_timer = 4.0f;
+          if (chances.bleed > 0.0f && frandf() < chances.bleed) {
+            en->debuffs.bleed_stacks = (en->debuffs.bleed_stacks < 5) ? en->debuffs.bleed_stacks + 1 : 5;
+            en->debuffs.bleed_timer = 4.0f;
             log_combatf(g, "bleed applied to %s", enemy_label(g, en));
           }
-          if (burn_chance > 0.0f && frandf() < burn_chance) {
-            en->burn_timer = 4.0f;
+          if (chances.burn > 0.0f && frandf() < chances.burn) {
+            en->debuffs.burn_timer = 4.0f;
             log_combatf(g, "burn applied to %s", enemy_label(g, en));
           }
-          if (item_burn > 0.0f && en->burn_timer > 0.0f) {
+          if (item_burn > 0.0f && en->debuffs.burn_timer > 0.0f) {
             log_combatf(g, "burn_on_hit applied to %s", enemy_label(g, en));
           }
-          if (slow_chance > 0.0f && frandf() < slow_chance) {
-            en->slow_timer = 2.5f;
+          if (chances.slow > 0.0f && frandf() < chances.slow) {
+            en->debuffs.slow_timer = 2.5f;
             log_combatf(g, "slow applied to %s", enemy_label(g, en));
           }
-          if (stun_chance > 0.0f && frandf() < stun_chance) {
-            en->stun_timer = 0.6f;
+          if (chances.stun > 0.0f && frandf() < chances.stun) {
+            en->debuffs.stun_timer = 0.6f;
             log_combatf(g, "stun applied to %s", enemy_label(g, en));
           }
-          if (shred_chance > 0.0f && frandf() < shred_chance) {
-            en->armor_shred_timer = 3.0f;
+          if (chances.shred > 0.0f && frandf() < chances.shred) {
+            en->debuffs.armor_shred_timer = 3.0f;
             log_combatf(g, "armor_shred applied to %s", enemy_label(g, en));
           }
           player_try_item_proc(g, e, &stats);
@@ -622,20 +621,20 @@ void fire_weapons(Game *g, float dt) {
           log_combatf(g, "hit %s with %s for %.1f", enemy_label(g, en), w->name, final_dmg);
           spawn_weapon_fx(g, 1, en->x, en->y, 0.0f, 0.6f, e);
           p->hp = clampf(p->hp + final_dmg * 0.15f, 0.0f, stats.max_hp);
-          if (burn_chance > 0.0f && frandf() < burn_chance) {
-            en->burn_timer = 4.0f;
+          if (chances.burn > 0.0f && frandf() < chances.burn) {
+            en->debuffs.burn_timer = 4.0f;
             log_combatf(g, "burn applied to %s", enemy_label(g, en));
           }
-          if (slow_chance > 0.0f && frandf() < slow_chance) {
-            en->slow_timer = 2.5f;
+          if (chances.slow > 0.0f && frandf() < chances.slow) {
+            en->debuffs.slow_timer = 2.5f;
             log_combatf(g, "slow applied to %s", enemy_label(g, en));
           }
-          if (stun_chance > 0.0f && frandf() < stun_chance) {
-            en->stun_timer = 0.6f;
+          if (chances.stun > 0.0f && frandf() < chances.stun) {
+            en->debuffs.stun_timer = 0.6f;
             log_combatf(g, "stun applied to %s", enemy_label(g, en));
           }
-          if (shred_chance > 0.0f && frandf() < shred_chance) {
-            en->armor_shred_timer = 3.0f;
+          if (chances.shred > 0.0f && frandf() < chances.shred) {
+            en->debuffs.armor_shred_timer = 3.0f;
             log_combatf(g, "armor_shred applied to %s", enemy_label(g, en));
           }
           player_try_item_proc(g, e, &stats);
@@ -693,25 +692,25 @@ void fire_weapons(Game *g, float dt) {
         final_dmg = player_apply_hit_mods(g, en, final_dmg);
         en->hp -= final_dmg;
         log_combatf(g, "hit %s with %s for %.1f", enemy_label(g, en), w->name, final_dmg);
-        if (bleed_chance > 0.0f && frandf() < bleed_chance) {
-          en->bleed_stacks = (en->bleed_stacks < 5) ? en->bleed_stacks + 1 : 5;
-          en->bleed_timer = 4.0f;
+        if (chances.bleed > 0.0f && frandf() < chances.bleed) {
+          en->debuffs.bleed_stacks = (en->debuffs.bleed_stacks < 5) ? en->debuffs.bleed_stacks + 1 : 5;
+          en->debuffs.bleed_timer = 4.0f;
           log_combatf(g, "bleed applied to %s", enemy_label(g, en));
         }
-        if (burn_chance > 0.0f && frandf() < burn_chance) {
-          en->burn_timer = 4.0f;
+        if (chances.burn > 0.0f && frandf() < chances.burn) {
+          en->debuffs.burn_timer = 4.0f;
           log_combatf(g, "burn applied to %s", enemy_label(g, en));
         }
-        if (slow_chance > 0.0f && frandf() < slow_chance) {
-          en->slow_timer = 2.5f;
+        if (chances.slow > 0.0f && frandf() < chances.slow) {
+          en->debuffs.slow_timer = 2.5f;
           log_combatf(g, "slow applied to %s", enemy_label(g, en));
         }
-        if (stun_chance > 0.0f && frandf() < stun_chance) {
-          en->stun_timer = 0.6f;
+        if (chances.stun > 0.0f && frandf() < chances.stun) {
+          en->debuffs.stun_timer = 0.6f;
           log_combatf(g, "stun applied to %s", enemy_label(g, en));
         }
-        if (shred_chance > 0.0f && frandf() < shred_chance) {
-          en->armor_shred_timer = 3.0f;
+        if (chances.shred > 0.0f && frandf() < chances.shred) {
+          en->debuffs.armor_shred_timer = 3.0f;
           log_combatf(g, "armor_shred applied to %s", enemy_label(g, en));
         }
         player_try_item_proc(g, targets[t], &stats);
@@ -747,25 +746,25 @@ void fire_weapons(Game *g, float dt) {
           final_dmg = player_apply_hit_mods(g, en, final_dmg);
           en->hp -= final_dmg;
           log_combatf(g, "hit %s with %s for %.1f", enemy_label(g, en), w->name, final_dmg);
-          if (bleed_chance > 0.0f && frandf() < bleed_chance) {
-            en->bleed_stacks = (en->bleed_stacks < 5) ? en->bleed_stacks + 1 : 5;
-            en->bleed_timer = 4.0f;
+          if (chances.bleed > 0.0f && frandf() < chances.bleed) {
+            en->debuffs.bleed_stacks = (en->debuffs.bleed_stacks < 5) ? en->debuffs.bleed_stacks + 1 : 5;
+            en->debuffs.bleed_timer = 4.0f;
             log_combatf(g, "bleed applied to %s", enemy_label(g, en));
           }
-          if (burn_chance > 0.0f && frandf() < burn_chance) {
-            en->burn_timer = 4.0f;
+          if (chances.burn > 0.0f && frandf() < chances.burn) {
+            en->debuffs.burn_timer = 4.0f;
             log_combatf(g, "burn applied to %s", enemy_label(g, en));
           }
-          if (slow_chance > 0.0f && frandf() < slow_chance) {
-            en->slow_timer = 2.5f;
+          if (chances.slow > 0.0f && frandf() < chances.slow) {
+            en->debuffs.slow_timer = 2.5f;
             log_combatf(g, "slow applied to %s", enemy_label(g, en));
           }
-          if (stun_chance > 0.0f && frandf() < stun_chance) {
-            en->stun_timer = 0.6f;
+          if (chances.stun > 0.0f && frandf() < chances.stun) {
+            en->debuffs.stun_timer = 0.6f;
             log_combatf(g, "stun applied to %s", enemy_label(g, en));
           }
-          if (shred_chance > 0.0f && frandf() < shred_chance) {
-            en->armor_shred_timer = 3.0f;
+          if (chances.shred > 0.0f && frandf() < chances.shred) {
+            en->debuffs.armor_shred_timer = 3.0f;
             log_combatf(g, "armor_shred applied to %s", enemy_label(g, en));
           }
           player_try_item_proc(g, e, &stats);
@@ -794,7 +793,7 @@ void fire_weapons(Game *g, float dt) {
 
         float final_dmg = player_roll_crit_damage(&stats, w, damage);
         spawn_bullet(g, p->x, p->y, vx, vy, final_dmg, w->pierce, w->homing, 1, slot->def_index,
-                     bleed_chance, burn_chance, slow_chance, stun_chance, shred_chance);
+                     chances.bleed, chances.burn, chances.slow, chances.stun, chances.shred);
       }
       float level_cd = clampf(1.0f - 0.05f * (slot->level - 1), 0.7f, 1.0f);
       slot->cd_timer = w->cooldown * cooldown_scale * level_cd;

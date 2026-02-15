@@ -53,6 +53,14 @@ typedef struct {
   float hp_regen;
 } Stats;
 
+typedef struct {
+  float bleed;
+  float burn;
+  float slow;
+  float stun;
+  float shred;
+} WeaponStatusChances;
+
 typedef struct WeaponDef {
   char id[32];
   char name[32];
@@ -188,6 +196,15 @@ typedef struct {
 } Boss;
 
 typedef struct {
+  float burn_timer;
+  float bleed_timer;
+  int bleed_stacks;
+  float slow_timer;
+  float stun_timer;
+  float armor_shred_timer;
+} EnemyDebuffs;
+
+typedef struct {
   int active;
   int def_index;
   float x;
@@ -200,12 +217,7 @@ typedef struct {
   float cooldown;
   float charge_timer;
   float charge_time;
-  float burn_timer;
-  float bleed_timer;
-  int bleed_stacks;
-  float slow_timer;
-  float stun_timer;
-  float armor_shred_timer;
+  EnemyDebuffs debuffs;
   float hit_timer;
   float sword_hit_cd;
   int scythe_hit_id;
@@ -308,7 +320,7 @@ typedef struct {
   float time_scale;
   int rerolls;
   int high_roll_used;
-} BossSnapshot;
+} WaveSnapshot;
 
 typedef struct {
   WeaponDef weapons[MAX_WEAPONS];
@@ -387,7 +399,7 @@ typedef struct {
   float boss_timer_max;
   float boss_room_x;
   float boss_room_y;
-  BossSnapshot boss_snapshot;
+  WaveSnapshot wave_snapshot;
 
   float spawn_timer;
   int kills;
@@ -403,6 +415,7 @@ typedef struct {
   int choice_count;
   SDL_Rect reroll_button;
   SDL_Rect highroll_button;
+  SDL_Rect restart_button;
   int scythe_id_counter;
   float camera_x;
   float camera_y;
@@ -428,7 +441,7 @@ void vec_norm(float *x, float *y);
 float damage_after_armor(float dmg, float armor);
 
 int weapon_is(const WeaponDef *w, const char *id);
-void weapon_status_chances(const WeaponDef *w, float *bleed, float *burn, float *slow, float *stun, float *shred);
+WeaponStatusChances weapon_status_chances(const WeaponDef *w);
 int find_weapon(Database *db, const char *id);
 int db_load(Database *db);
 

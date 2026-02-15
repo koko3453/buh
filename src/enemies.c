@@ -62,34 +62,34 @@ void update_enemies(Game *g, float dt) {
     float dist = sqrtf(dist2);
 
     if (e->spawn_invuln > 0.0f) e->spawn_invuln -= dt;
-    if (e->burn_timer > 0.0f) {
-      e->burn_timer -= dt;
+    if (e->debuffs.burn_timer > 0.0f) {
+      e->debuffs.burn_timer -= dt;
       e->hp -= 4.0f * dt;
     }
-    if (e->bleed_timer > 0.0f) {
-      e->bleed_timer -= dt;
-      e->hp -= e->bleed_stacks * 1.5f * dt;
-      if (e->bleed_timer <= 0.0f) e->bleed_stacks = 0;
+    if (e->debuffs.bleed_timer > 0.0f) {
+      e->debuffs.bleed_timer -= dt;
+      e->hp -= e->debuffs.bleed_stacks * 1.5f * dt;
+      if (e->debuffs.bleed_timer <= 0.0f) e->debuffs.bleed_stacks = 0;
     }
-    if (e->slow_timer > 0.0f) e->slow_timer -= dt;
-    if (e->stun_timer > 0.0f) e->stun_timer -= dt;
-    if (e->armor_shred_timer > 0.0f) e->armor_shred_timer -= dt;
+    if (e->debuffs.slow_timer > 0.0f) e->debuffs.slow_timer -= dt;
+    if (e->debuffs.stun_timer > 0.0f) e->debuffs.stun_timer -= dt;
+    if (e->debuffs.armor_shred_timer > 0.0f) e->debuffs.armor_shred_timer -= dt;
     if (e->sword_hit_cd > 0.0f) e->sword_hit_cd -= dt;
 
     float aura_range = player_slow_aura(p, &g->db);
     if (aura_range > 0.0f && dist < aura_range) {
-      e->slow_timer = 0.5f;
+      e->debuffs.slow_timer = 0.5f;
     }
 
     float burn_range = player_burn_aura(p, &g->db);
     if (burn_range > 0.0f && dist < burn_range) {
-      if (e->burn_timer <= 0.0f) {
+      if (e->debuffs.burn_timer <= 0.0f) {
         log_combatf(g, "burn_aura applied to %s", enemy_label(g, e));
       }
-      e->burn_timer = 0.5f;
+      e->debuffs.burn_timer = 0.5f;
     }
 
-    if (e->stun_timer <= 0.0f &&
+    if (e->debuffs.stun_timer <= 0.0f &&
         (strcmp(def->role, "ranged") == 0 || strcmp(def->role, "boss") == 0 || strcmp(def->role, "turret") == 0)) {
       e->cooldown -= dt;
       if (e->cooldown <= 0.0f) {
@@ -102,7 +102,7 @@ void update_enemies(Game *g, float dt) {
       }
     }
 
-    if (e->stun_timer <= 0.0f && strcmp(def->role, "charger") == 0) {
+    if (e->debuffs.stun_timer <= 0.0f && strcmp(def->role, "charger") == 0) {
       e->charge_timer -= dt;
       if (e->charge_timer <= 0.0f) {
         float vx = dx;
@@ -115,7 +115,7 @@ void update_enemies(Game *g, float dt) {
       }
     }
 
-    if (e->stun_timer <= 0.0f && strcmp(def->role, "turret") != 0) {
+    if (e->debuffs.stun_timer <= 0.0f && strcmp(def->role, "turret") != 0) {
       if (e->charge_time > 0.0f) {
         e->x += e->vx * dt;
         e->y += e->vy * dt;
@@ -124,7 +124,7 @@ void update_enemies(Game *g, float dt) {
         float vx = dx;
         float vy = dy;
         vec_norm(&vx, &vy);
-        float slow_mul = (e->slow_timer > 0.0f) ? 0.5f : 1.0f;
+        float slow_mul = (e->debuffs.slow_timer > 0.0f) ? 0.5f : 1.0f;
         e->x += vx * def->speed * slow_mul * dt;
         e->y += vy * def->speed * slow_mul * dt;
       }

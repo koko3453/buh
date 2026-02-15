@@ -46,22 +46,19 @@ int weapon_is(const WeaponDef *w, const char *id) {
   return strcmp(w->id, id) == 0;
 }
 
-void weapon_status_chances(const WeaponDef *w, float *bleed, float *burn, float *slow, float *stun, float *shred) {
-  *bleed = 0.0f;
-  *burn = 0.0f;
-  *slow = 0.0f;
-  *stun = 0.0f;
-  *shred = 0.0f;
-  if (weapon_is(w, "daggers")) *bleed = 0.6f;
-  if (weapon_is(w, "sword") || weapon_is(w, "short_sword") || weapon_is(w, "longsword")) *bleed = 0.15f;
-  if (weapon_is(w, "axe")) *shred = 0.5f;
-  if (weapon_is(w, "hammer")) *stun = 0.35f;
-  if (weapon_is(w, "scythe")) *bleed = 0.35f;
-  if (weapon_is(w, "whip")) *slow = 0.35f;
-  if (weapon_is(w, "chain_blades")) *slow = 0.25f;
-  if (weapon_is(w, "wand")) *stun = 0.15f;
-  if (weapon_is(w, "laser")) *burn = 0.4f;
-  if (weapon_is(w, "greatsword")) *stun = 0.15f;
+WeaponStatusChances weapon_status_chances(const WeaponDef *w) {
+  WeaponStatusChances chances = {0};
+  if (weapon_is(w, "daggers")) chances.bleed = 0.6f;
+  if (weapon_is(w, "sword") || weapon_is(w, "short_sword") || weapon_is(w, "longsword")) chances.bleed = 0.15f;
+  if (weapon_is(w, "axe")) chances.shred = 0.5f;
+  if (weapon_is(w, "hammer")) chances.stun = 0.35f;
+  if (weapon_is(w, "scythe")) chances.bleed = 0.35f;
+  if (weapon_is(w, "whip")) chances.slow = 0.35f;
+  if (weapon_is(w, "chain_blades")) chances.slow = 0.25f;
+  if (weapon_is(w, "wand")) chances.stun = 0.15f;
+  if (weapon_is(w, "laser")) chances.burn = 0.4f;
+  if (weapon_is(w, "greatsword")) chances.stun = 0.15f;
+  return chances;
 }
 
 void log_combatf(Game *g, const char *fmt, ...) {
@@ -90,57 +87,57 @@ int boss_def_count(void) {
   return (int)(sizeof(g_boss_defs) / sizeof(g_boss_defs[0]));
 }
 
-static void boss_snapshot_save(Game *g) {
+static void wave_snapshot_save(Game *g) {
   if (!g) return;
-  g->boss_snapshot.valid = 1;
-  g->boss_snapshot.mode = g->mode;
-  g->boss_snapshot.player = g->player;
-  memcpy(g->boss_snapshot.enemies, g->enemies, sizeof(g->enemies));
-  memcpy(g->boss_snapshot.bullets, g->bullets, sizeof(g->bullets));
-  memcpy(g->boss_snapshot.drops, g->drops, sizeof(g->drops));
-  memcpy(g->boss_snapshot.puddles, g->puddles, sizeof(g->puddles));
-  memcpy(g->boss_snapshot.weapon_fx, g->weapon_fx, sizeof(g->weapon_fx));
-  g->boss_snapshot.spawn_timer = g->spawn_timer;
-  g->boss_snapshot.kills = g->kills;
-  g->boss_snapshot.xp = g->xp;
-  g->boss_snapshot.level = g->level;
-  g->boss_snapshot.xp_to_next = g->xp_to_next;
-  g->boss_snapshot.game_time = g->game_time;
-  g->boss_snapshot.last_item_index = g->last_item_index;
-  g->boss_snapshot.item_popup_timer = g->item_popup_timer;
-  snprintf(g->boss_snapshot.item_popup_name, sizeof(g->boss_snapshot.item_popup_name), "%s", g->item_popup_name);
-  g->boss_snapshot.camera_x = g->camera_x;
-  g->boss_snapshot.camera_y = g->camera_y;
-  g->boss_snapshot.ultimate_cd = g->ultimate_cd;
-  g->boss_snapshot.time_scale = g->time_scale;
-  g->boss_snapshot.rerolls = g->rerolls;
-  g->boss_snapshot.high_roll_used = g->high_roll_used;
+  g->wave_snapshot.valid = 1;
+  g->wave_snapshot.mode = g->mode;
+  g->wave_snapshot.player = g->player;
+  memcpy(g->wave_snapshot.enemies, g->enemies, sizeof(g->enemies));
+  memcpy(g->wave_snapshot.bullets, g->bullets, sizeof(g->bullets));
+  memcpy(g->wave_snapshot.drops, g->drops, sizeof(g->drops));
+  memcpy(g->wave_snapshot.puddles, g->puddles, sizeof(g->puddles));
+  memcpy(g->wave_snapshot.weapon_fx, g->weapon_fx, sizeof(g->weapon_fx));
+  g->wave_snapshot.spawn_timer = g->spawn_timer;
+  g->wave_snapshot.kills = g->kills;
+  g->wave_snapshot.xp = g->xp;
+  g->wave_snapshot.level = g->level;
+  g->wave_snapshot.xp_to_next = g->xp_to_next;
+  g->wave_snapshot.game_time = g->game_time;
+  g->wave_snapshot.last_item_index = g->last_item_index;
+  g->wave_snapshot.item_popup_timer = g->item_popup_timer;
+  snprintf(g->wave_snapshot.item_popup_name, sizeof(g->wave_snapshot.item_popup_name), "%s", g->item_popup_name);
+  g->wave_snapshot.camera_x = g->camera_x;
+  g->wave_snapshot.camera_y = g->camera_y;
+  g->wave_snapshot.ultimate_cd = g->ultimate_cd;
+  g->wave_snapshot.time_scale = g->time_scale;
+  g->wave_snapshot.rerolls = g->rerolls;
+  g->wave_snapshot.high_roll_used = g->high_roll_used;
 }
 
-static void boss_snapshot_restore(Game *g) {
-  if (!g || !g->boss_snapshot.valid) return;
-  g->mode = g->boss_snapshot.mode;
-  g->player = g->boss_snapshot.player;
-  memcpy(g->enemies, g->boss_snapshot.enemies, sizeof(g->enemies));
-  memcpy(g->bullets, g->boss_snapshot.bullets, sizeof(g->bullets));
-  memcpy(g->drops, g->boss_snapshot.drops, sizeof(g->drops));
-  memcpy(g->puddles, g->boss_snapshot.puddles, sizeof(g->puddles));
-  memcpy(g->weapon_fx, g->boss_snapshot.weapon_fx, sizeof(g->weapon_fx));
-  g->spawn_timer = g->boss_snapshot.spawn_timer;
-  g->kills = g->boss_snapshot.kills;
-  g->xp = g->boss_snapshot.xp;
-  g->level = g->boss_snapshot.level;
-  g->xp_to_next = g->boss_snapshot.xp_to_next;
-  g->game_time = g->boss_snapshot.game_time;
-  g->last_item_index = g->boss_snapshot.last_item_index;
-  g->item_popup_timer = g->boss_snapshot.item_popup_timer;
-  snprintf(g->item_popup_name, sizeof(g->item_popup_name), "%s", g->boss_snapshot.item_popup_name);
-  g->camera_x = g->boss_snapshot.camera_x;
-  g->camera_y = g->boss_snapshot.camera_y;
-  g->ultimate_cd = g->boss_snapshot.ultimate_cd;
-  g->time_scale = g->boss_snapshot.time_scale;
-  g->rerolls = g->boss_snapshot.rerolls;
-  g->high_roll_used = g->boss_snapshot.high_roll_used;
+static void wave_snapshot_restore(Game *g) {
+  if (!g || !g->wave_snapshot.valid) return;
+  g->mode = g->wave_snapshot.mode;
+  g->player = g->wave_snapshot.player;
+  memcpy(g->enemies, g->wave_snapshot.enemies, sizeof(g->enemies));
+  memcpy(g->bullets, g->wave_snapshot.bullets, sizeof(g->bullets));
+  memcpy(g->drops, g->wave_snapshot.drops, sizeof(g->drops));
+  memcpy(g->puddles, g->wave_snapshot.puddles, sizeof(g->puddles));
+  memcpy(g->weapon_fx, g->wave_snapshot.weapon_fx, sizeof(g->weapon_fx));
+  g->spawn_timer = g->wave_snapshot.spawn_timer;
+  g->kills = g->wave_snapshot.kills;
+  g->xp = g->wave_snapshot.xp;
+  g->level = g->wave_snapshot.level;
+  g->xp_to_next = g->wave_snapshot.xp_to_next;
+  g->game_time = g->wave_snapshot.game_time;
+  g->last_item_index = g->wave_snapshot.last_item_index;
+  g->item_popup_timer = g->wave_snapshot.item_popup_timer;
+  snprintf(g->item_popup_name, sizeof(g->item_popup_name), "%s", g->wave_snapshot.item_popup_name);
+  g->camera_x = g->wave_snapshot.camera_x;
+  g->camera_y = g->wave_snapshot.camera_y;
+  g->ultimate_cd = g->wave_snapshot.ultimate_cd;
+  g->time_scale = g->wave_snapshot.time_scale;
+  g->rerolls = g->wave_snapshot.rerolls;
+  g->high_roll_used = g->wave_snapshot.high_roll_used;
 }
 
 static int find_nearest_enemy(Game *g, float x, float y) {
@@ -767,9 +764,9 @@ void mark_enemy_hit(Enemy *en) {
 }
 
 float player_apply_hit_mods(Game *g, Enemy *en, float dmg) {
-  if (en->armor_shred_timer > 0.0f) dmg *= 1.2f;
+  if (en->debuffs.armor_shred_timer > 0.0f) dmg *= 1.2f;
   float slow_bonus = player_slow_bonus_damage(&g->player, &g->db);
-  if (slow_bonus > 0.0f && en->slow_timer > 0.0f) {
+  if (slow_bonus > 0.0f && en->debuffs.slow_timer > 0.0f) {
     float extra = dmg * slow_bonus;
     log_combatf(g, "slow_bonus +%.1f dmg to %s", extra, enemy_label(g, en));
     dmg += extra;
@@ -863,7 +860,7 @@ static void spawn_boss(Game *g, float x, float y) {
 
 void start_boss_event(Game *g) {
   if (!g) return;
-  boss_snapshot_save(g);
+  wave_snapshot_save(g);
   g->mode = MODE_BOSS_EVENT;
   g->boss_countdown_timer = 3.0f;
   g->boss_timer = 180.0f;
@@ -917,7 +914,7 @@ static void end_boss_event(Game *g, int success) {
   g->boss_timer = 0.0f;
   g->boss_timer_max = 0.0f;
   g->boss_countdown_timer = 0.0f;
-  boss_snapshot_restore(g);
+  wave_snapshot_restore(g);
   if (success) {
     build_boss_reward_choices(g);
     g->levelup_chosen = -1;
@@ -928,7 +925,7 @@ static void end_boss_event(Game *g, int success) {
   } else {
     g->mode = MODE_WAVE;
   }
-  g->boss_snapshot.valid = 0;
+  g->wave_snapshot.valid = 0;
 }
 
 void spawn_drop(Game *g, float x, float y, int type, float value) {
@@ -1345,7 +1342,7 @@ void game_reset(Game *g) {
   g->boss_timer_max = 0.0f;
   g->boss.active = 0;
   g->boss_def_index = 0;
-  g->boss_snapshot.valid = 0;
+  g->wave_snapshot.valid = 0;
   g->debug_show_range = 1;
   g->debug_show_items = 0;  /* hidden by default, toggle with key 8 */
   g->start_page = 0;
@@ -1818,12 +1815,6 @@ void update_boss_event(Game *g, float dt) {
     if (!hazard_active && g->boss.slam_cd <= 0.0f && dist < def->slam_radius) {
       float dmg = damage_after_armor(def->slam_damage, stats.armor);
       p->hp -= dmg;
-      if (dist > 0.001f) {
-        float nx = dx / dist;
-        float ny = dy / dist;
-        p->x = clampf(p->x + nx * 80.0f, 20.0f, ARENA_W - 20.0f);
-        p->y = clampf(p->y + ny * 80.0f, 20.0f, ARENA_H - 20.0f);
-      }
       g->boss.slam_cd = def->slam_cooldown;
     }
 
@@ -1986,7 +1977,7 @@ void render_game(Game *g) {
     if (strcmp(def->role, "boss") == 0) size = 96;
     
     /* Status effect visuals - burn glow only */
-    if (g->enemies[i].burn_timer > 0.0f) {
+    if (g->enemies[i].debuffs.burn_timer > 0.0f) {
       draw_glow(g->renderer, ex, ey, size/2 + 8, (SDL_Color){255, 100, 0, 100});
     }
     
@@ -2003,7 +1994,7 @@ void render_game(Game *g) {
         if (g->enemies[i].charge_time > 0.0f) {
           move_dx = g->enemies[i].vx;
           move_dy = g->enemies[i].vy;
-        } else if (g->enemies[i].stun_timer <= 0.0f) {
+        } else if (g->enemies[i].debuffs.stun_timer <= 0.0f) {
           move_dx = g->player.x - g->enemies[i].x;
           move_dy = g->player.y - g->enemies[i].y;
         }
@@ -2014,7 +2005,7 @@ void render_game(Game *g) {
       /* Tint red when hit, blue when slowed */
       if (hit_flash) {
         SDL_SetTextureColorMod(g->tex_enemy, 255, 120, 120);
-      } else if (g->enemies[i].slow_timer > 0.0f) {
+      } else if (g->enemies[i].debuffs.slow_timer > 0.0f) {
         SDL_SetTextureColorMod(g->tex_enemy, 150, 180, 255);
       } else {
         SDL_SetTextureColorMod(g->tex_enemy, 255, 255, 255);
@@ -2025,7 +2016,7 @@ void render_game(Game *g) {
       /* Fallback circle - tint blue when slowed */
       if (hit_flash) {
         draw_filled_circle(g->renderer, ex, ey, size/2, (SDL_Color){220, 100, 100, 255});
-      } else if (g->enemies[i].slow_timer > 0.0f) {
+      } else if (g->enemies[i].debuffs.slow_timer > 0.0f) {
         draw_filled_circle(g->renderer, ex, ey, size/2, (SDL_Color){100, 150, 200, 255});
       } else {
         draw_filled_circle(g->renderer, ex, ey, size/2, (SDL_Color){100, 200, 100, 255});
@@ -2066,7 +2057,7 @@ void render_game(Game *g) {
     int br = (int)def->radius;
     draw_glow(g->renderer, bx, by, br + 14, (SDL_Color){255, 120, 60, 140});
     if (g->tex_boss) {
-      SDL_Rect dst = { bx - br, by - br, br * 2, br * 2 };
+      SDL_Rect dst = { bx - br * 2, by - br * 2, br * 4, br * 4 };
       SDL_RenderCopy(g->renderer, g->tex_boss, NULL, &dst);
     } else {
       draw_filled_circle(g->renderer, bx, by, br + 6, (SDL_Color){160, 60, 40, 255});
@@ -2982,7 +2973,18 @@ void render_game(Game *g) {
     int secs = (int)g->game_time % 60;
     snprintf(buf, sizeof(buf), "Survived %d:%02d  Kills: %d", mins, secs, g->kills);
     draw_text(g->renderer, g->font, win_w / 2 - 100, win_h / 2 - 10, text, buf);
-    draw_text(g->renderer, g->font, win_w / 2 - 80, win_h / 2 + 20, text, "Press R to restart");
+    draw_text(g->renderer, g->font, win_w / 2 - 80, win_h / 2 + 20, text, "Press G to restart");
+
+    int btn_w = 180;
+    int btn_h = 40;
+    int btn_x = win_w / 2 - btn_w / 2;
+    int btn_y = win_h / 2 + 50;
+    g->restart_button = (SDL_Rect){ btn_x, btn_y, btn_w, btn_h };
+    SDL_SetRenderDrawColor(g->renderer, 40, 40, 55, 220);
+    SDL_RenderFillRect(g->renderer, &g->restart_button);
+    SDL_SetRenderDrawColor(g->renderer, 160, 160, 190, 255);
+    SDL_RenderDrawRect(g->renderer, &g->restart_button);
+    draw_text_centered(g->renderer, g->font, btn_x + btn_w / 2, btn_y + 10, text, "Restart (G)");
   }
 
   /* Debug item/weapon list panel (toggle with key 8) */
