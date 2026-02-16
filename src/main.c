@@ -35,6 +35,7 @@ int main(int argc, char **argv) {
   log_linef("Counts: weapons=%d items=%d enemies=%d characters=%d",
             game.db.weapon_count, game.db.item_count, game.db.enemy_count, game.db.character_count);
   log_line("Data load ok");
+  meta_progress_init(&game);
 
   game.window = SDL_CreateWindow("Madness Arena", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                  WINDOW_W, WINDOW_H, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
@@ -178,7 +179,13 @@ int main(int argc, char **argv) {
     while (SDL_PollEvent(&e)) {
       if (e.type == SDL_QUIT) game.running = 0;
       if (e.type == SDL_KEYDOWN) {
-        if (e.key.keysym.sym == SDLK_ESCAPE) game.running = 0;
+        if (e.key.keysym.sym == SDLK_ESCAPE) {
+          if (game.mode == MODE_START && game.show_skill_tree) {
+            game.show_skill_tree = 0;
+          } else {
+            game.running = 0;
+          }
+        }
         if (e.key.keysym.sym == SDLK_p) toggle_pause(&game);
         if (e.key.keysym.sym == SDLK_TAB) toggle_pause(&game);
         if (e.key.keysym.sym == SDLK_g && game.mode == MODE_GAMEOVER) game_reset(&game);
@@ -230,20 +237,50 @@ int main(int argc, char **argv) {
       if (e.type == SDL_MOUSEBUTTONDOWN && game.mode == MODE_START) {
         int mx = e.button.x;
         int my = e.button.y;
-        int shown = game.choice_count;
-        for (int i = 0; i < shown; i++) {
-          SDL_Rect r = game.choices[i].rect;
-          if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
-            CharacterDef *c = &game.db.characters[game.choices[i].index];
-            game.selected_character = game.choices[i].index;
-            stats_add(&game.player.base, &c->stats);
-            int widx = find_weapon(&game.db, c->weapon);
-            if (widx >= 0) equip_weapon(&game.player, widx);
-            wave_start(&game);
+
+        if (game.show_skill_tree) {
+          SDL_Rect close_btn = game.skill_tree_close_button;
+          if (mx >= close_btn.x && mx <= close_btn.x + close_btn.w && my >= close_btn.y && my <= close_btn.y + close_btn.h) {
+            game.show_skill_tree = 0;
+          } else {
+            for (int i = 0; i < MAX_META_UPGRADES; i++) {
+              SDL_Rect r = game.skill_tree_item_rects[i];
+              if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
+                meta_try_purchase_upgrade(&game, i);
+                break;
+              }
+            }
+          }
+        } else {
+          SDL_Rect tree_btn = game.skill_tree_button;
+          SDL_Rect dbg_btn = game.skill_tree_debug_button;
+          if (mx >= dbg_btn.x && mx <= dbg_btn.x + dbg_btn.w && my >= dbg_btn.y && my <= dbg_btn.y + dbg_btn.h) {
+            game.meta.points += 10;
+            game.meta.total_points += 10;
+            meta_progress_save(&game);
+          } else if (mx >= tree_btn.x && mx <= tree_btn.x + tree_btn.w && my >= tree_btn.y && my <= tree_btn.y + tree_btn.h) {
+            game.show_skill_tree = 1;
+          } else {
+            int shown = game.choice_count;
+            for (int i = 0; i < shown; i++) {
+              SDL_Rect r = game.choices[i].rect;
+              if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
+                CharacterDef *c = &game.db.characters[game.choices[i].index];
+                game.selected_character = game.choices[i].index;
+                stats_add(&game.player.base, &c->stats);
+                meta_apply_run_mods(&game);
+                int widx = find_weapon(&game.db, c->weapon);
+                if (widx >= 0) equip_weapon(&game.player, widx);
+                wave_start(&game);
+              }
+            }
           }
         }
       }
       if (e.type == SDL_MOUSEWHEEL && game.mode == MODE_START) {
+        if (game.show_skill_tree) {
+          continue;
+        }
         float max_scroll = start_scroll_max(&game);
         if (max_scroll > 0.0f) {
           game.start_scroll -= (float)e.wheel.y * 40.0f;

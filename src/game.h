@@ -38,6 +38,7 @@
 #define MAX_LEVELUP_CHOICES 16
 #define MAX_WEAPON_FX 16
 #define MAX_CHARACTERS 16
+#define MAX_META_UPGRADES 5
 
 typedef struct {
   float damage;
@@ -60,6 +61,12 @@ typedef struct {
   float stun;
   float shred;
 } WeaponStatusChances;
+
+typedef struct {
+  int points;
+  int total_points;
+  int upgrades[MAX_META_UPGRADES];
+} MetaProgress;
 
 typedef struct WeaponDef {
   char id[32];
@@ -400,6 +407,18 @@ typedef struct {
   float boss_room_x;
   float boss_room_y;
   WaveSnapshot wave_snapshot;
+  MetaProgress meta;
+  int meta_points_earned_last;
+  int meta_run_awarded;
+  int show_skill_tree;
+  SDL_Rect skill_tree_button;
+  SDL_Rect skill_tree_close_button;
+  SDL_Rect skill_tree_debug_button;
+  SDL_Rect skill_tree_item_rects[MAX_META_UPGRADES];
+  float meta_xp_mult;
+  float meta_spawn_scale;
+  float meta_damage_bonus;
+  float meta_armor_bonus;
 
   float spawn_timer;
   int kills;
@@ -444,6 +463,11 @@ int weapon_is(const WeaponDef *w, const char *id);
 WeaponStatusChances weapon_status_chances(const WeaponDef *w);
 int find_weapon(Database *db, const char *id);
 int db_load(Database *db);
+
+void meta_progress_init(Game *g);
+void meta_progress_save(Game *g);
+void meta_apply_run_mods(Game *g);
+int meta_try_purchase_upgrade(Game *g, int upgrade_index);
 
 void stats_clear(Stats *s);
 void stats_add(Stats *a, Stats *b);
