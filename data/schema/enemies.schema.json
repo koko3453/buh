@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Enemies",
+  "type": "object",
+  "required": ["enemies"],
+  "properties": {
+    "enemies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "role", "hp", "speed", "damage"],
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "role": {"type": "string"},
+          "hp": {"type": "number"},
+          "speed": {"type": "number"},
+          "damage": {"type": "number"},
+          "cooldown": {"type": "number"},
+          "projectile_speed": {"type": "number"},
+          "charge_speed": {"type": "number"},
+          "charge_cooldown": {"type": "number"},
+          "explode_radius": {"type": "number"}
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": false
+}

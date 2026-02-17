@@ -1,4 +1,4 @@
-#include "game.h"
+#include "systems/enemies.h"
 
 const char *enemy_label(Game *g, Enemy *e) {
   if (!g || !e) return "enemy";

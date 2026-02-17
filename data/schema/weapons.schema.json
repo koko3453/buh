@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Weapons",
+  "type": "object",
+  "required": ["weapons"],
+  "properties": {
+    "weapons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "type", "rarity", "cooldown", "damage", "range", "projectile_speed"],
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "type": {"type": "string"},
+          "rarity": {"type": "string"},
+          "cooldown": {"type": "number"},
+          "damage": {"type": "number"},
+          "range": {"type": "number"},
+          "projectile_speed": {"type": "number"},
+          "pierce": {"type": "integer"},
+          "pellets": {"type": "integer"},
+          "spread": {"type": "number"},
+          "homing": {"type": "integer"},
+          "crit_multiplier": {"type": "number"},
+          "scales": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": false
+}

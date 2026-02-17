@@ -1,4 +1,7 @@
-#include "game.h"
+#include "core/game.h"
+#include "data/registry.h"
+#include "render/render.h"
+#include "systems/enemies.h"
 
 int main(int argc, char **argv) {
   (void)argc;
@@ -58,6 +61,8 @@ int main(int argc, char **argv) {
   game.tex_ground = IMG_LoadTexture(game.renderer, "data/assets/hd_ground_tile.png");
   game.tex_wall = IMG_LoadTexture(game.renderer, "data/assets/wall.png");
   game.tex_enemy = IMG_LoadTexture(game.renderer, "data/assets/goo_green.png");
+  game.tex_enemy_eye = IMG_LoadTexture(game.renderer, "data/assets/eye_enemy.png");
+  game.tex_enemy_ghost = IMG_LoadTexture(game.renderer, "data/assets/ghost_enemy.png");
   game.tex_health_flask = IMG_LoadTexture(game.renderer, "data/assets/health_flask.png");
   if (game.tex_health_flask) log_line("Loaded health_flask.png");
   else log_linef("Failed to load health_flask.png: %s", IMG_GetError());
@@ -67,6 +72,10 @@ int main(int argc, char **argv) {
   else log_linef("Failed to load wall.png: %s", IMG_GetError());
   if (game.tex_enemy) log_line("Loaded goo_green.png");
   else log_linef("Failed to load goo_green.png: %s", IMG_GetError());
+  if (game.tex_enemy_eye) log_line("Loaded eye_enemy.png");
+  else log_linef("Failed to load eye_enemy.png: %s", IMG_GetError());
+  if (game.tex_enemy_ghost) log_line("Loaded ghost_enemy.png");
+  else log_linef("Failed to load ghost_enemy.png: %s", IMG_GetError());
   game.tex_boss = load_texture_fallback(game.renderer, "data/assets/fire_goo_boss.png");
   if (game.tex_boss) log_line("Loaded fire_goo_boss.png");
   else log_linef("Failed to load fire_goo_boss.png: %s", IMG_GetError());
@@ -328,6 +337,8 @@ int main(int argc, char **argv) {
   if (game.tex_wall) SDL_DestroyTexture(game.tex_wall);
   if (game.tex_health_flask) SDL_DestroyTexture(game.tex_health_flask);
   if (game.tex_enemy) SDL_DestroyTexture(game.tex_enemy);
+  if (game.tex_enemy_eye) SDL_DestroyTexture(game.tex_enemy_eye);
+  if (game.tex_enemy_ghost) SDL_DestroyTexture(game.tex_enemy_ghost);
   if (game.tex_boss) SDL_DestroyTexture(game.tex_boss);
   if (game.tex_player_front) SDL_DestroyTexture(game.tex_player_front);
   if (game.tex_player_back) SDL_DestroyTexture(game.tex_player_back);

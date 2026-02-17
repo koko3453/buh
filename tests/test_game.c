@@ -1,5 +1,7 @@
 #define UNIT_TESTS
-#include "../src/game.h"
+#include "core/game.h"
+#include "data/registry.h"
+#include "systems/weapons.h"
 #include <assert.h>
 
 static void test_db_load() {

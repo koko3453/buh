@@ -56,6 +56,24 @@
       "projectile_speed": 300
     },
     {
+      "id": "eye",
+      "name": "Eye",
+      "role": "ranged",
+      "hp": 55,
+      "speed": 65,
+      "damage": 10,
+      "cooldown": 1.1,
+      "projectile_speed": 280
+    },
+    {
+      "id": "ghost",
+      "name": "Ghost",
+      "role": "melee",
+      "hp": 80,
+      "speed": 85,
+      "damage": 14
+    },
+    {
       "id": "boss",
       "name": "Arena Warden",
       "role": "boss",

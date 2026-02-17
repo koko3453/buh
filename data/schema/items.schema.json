@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Items",
+  "type": "object",
+  "required": ["items"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "rarity", "desc"],
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "rarity": {"type": "string"},
+          "desc": {"type": "string"},
+          "stats": {
+            "type": "object",
+            "additionalProperties": {"type": "number"}
+          },
+          "proc": {
+            "type": "object",
+            "properties": {
+              "chance": {"type": "number"},
+              "damage": {"type": "number"},
+              "bounces": {"type": "integer"},
+              "range": {"type": "number"}
+            },
+            "additionalProperties": true
+          },
+          "slow_on_hit": {"type": "number"},
+          "slow_aura": {"type": "number"},
+          "burn_on_hit": {"type": "number"},
+          "burn_aura": {"type": "number"},
+          "thorns_percent": {"type": "number"},
+          "lifesteal_on_kill": {"type": "number"},
+          "rarity_bias": {"type": "number"},
+          "slow_bonus_damage": {"type": "number"},
+          "legendary_amp": {"type": "number"},
+          "hp_regen_amp": {"type": "number"},
+          "xp_kill_chance": {"type": "number"}
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": false
+}

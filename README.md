@@ -45,6 +45,14 @@ cmake --build build --config Release
 build\Release\buh.exe
 ```
 
+## Data Validation
+
+Run the data validator to catch malformed JSON or bad references:
+
+```bash
+tools\\validate_data.bat
+```
+
 ## Controls
 | Key | Action |
 |-----|--------|
@@ -69,8 +77,8 @@ The game uses these core stats:
 
 ## Project Structure
 ```
-├── src/main.c           # Game code
-├── src/third_party/     # JSMN JSON parser
+├── src/core/main.c      # Game code
+├── third_party/jsmn/    # JSMN JSON parser
 ├── data/*.json          # Game data (weapons, items, enemies, characters)
 ├── data/assets/         # Sprites (not included - add your own)
 ├── tests/               # Unit tests

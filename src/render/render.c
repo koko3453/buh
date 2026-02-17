@@ -1,4 +1,4 @@
-#include "game.h"
+#include "render/render.h"
 
 void draw_circle(SDL_Renderer *r, int cx, int cy, int radius, SDL_Color color) {
   const int segments = 48;

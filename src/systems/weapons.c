@@ -1,4 +1,5 @@
-#include "game.h"
+#include "systems/weapons.h"
+#include "systems/enemies.h"
 
 void spawn_bullet(Game *g, float x, float y, float vx, float vy, float damage, int pierce, int homing, int from_player,
                   int weapon_index, float bleed_chance, float burn_chance, float slow_chance, float stun_chance,

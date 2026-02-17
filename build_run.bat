@@ -12,6 +12,10 @@ set EXE_RELEASE=%BUILD_DIR%\Release\buh.exe
 set EXE_DEBUG=%BUILD_DIR%\Debug\buh.exe
 set EXE_PLAIN=%BUILD_DIR%\buh.exe
 
+echo Validating data...
+call "%~dp0tools\validate_data.bat" >> "%LOG_FILE%" 2>&1
+if errorlevel 1 goto :fail
+
 if "%VCPKG_ROOT%"=="" (
   set "VCPKG_ROOT=%~dp0tools\vcpkg"
 )
