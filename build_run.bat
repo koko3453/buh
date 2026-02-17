@@ -31,9 +31,14 @@ if exist "%VCPKG_ROOT%\bootstrap-vcpkg.bat" (
   if errorlevel 1 goto :fail
 )
 
-echo Installing SDL2 + SDL2_ttf via vcpkg...
-call "%VCPKG_ROOT%\vcpkg.exe" install sdl2 sdl2-ttf >> "%LOG_FILE%" 2>&1
-if errorlevel 1 goto :fail
+set "VCPKG_INSTALLED_DIR=%VCPKG_ROOT%\installed\x64-windows"
+if exist "%VCPKG_INSTALLED_DIR%\include\SDL2\SDL.h" if exist "%VCPKG_INSTALLED_DIR%\include\SDL2\SDL_ttf.h" (
+  echo SDL2 and SDL2_ttf already installed. Skipping vcpkg install...
+) else (
+  echo Installing SDL2 + SDL2_ttf via vcpkg...
+  call "%VCPKG_ROOT%\vcpkg.exe" install sdl2 sdl2-ttf >> "%LOG_FILE%" 2>&1
+  if errorlevel 1 goto :fail
+)
 
 if exist %BUILD_DIR% (
   rmdir /s /q %BUILD_DIR%

@@ -15,6 +15,7 @@ add_executable(buh
   src/render/render.c
   src/systems/weapons.c
   src/systems/enemies.c
+  src/systems/skill_tree.c
 )
 target_include_directories(buh PRIVATE
   ${CMAKE_SOURCE_DIR}/include
@@ -34,6 +35,7 @@ add_executable(buh_tests
   src/data/registry.c
   src/systems/weapons.c
   src/systems/enemies.c
+  src/systems/skill_tree.c
   src/render/render.c
 )
 target_include_directories(buh_tests PRIVATE
@@ -41,3 +43,4 @@ target_include_directories(buh_tests PRIVATE
   ${CMAKE_SOURCE_DIR}/third_party
 )
 target_link_libraries(buh_tests PRIVATE SDL2::SDL2 SDL2::SDL2main SDL2_ttf::SDL2_ttf $<IF:$<TARGET_EXISTS:SDL2_image::SDL2_image>,SDL2_image::SDL2_image,SDL2_image::SDL2_image-static>)
+

@@ -30,7 +30,7 @@ void spawn_bullet(Game *g, float x, float y, float vx, float vy, float damage, i
   }
 }
 
-void spawn_puddle(Game *g, float x, float y, float radius, float dps, float ttl) {
+void spawn_puddle(Game *g, float x, float y, float radius, float dps, float ttl, int kind) {
   for (int i = 0; i < MAX_PUDDLES; i++) {
     if (!g->puddles[i].active) {
       Puddle *p = &g->puddles[i];
@@ -42,6 +42,7 @@ void spawn_puddle(Game *g, float x, float y, float radius, float dps, float ttl)
       p->dps = dps;
       p->ttl = ttl;
       p->log_timer = 0.0f;
+      p->kind = kind;
       return;
     }
   }
@@ -518,7 +519,7 @@ void fire_weapons(Game *g, float dt) {
       float dps = damage;
       float px = target_is_boss ? target_x : g->enemies[target].x;
       float py = target_is_boss ? target_y : g->enemies[target].y;
-      spawn_puddle(g, px, py, range, dps, 5.0f);
+      spawn_puddle(g, px, py, range, dps, 5.0f, 0);
       log_combatf(g, "puddle spawned (r=%.0f dps=%.1f)", range, dps);
       float level_cd = clampf(1.0f - 0.05f * (slot->level - 1), 0.7f, 1.0f);
       slot->cd_timer = w->cooldown * cooldown_scale * level_cd;

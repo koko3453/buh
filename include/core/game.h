@@ -25,6 +25,7 @@ typedef struct {
 typedef struct {
   SDL_Window *window;
   SDL_Renderer *renderer;
+  SDL_Cursor *cursor;
   TTF_Font *font;
   TTF_Font *font_title;
   TTF_Font *font_title_big;
@@ -91,18 +92,22 @@ typedef struct {
   float boss_room_x;
   float boss_room_y;
   WaveSnapshot wave_snapshot;
-  MetaProgress meta;
-  int meta_points_earned_last;
-  int meta_run_awarded;
+  SkillTreeProgress skill_tree;
+  int skill_tree_points_earned_last;
+  int skill_tree_run_awarded;
   int show_skill_tree;
+  int skill_tree_edit_mode;
+  int skill_tree_drag_index;
+  float skill_tree_drag_off_x;
+  float skill_tree_drag_off_y;
   SDL_Rect skill_tree_button;
   SDL_Rect skill_tree_close_button;
   SDL_Rect skill_tree_debug_button;
-  SDL_Rect skill_tree_item_rects[MAX_META_UPGRADES];
-  float meta_xp_mult;
-  float meta_spawn_scale;
-  float meta_damage_bonus;
-  float meta_armor_bonus;
+  SDL_Rect skill_tree_item_rects[MAX_SKILL_TREE_UPGRADES];
+  float skill_tree_xp_mult;
+  float skill_tree_spawn_scale;
+  float skill_tree_damage_bonus;
+  float skill_tree_armor_bonus;
 
   float spawn_timer;
   int kills;
@@ -146,10 +151,10 @@ float damage_after_armor(float dmg, float armor);
 int weapon_is(const WeaponDef *w, const char *id);
 WeaponStatusChances weapon_status_chances(const WeaponDef *w);
 
-void meta_progress_init(Game *g);
-void meta_progress_save(Game *g);
-void meta_apply_run_mods(Game *g);
-int meta_try_purchase_upgrade(Game *g, int upgrade_index);
+void skill_tree_progress_init(Game *g);
+void skill_tree_progress_save(Game *g);
+void skill_tree_apply_run_mods(Game *g);
+int skill_tree_try_purchase_upgrade(Game *g, int upgrade_index);
 
 void stats_clear(Stats *s);
 void stats_add(Stats *a, Stats *b);
@@ -188,3 +193,4 @@ void update_game(Game *g, float dt);
 void update_boss_event(Game *g, float dt);
 
 #endif
+

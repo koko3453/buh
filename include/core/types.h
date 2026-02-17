@@ -28,8 +28,8 @@ typedef struct {
 typedef struct {
   int points;
   int total_points;
-  int upgrades[MAX_META_UPGRADES];
-} MetaProgress;
+  int upgrades[MAX_SKILL_TREE_UPGRADES];
+} SkillTreeProgress;
 
 typedef struct WeaponDef {
   char id[32];
@@ -232,6 +232,7 @@ typedef struct {
   float dps;
   float ttl;
   float log_timer;
+  int kind; /* 0=alchemist, 1=ultimate */
 } Puddle;
 
 typedef struct {
@@ -298,3 +299,4 @@ typedef struct {
 } Database;
 
 #endif
+

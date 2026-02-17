@@ -2,6 +2,7 @@
 #include "data/registry.h"
 #include "render/render.h"
 #include "systems/enemies.h"
+#include "systems/skill_tree.h"
 
 int main(int argc, char **argv) {
   (void)argc;
@@ -38,7 +39,8 @@ int main(int argc, char **argv) {
   log_linef("Counts: weapons=%d items=%d enemies=%d characters=%d",
             game.db.weapon_count, game.db.item_count, game.db.enemy_count, game.db.character_count);
   log_line("Data load ok");
-  meta_progress_init(&game);
+  skill_tree_progress_init(&game);
+  skill_tree_layout_load();
 
   game.window = SDL_CreateWindow("Madness Arena", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                  WINDOW_W, WINDOW_H, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
@@ -56,6 +58,34 @@ int main(int argc, char **argv) {
     log_line("Window icon set");
   } else {
     log_linef("Failed to load game_icon.png: %s", IMG_GetError());
+  }
+
+  SDL_Surface *cursor_surface = IMG_Load("data/assets/env/cursor.png");
+  if (cursor_surface) {
+    int cursor_w = cursor_surface->w / 2;
+    int cursor_h = cursor_surface->h / 2;
+    if (cursor_w < 1) cursor_w = 1;
+    if (cursor_h < 1) cursor_h = 1;
+    SDL_Surface *cursor_scaled =
+        SDL_CreateRGBSurfaceWithFormat(0, cursor_w, cursor_h, 32, SDL_PIXELFORMAT_RGBA32);
+    if (cursor_scaled) {
+      SDL_Rect dst = {0, 0, cursor_w, cursor_h};
+      SDL_BlitScaled(cursor_surface, NULL, cursor_scaled, &dst);
+      game.cursor = SDL_CreateColorCursor(cursor_scaled, 0, 0);
+      SDL_FreeSurface(cursor_scaled);
+    } else {
+      game.cursor = SDL_CreateColorCursor(cursor_surface, 0, 0);
+    }
+    SDL_FreeSurface(cursor_surface);
+    if (game.cursor) {
+      SDL_SetCursor(game.cursor);
+      SDL_ShowCursor(SDL_ENABLE);
+      log_line("Custom cursor set");
+    } else {
+      log_linef("Failed to create cursor: %s", SDL_GetError());
+    }
+  } else {
+    log_linef("Failed to load cursor.png: %s", IMG_GetError());
   }
 
   game.tex_ground = IMG_LoadTexture(game.renderer, "data/assets/hd_ground_tile.png");
@@ -195,6 +225,14 @@ int main(int argc, char **argv) {
             game.running = 0;
           }
         }
+        if (e.key.keysym.sym == SDLK_F9) {
+          if (game.mode == MODE_START && game.show_skill_tree) {
+            game.skill_tree_edit_mode = !game.skill_tree_edit_mode;
+            if (!game.skill_tree_edit_mode) {
+              game.skill_tree_drag_index = -1;
+            }
+          }
+        }
         if (e.key.keysym.sym == SDLK_p) toggle_pause(&game);
         if (e.key.keysym.sym == SDLK_TAB) toggle_pause(&game);
         if (e.key.keysym.sym == SDLK_g && game.mode == MODE_GAMEOVER) game_reset(&game);
@@ -248,14 +286,27 @@ int main(int argc, char **argv) {
         int my = e.button.y;
 
         if (game.show_skill_tree) {
+          if (game.skill_tree_edit_mode && e.button.button == SDL_BUTTON_LEFT) {
+            for (int i = 0; i < MAX_SKILL_TREE_UPGRADES; i++) {
+              SDL_Rect r = game.skill_tree_item_rects[i];
+              if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
+                game.skill_tree_drag_index = i;
+                game.skill_tree_drag_off_x = (float)mx - (r.x + r.w * 0.5f);
+                game.skill_tree_drag_off_y = (float)my - (r.y + r.h * 0.5f);
+                break;
+              }
+            }
+          }
           SDL_Rect close_btn = game.skill_tree_close_button;
           if (mx >= close_btn.x && mx <= close_btn.x + close_btn.w && my >= close_btn.y && my <= close_btn.y + close_btn.h) {
             game.show_skill_tree = 0;
           } else {
-            for (int i = 0; i < MAX_META_UPGRADES; i++) {
+            for (int i = 0; i < MAX_SKILL_TREE_UPGRADES; i++) {
               SDL_Rect r = game.skill_tree_item_rects[i];
               if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
-                meta_try_purchase_upgrade(&game, i);
+                if (!game.skill_tree_edit_mode) {
+                  skill_tree_try_purchase_upgrade(&game, i);
+                }
                 break;
               }
             }
@@ -264,9 +315,9 @@ int main(int argc, char **argv) {
           SDL_Rect tree_btn = game.skill_tree_button;
           SDL_Rect dbg_btn = game.skill_tree_debug_button;
           if (mx >= dbg_btn.x && mx <= dbg_btn.x + dbg_btn.w && my >= dbg_btn.y && my <= dbg_btn.y + dbg_btn.h) {
-            game.meta.points += 10;
-            game.meta.total_points += 10;
-            meta_progress_save(&game);
+            game.skill_tree.points += 10;
+            game.skill_tree.total_points += 10;
+            skill_tree_progress_save(&game);
           } else if (mx >= tree_btn.x && mx <= tree_btn.x + tree_btn.w && my >= tree_btn.y && my <= tree_btn.y + tree_btn.h) {
             game.show_skill_tree = 1;
           } else {
@@ -277,7 +328,7 @@ int main(int argc, char **argv) {
                 CharacterDef *c = &game.db.characters[game.choices[i].index];
                 game.selected_character = game.choices[i].index;
                 stats_add(&game.player.base, &c->stats);
-                meta_apply_run_mods(&game);
+                skill_tree_apply_run_mods(&game);
                 int widx = find_weapon(&game.db, c->weapon);
                 if (widx >= 0) equip_weapon(&game.player, widx);
                 wave_start(&game);
@@ -294,6 +345,14 @@ int main(int argc, char **argv) {
         if (max_scroll > 0.0f) {
           game.start_scroll -= (float)e.wheel.y * 40.0f;
           game.start_scroll = clampf(game.start_scroll, 0.0f, max_scroll);
+        }
+      }
+      if (e.type == SDL_KEYDOWN && game.mode == MODE_START && game.show_skill_tree && game.skill_tree_edit_mode) {
+        if (e.key.keysym.sym == SDLK_s) {
+          skill_tree_layout_save();
+        }
+        if (e.key.keysym.sym == SDLK_r) {
+          skill_tree_layout_clear();
         }
       }
       if (e.type == SDL_MOUSEBUTTONDOWN &&
@@ -360,6 +419,7 @@ int main(int argc, char **argv) {
   for (int i = 0; i < MAX_CHARACTERS; i++) {
     if (game.tex_portraits[i]) SDL_DestroyTexture(game.tex_portraits[i]);
   }
+  if (game.cursor) SDL_FreeCursor(game.cursor);
   if (game.font) TTF_CloseFont(game.font);
   if (game.font_title && game.font_title != game.font) TTF_CloseFont(game.font_title);
   if (game.font_title_big && game.font_title_big != game.font && game.font_title_big != game.font_title) TTF_CloseFont(game.font_title_big);

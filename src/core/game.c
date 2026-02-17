@@ -4,6 +4,7 @@
 #include "render/render.h"
 #include "systems/enemies.h"
 #include "systems/weapons.h"
+#include "systems/skill_tree.h"
 
 FILE *g_log = NULL;
 int g_log_combat = 1;
@@ -42,9 +43,6 @@ LONG WINAPI crash_handler(EXCEPTION_POINTERS *e) {
   log_linef("Crash addr: %p", e->ExceptionRecord->ExceptionAddress);
   return EXCEPTION_EXECUTE_HANDLER;
 }
-
-#define JSMN_PARENT_LINKS
-#include "jsmn/jsmn.h"
 
 int weapon_is(const WeaponDef *w, const char *id) {
   return strcmp(w->id, id) == 0;
@@ -192,304 +190,19 @@ void vec_norm(float *x, float *y) {
   }
 }
 
-static char *read_file(const char *path) {
-  FILE *f = fopen(path, "rb");
-  if (!f) return NULL;
-  fseek(f, 0, SEEK_END);
-  long len = ftell(f);
-  fseek(f, 0, SEEK_SET);
-  char *buf = (char *)malloc(len + 1);
-  if (!buf) {
-    fclose(f);
-    return NULL;
-  }
-  fread(buf, 1, len, f);
-  buf[len] = '\0';
-  fclose(f);
-  return buf;
-}
-
-static int write_file(const char *path, const char *data) {
-  FILE *f = fopen(path, "wb");
-  if (!f) return 0;
-  size_t len = strlen(data);
-  if (fwrite(data, 1, len, f) != len) {
-    fclose(f);
-    return 0;
-  }
-  fclose(f);
-  return 1;
-}
-
-static int jsoneq(const char *json, jsmntok_t *tok, const char *s) {
-  if (tok->type == JSMN_STRING && (int)strlen(s) == tok->end - tok->start &&
-      strncmp(json + tok->start, s, tok->end - tok->start) == 0) {
-    return 0;
-  }
-  return -1;
-}
-
-static int token_span(jsmntok_t *t, int i) {
-  if (i < 0) return 1;
-  int count = 1;
-  if (t[i].type == JSMN_ARRAY) {
-    int n = t[i].size;
-    int j = i + 1;
-    for (int k = 0; k < n; k++) {
-      int span = token_span(t, j);
-      count += span;
-      j += span;
-    }
-  } else if (t[i].type == JSMN_OBJECT) {
-    /* JSMN with JSMN_PARENT_LINKS: size = total children (keys + values) */
-    int n = t[i].size;
-    int j = i + 1;
-    for (int k = 0; k < n; k++) {
-      int span = token_span(t, j);
-      count += span;
-      j += span;
-    }
-  }
-  return count;
-}
-
-static int find_key(const char *json, jsmntok_t *t, int obj, const char *key) {
-  if (t[obj].type != JSMN_OBJECT) return -1;
-  /* JSMN with JSMN_PARENT_LINKS: size = total children (keys + values) */
-  int n = t[obj].size;
-  int i = obj + 1;
-  /* iterate through key-value pairs (n/2 pairs, n total tokens) */
-  for (int k = 0; k < n; k += 2) {
-    if (jsoneq(json, &t[i], key) == 0) return i + 1;
-    i += token_span(t, i);  /* skip key */
-    i += token_span(t, i);  /* skip value */
-  }
-  return -1;
-}
-
-static void token_string(const char *json, jsmntok_t *tok, char *out, int out_len) {
-  int len = tok->end - tok->start;
-  if (len >= out_len) len = out_len - 1;
-  memcpy(out, json + tok->start, len);
-  out[len] = '\0';
-}
-
-static float token_float(const char *json, jsmntok_t *tok) {
-  char buf[64];
-  token_string(json, tok, buf, (int)sizeof(buf));
-  return (float)atof(buf);
-}
-
-static int token_int(const char *json, jsmntok_t *tok) {
-  return (int)token_float(json, tok);
-}
-
-enum {
-  META_UPG_DAMAGE,
-  META_UPG_DEFENSE,
-  META_UPG_XP,
-  META_UPG_LESS_ENEMIES,
-  META_UPG_MORE_ENEMIES,
-  META_UPG_COUNT
-};
-
-static const char *meta_upgrade_keys[META_UPG_COUNT] = {
-  "damage",
-  "defense",
-  "xp",
-  "less_enemies",
-  "more_enemies"
-};
-
-static const char *meta_upgrade_names[META_UPG_COUNT] = {
-  "More Damage",
-  "Take Less Damage",
-  "More XP",
-  "Fewer Enemies",
-  "More Enemies"
-};
-
-static const char *meta_upgrade_descs[META_UPG_COUNT] = {
-  "+5% damage per rank",
-  "+0.5 armor per rank",
-  "+10% XP per rank",
-  "+10% spawn interval per rank",
-  "-10% spawn interval per rank"
-};
-
-static int meta_upgrade_max_rank(int idx) {
-  if (idx == META_UPG_XP) return 5;
-  return 10;
-}
-
-static int meta_upgrade_cost(int rank) {
-  return 1 + rank;
-}
-
-static const char *meta_checksum_salt = "buh_meta_v1";
-
-static unsigned int meta_checksum(const char *payload) {
-  unsigned int hash = 2166136261u;
-  for (const char *p = meta_checksum_salt; *p; p++) {
-    hash ^= (unsigned char)(*p);
-    hash *= 16777619u;
-  }
-  for (const char *p = payload; *p; p++) {
-    hash ^= (unsigned char)(*p);
-    hash *= 16777619u;
-  }
-  return hash;
-}
-
-static void meta_build_payload(const MetaProgress *meta, char *out, size_t out_len) {
-  snprintf(out, out_len,
-           "points=%d\n"
-           "total=%d\n"
-           "damage=%d\n"
-           "defense=%d\n"
-           "xp=%d\n"
-           "less=%d\n"
-           "more=%d\n",
-           meta->points,
-           meta->total_points,
-           meta->upgrades[META_UPG_DAMAGE],
-           meta->upgrades[META_UPG_DEFENSE],
-           meta->upgrades[META_UPG_XP],
-           meta->upgrades[META_UPG_LESS_ENEMIES],
-           meta->upgrades[META_UPG_MORE_ENEMIES]);
-}
-
-static int meta_points_for_level(int level) {
+static int skill_tree_points_for_level(int level) {
   if (level <= 0) return 0;
   return (level + 1) / 2;
 }
 
-static void meta_recalculate(Game *g) {
-  int damage_rank = g->meta.upgrades[META_UPG_DAMAGE];
-  int defense_rank = g->meta.upgrades[META_UPG_DEFENSE];
-  int xp_rank = g->meta.upgrades[META_UPG_XP];
-  int less_rank = g->meta.upgrades[META_UPG_LESS_ENEMIES];
-  int more_rank = g->meta.upgrades[META_UPG_MORE_ENEMIES];
-
-  g->meta_damage_bonus = damage_rank * 0.05f;
-  g->meta_armor_bonus = defense_rank * 0.5f;
-  g->meta_xp_mult = 1.0f + xp_rank * 0.10f;
-
-  float less_scale = 1.0f + less_rank * 0.10f;
-  float more_scale = 1.0f + more_rank * 0.10f;
-  g->meta_spawn_scale = clampf(less_scale / more_scale, 0.5f, 2.0f);
-}
-
-void meta_apply_run_mods(Game *g) {
-  if (!g) return;
-  Player *p = &g->player;
-  p->base.damage += g->meta_damage_bonus;
-  p->base.armor += g->meta_armor_bonus;
-}
-
-void meta_progress_save(Game *g) {
-  if (!g) return;
-  char payload[256];
-  meta_build_payload(&g->meta, payload, sizeof(payload));
-  unsigned int checksum = meta_checksum(payload);
-  char buf[512];
-  snprintf(buf, sizeof(buf),
-           "{\n  \"points\": %d,\n  \"total_points\": %d,\n  \"checksum\": %u,\n  \"upgrades\": {\n"
-           "    \"%s\": %d,\n"
-           "    \"%s\": %d,\n"
-           "    \"%s\": %d,\n"
-           "    \"%s\": %d,\n"
-           "    \"%s\": %d\n"
-           "  }\n}\n",
-           g->meta.points,
-           g->meta.total_points,
-           checksum,
-           meta_upgrade_keys[0], g->meta.upgrades[0],
-           meta_upgrade_keys[1], g->meta.upgrades[1],
-           meta_upgrade_keys[2], g->meta.upgrades[2],
-           meta_upgrade_keys[3], g->meta.upgrades[3],
-           meta_upgrade_keys[4], g->meta.upgrades[4]);
-  write_file("data/meta_progress.json", buf);
-}
-
-void meta_progress_init(Game *g) {
-  if (!g) return;
-  memset(&g->meta, 0, sizeof(g->meta));
-  g->meta.points = 0;
-  g->meta.total_points = 0;
-
-  char *json = read_file("data/meta_progress.json");
-  if (!json) {
-    meta_recalculate(g);
-    meta_progress_save(g);
-    return;
-  }
-
-  jsmn_parser parser;
-  jsmn_init(&parser);
-  jsmntok_t tokens[256];
-  int count = jsmn_parse(&parser, json, strlen(json), tokens, 256);
-  if (count < 0) {
-    free(json);
-    meta_recalculate(g);
-    return;
-  }
-
-  int pt = find_key(json, tokens, 0, "points");
-  int tt = find_key(json, tokens, 0, "total_points");
-  int ct = find_key(json, tokens, 0, "checksum");
-  if (pt > 0) g->meta.points = token_int(json, &tokens[pt]);
-  if (tt > 0) g->meta.total_points = token_int(json, &tokens[tt]);
-  unsigned int saved_checksum = 0;
-  if (ct > 0) saved_checksum = (unsigned int)token_int(json, &tokens[ct]);
-
-  int upgrades = find_key(json, tokens, 0, "upgrades");
-  if (upgrades > 0 && tokens[upgrades].type == JSMN_OBJECT) {
-    for (int i = 0; i < META_UPG_COUNT; i++) {
-      int ut = find_key(json, tokens, upgrades, meta_upgrade_keys[i]);
-      if (ut > 0) g->meta.upgrades[i] = token_int(json, &tokens[ut]);
-    }
-  }
-
-  free(json);
-  meta_recalculate(g);
-
-  char payload[256];
-  meta_build_payload(&g->meta, payload, sizeof(payload));
-  unsigned int checksum = meta_checksum(payload);
-  if (ct <= 0) {
-    meta_progress_save(g);
-  } else if (saved_checksum != checksum) {
-    memset(&g->meta, 0, sizeof(g->meta));
-    meta_recalculate(g);
-    meta_progress_save(g);
-  }
-}
-
-int meta_try_purchase_upgrade(Game *g, int upgrade_index) {
-  if (!g) return 0;
-  if (upgrade_index < 0 || upgrade_index >= META_UPG_COUNT) return 0;
-  if (upgrade_index != META_UPG_XP && g->meta.upgrades[META_UPG_XP] < 5) return 0;
-  int rank = g->meta.upgrades[upgrade_index];
-  int max_rank = meta_upgrade_max_rank(upgrade_index);
-  if (rank >= max_rank) return 0;
-  int cost = meta_upgrade_cost(rank);
-  if (g->meta.points < cost) return 0;
-  g->meta.points -= cost;
-  g->meta.upgrades[upgrade_index] += 1;
-  meta_recalculate(g);
-  meta_progress_save(g);
-  return 1;
-}
-
-static void meta_award_points(Game *g) {
-  if (!g || g->meta_run_awarded) return;
-  int points = meta_points_for_level(g->level);
-  g->meta.points += points;
-  g->meta.total_points += points;
-  g->meta_points_earned_last = points;
-  g->meta_run_awarded = 1;
-  meta_progress_save(g);
+static void skill_tree_award_points(Game *g) {
+  if (!g || g->skill_tree_run_awarded) return;
+  int points = skill_tree_points_for_level(g->level);
+  g->skill_tree.points += points;
+  g->skill_tree.total_points += points;
+  g->skill_tree_points_earned_last = points;
+  g->skill_tree_run_awarded = 1;
+  skill_tree_progress_save(g);
 }
 
 void stats_clear(Stats *s) {
@@ -878,9 +591,11 @@ static void end_boss_event(Game *g, int success) {
     g->mode = MODE_WAVE;
   }
   g->wave_snapshot.valid = 0;
-  g->meta_points_earned_last = 0;
-  g->meta_run_awarded = 0;
+  g->skill_tree_points_earned_last = 0;
+  g->skill_tree_run_awarded = 0;
   g->show_skill_tree = 0;
+  g->skill_tree_edit_mode = 0;
+  g->skill_tree_drag_index = -1;
 }
 
 void spawn_drop(Game *g, float x, float y, int type, float value) {
@@ -1392,7 +1107,7 @@ static void handle_player_pickups(Game *g, float dt) {
     float pickup_dist = (d->type == 0) ? pickup_range : (d->type == 1 ? health_pickup_range : chest_pickup_range);
     if (dist < pickup_dist) {
       if (d->type == 0) {
-        g->xp += (int)(d->value * g->meta_xp_mult);
+        g->xp += (int)(d->value * g->skill_tree_xp_mult);
         if (g->xp >= g->xp_to_next) {
           g->xp -= g->xp_to_next;
           level_up(g);
@@ -1433,13 +1148,23 @@ static void handle_player_pickups(Game *g, float dt) {
 }
 
 /* Ultimate abilities - each character can have a unique one */
-static void ultimate_kill_all(Game *g) {
-  /* Default ultimate - kills all enemies on screen */
-  for (int i = 0; i < MAX_ENEMIES; i++) {
-    if (g->enemies[i].active) {
-      g->enemies[i].hp = 0.0f;
-    }
-  }
+static void ultimate_aoe_mouse(Game *g) {
+  if (!g) return;
+  int mx = 0;
+  int my = 0;
+  SDL_GetMouseState(&mx, &my);
+
+  float world_x = g->camera_x + (float)mx;
+  float world_y = g->camera_y + (float)my;
+  world_x = clampf(world_x, 20.0f, ARENA_W - 20.0f);
+  world_y = clampf(world_y, 20.0f, ARENA_H - 20.0f);
+
+  Stats stats = player_total_stats(&g->player, &g->db);
+  float base_dps = 220.0f;
+  float dps = base_dps * (1.0f + stats.damage);
+  float radius = 230.0f;
+  spawn_puddle(g, world_x, world_y, radius, dps, 10.0f, 1);
+  log_combatf(g, "ultimate aoe (r=%.0f dps=%.1f)", radius, dps);
 }
 
 static void ultimate_shift_speed(Game *g) {
@@ -1456,12 +1181,14 @@ void activate_ultimate(Game *g) {
   
   /* Dispatch to appropriate ultimate */
   if (strcmp(ult_type, "kill_all") == 0) {
-    ultimate_kill_all(g);
+    ultimate_aoe_mouse(g);
   } else if (strcmp(ult_type, "shift_speed") == 0) {
     ultimate_shift_speed(g);
+  } else if (strcmp(ult_type, "aoe_mouse") == 0) {
+    ultimate_aoe_mouse(g);
   } else {
     /* Unknown ultimate - fallback to kill_all */
-    ultimate_kill_all(g);
+    ultimate_aoe_mouse(g);
   }
 }
 
@@ -1564,7 +1291,7 @@ void update_game(Game *g, float dt) {
       spawn_enemy(g, def_index);
       /* Spawn rate increases over time */
       float base_rate = 1.0f - g->game_time * 0.005f;
-      g->spawn_timer = clampf(base_rate * g->meta_spawn_scale, 0.15f, 2.0f);
+      g->spawn_timer = clampf(base_rate * g->skill_tree_spawn_scale, 0.15f, 2.0f);
     } else {
       g->spawn_timer = 1.0f;
     }
@@ -1572,7 +1299,7 @@ void update_game(Game *g, float dt) {
 
   if (p->hp <= 0.0f) {
     if (g->mode != MODE_GAMEOVER) {
-      meta_award_points(g);
+      skill_tree_award_points(g);
     }
     g->mode = MODE_GAMEOVER;
   }
@@ -1854,17 +1581,26 @@ void render_game(Game *g) {
       int px = (int)(offset_x + g->puddles[i].x - cam_x);
       int py = (int)(offset_y + g->puddles[i].y - cam_y);
       int radius = (int)g->puddles[i].radius;
-      SDL_Color core = { 60, 200, 120, 120 };
-      SDL_Color glow = { 40, 160, 90, 80 };
-      if (g->tex_alchemist_puddle) {
-        SDL_Rect dst = { px - radius, py - radius, radius * 2, radius * 2 };
-        SDL_SetTextureAlphaMod(g->tex_alchemist_puddle, 200);
-        SDL_RenderCopy(g->renderer, g->tex_alchemist_puddle, NULL, &dst);
-        SDL_SetTextureAlphaMod(g->tex_alchemist_puddle, 255);
-      } else {
+      if (g->puddles[i].kind == 1) {
+        SDL_Color core = { 200, 40, 40, 90 };
+        SDL_Color border = { 255, 80, 80, 180 };
+        SDL_Color glow = { 220, 60, 60, 80 };
         draw_filled_circle(g->renderer, px, py, radius, core);
+        draw_circle(g->renderer, px, py, radius, border);
+        draw_glow(g->renderer, px, py, radius + 8, glow);
+      } else {
+        SDL_Color core = { 60, 200, 120, 120 };
+        SDL_Color glow = { 40, 160, 90, 80 };
+        if (g->tex_alchemist_puddle) {
+          SDL_Rect dst = { px - radius, py - radius, radius * 2, radius * 2 };
+          SDL_SetTextureAlphaMod(g->tex_alchemist_puddle, 200);
+          SDL_RenderCopy(g->renderer, g->tex_alchemist_puddle, NULL, &dst);
+          SDL_SetTextureAlphaMod(g->tex_alchemist_puddle, 255);
+        } else {
+          draw_filled_circle(g->renderer, px, py, radius, core);
+        }
+        draw_glow(g->renderer, px, py, radius + 6, glow);
       }
-      draw_glow(g->renderer, px, py, radius + 6, glow);
     }
   }
 
@@ -2800,7 +2536,7 @@ void render_game(Game *g) {
     SDL_RenderDrawRect(g->renderer, &g->skill_tree_button);
     draw_text_centered(g->renderer, g->font, btn_x + btn_w / 2, btn_y + 8, (SDL_Color){220, 220, 230, 255}, "Skill Tree");
     char pbuf[64];
-    snprintf(pbuf, sizeof(pbuf), "Skill Points: %d", g->meta.points);
+    snprintf(pbuf, sizeof(pbuf), "Skill Points: %d", g->skill_tree.points);
     draw_text(g->renderer, g->font, btn_x - 10, btn_y + 40, (SDL_Color){160, 170, 190, 255}, pbuf);
 
     int dbg_w = 140;
@@ -2961,21 +2697,21 @@ void render_game(Game *g) {
     SDL_Rect overlay = { 0, 0, win_w, win_h };
     SDL_RenderFillRect(g->renderer, &overlay);
 
-    int panel_w = 760;
-    int panel_h = 520;
-    int panel_x = (win_w - panel_w) / 2;
-    int panel_y = 60;
+    int panel_w = win_w;
+    int panel_h = win_h;
+    int panel_x = 0;
+    int panel_y = 0;
     SDL_Rect panel = { panel_x, panel_y, panel_w, panel_h };
     SDL_SetRenderDrawColor(g->renderer, 18, 20, 28, 235);
     SDL_RenderFillRect(g->renderer, &panel);
     SDL_SetRenderDrawColor(g->renderer, 90, 100, 120, 255);
     SDL_RenderDrawRect(g->renderer, &panel);
 
-    draw_text_centered(g->renderer, g->font_title, panel_x + panel_w / 2, panel_y + 14,
+    draw_text_centered(g->renderer, g->font_title, panel_x + panel_w / 2, panel_y + 16,
                        (SDL_Color){240, 220, 160, 255}, "Skill Tree");
     char pbuf[64];
-    snprintf(pbuf, sizeof(pbuf), "Available Points: %d", g->meta.points);
-    draw_text(g->renderer, g->font, panel_x + 20, panel_y + 38, (SDL_Color){180, 190, 210, 255}, pbuf);
+    snprintf(pbuf, sizeof(pbuf), "Available Points: %d", g->skill_tree.points);
+    draw_text(g->renderer, g->font, panel_x + 20, panel_y + 42, (SDL_Color){180, 190, 210, 255}, pbuf);
 
     g->skill_tree_close_button = (SDL_Rect){ panel_x + panel_w - 90, panel_y + 12, 70, 26 };
     SDL_SetRenderDrawColor(g->renderer, 50, 55, 70, 220);
@@ -2985,39 +2721,119 @@ void render_game(Game *g) {
     draw_text_centered(g->renderer, g->font, g->skill_tree_close_button.x + g->skill_tree_close_button.w / 2,
                        g->skill_tree_close_button.y + 6, (SDL_Color){210, 220, 230, 255}, "Close");
 
-    int node_w = 200;
-    int node_h = 56;
-    int center_x = panel_x + panel_w / 2 - node_w / 2;
-    int center_y = panel_y + panel_h / 2 - node_h / 2;
-    int ring = 160;
+    int count = skill_tree_node_count();
+    int node_w = 72;
+    int node_h = 72;
+    float cx = panel_x + panel_w * 0.5f;
+    float cy = panel_y + panel_h * 0.52f;
+    float root_radius = 120.0f;
+    float depth_step = 130.0f;
+    float spread = 46.0f;
+    float angles[SKILL_TREE_BRANCH_COUNT];
+    for (int b = 0; b < SKILL_TREE_BRANCH_COUNT; b++) {
+      angles[b] = (-90.0f + 72.0f * (float)b) * (3.14159265f / 180.0f);
+    }
 
-    SDL_Point node_pos[META_UPG_COUNT] = {
-      { center_x - ring, center_y }, /* damage */
-      { center_x + ring, center_y }, /* defense */
-      { center_x, center_y },        /* xp */
-      { center_x, center_y + ring }, /* fewer enemies */
-      { center_x, center_y - ring }  /* more enemies */
-    };
+    if (g->skill_tree_edit_mode) {
+      draw_text(g->renderer, g->font, panel_x + 20, panel_y + 62, (SDL_Color){170, 180, 200, 255},
+                "Edit Mode: drag nodes, S save, R reset");
+    }
+
+    int mx = 0;
+    int my = 0;
+    Uint32 mouse_buttons = SDL_GetMouseState(&mx, &my);
+    int left_down = (mouse_buttons & SDL_BUTTON(SDL_BUTTON_LEFT)) != 0;
+    if (g->skill_tree_edit_mode && g->skill_tree_drag_index >= 0) {
+      if (!left_down) {
+        g->skill_tree_drag_index = -1;
+      } else {
+        float nx = ((float)mx - g->skill_tree_drag_off_x - (float)panel_x) / (float)panel_w;
+        float ny = ((float)my - g->skill_tree_drag_off_y - (float)panel_y) / (float)panel_h;
+        skill_tree_layout_set(g->skill_tree_drag_index, nx, ny);
+      }
+    }
+
+    SDL_Rect node_rects[MAX_SKILL_TREE_UPGRADES];
+    for (int i = 0; i < count; i++) {
+      const SkillTreeNode *node = skill_tree_node_get(i);
+      if (!node) continue;
+      float nx = 0.0f;
+      float ny = 0.0f;
+      if (!skill_tree_layout_get(i, &nx, &ny)) {
+        float angle = angles[node->branch];
+        float radius = root_radius + (float)node->depth * depth_step;
+        float px = cosf(angle);
+        float py = sinf(angle);
+        float ox = -py;
+        float oy = px;
+
+        int same_count = 0;
+        int same_index = 0;
+        for (int j = 0; j < count; j++) {
+          const SkillTreeNode *other = skill_tree_node_get(j);
+          if (!other) continue;
+          if (other->branch == node->branch && other->depth == node->depth) {
+            if (j < i) same_index++;
+            same_count++;
+          }
+        }
+        float offset = 0.0f;
+        if (same_count > 1) {
+          offset = ((float)same_index - (float)(same_count - 1) * 0.5f) * spread;
+        }
+
+        float x = cx + px * radius + ox * offset;
+        float y = cy + py * radius + oy * offset;
+        nx = (x - (float)panel_x) / (float)panel_w;
+        ny = (y - (float)panel_y) / (float)panel_h;
+      }
+      float sx = (float)panel_x + nx * (float)panel_w - node_w * 0.5f;
+      float sy = (float)panel_y + ny * (float)panel_h - node_h * 0.5f;
+      node_rects[i] = (SDL_Rect){ (int)sx, (int)sy, node_w, node_h };
+      g->skill_tree_item_rects[i] = node_rects[i];
+    }
+    for (int i = count; i < MAX_SKILL_TREE_UPGRADES; i++) {
+      g->skill_tree_item_rects[i] = (SDL_Rect){ 0, 0, 0, 0 };
+    }
+
+    for (int b = 0; b < SKILL_TREE_BRANCH_COUNT; b++) {
+      float angle = angles[b];
+      float px = cosf(angle);
+      float py = sinf(angle);
+      float label_radius = root_radius - 44.0f;
+      int lx = (int)(cx + px * label_radius);
+      int ly = (int)(cy + py * label_radius);
+      draw_text_centered(g->renderer, g->font, lx, ly, (SDL_Color){200, 200, 210, 255}, skill_tree_branch_name(b));
+    }
 
     SDL_SetRenderDrawColor(g->renderer, 70, 80, 100, 200);
-    SDL_RenderDrawLine(g->renderer, node_pos[META_UPG_XP].x + node_w / 2, node_pos[META_UPG_XP].y + node_h / 2,
-                       node_pos[META_UPG_DAMAGE].x + node_w / 2, node_pos[META_UPG_DAMAGE].y + node_h / 2);
-    SDL_RenderDrawLine(g->renderer, node_pos[META_UPG_XP].x + node_w / 2, node_pos[META_UPG_XP].y + node_h / 2,
-                       node_pos[META_UPG_DEFENSE].x + node_w / 2, node_pos[META_UPG_DEFENSE].y + node_h / 2);
-    SDL_RenderDrawLine(g->renderer, node_pos[META_UPG_XP].x + node_w / 2, node_pos[META_UPG_XP].y + node_h / 2,
-                       node_pos[META_UPG_LESS_ENEMIES].x + node_w / 2, node_pos[META_UPG_LESS_ENEMIES].y + node_h / 2);
-    SDL_RenderDrawLine(g->renderer, node_pos[META_UPG_XP].x + node_w / 2, node_pos[META_UPG_XP].y + node_h / 2,
-                       node_pos[META_UPG_MORE_ENEMIES].x + node_w / 2, node_pos[META_UPG_MORE_ENEMIES].y + node_h / 2);
+    for (int i = 0; i < count; i++) {
+      const SkillTreeNode *node = skill_tree_node_get(i);
+      if (!node) continue;
+      if (node->parent >= 0) {
+        SDL_Rect pr = node_rects[node->parent];
+        SDL_Rect cr = node_rects[i];
+        SDL_RenderDrawLine(g->renderer,
+                           pr.x + pr.w / 2, pr.y + pr.h / 2,
+                           cr.x + cr.w / 2, cr.y + cr.h / 2);
+      }
+    }
 
-    for (int i = 0; i < META_UPG_COUNT; i++) {
-      SDL_Rect r = { node_pos[i].x, node_pos[i].y, node_w, node_h };
-      g->skill_tree_item_rects[i] = r;
-      int rank = g->meta.upgrades[i];
-      int max_rank = meta_upgrade_max_rank(i);
-      int cost = meta_upgrade_cost(rank);
+    for (int i = 0; i < count; i++) {
+      SDL_Rect r = node_rects[i];
+      const SkillTreeNode *node = skill_tree_node_get(i);
+      if (!node) continue;
+      int rank = g->skill_tree.upgrades[i];
+      int max_rank = skill_tree_upgrade_max_rank(i);
+      int cost = skill_tree_upgrade_cost(rank);
       int maxed = (rank >= max_rank);
-      int afford = (g->meta.points >= cost);
-      int locked = (i != META_UPG_XP && g->meta.upgrades[META_UPG_XP] < 5);
+      int afford = (g->skill_tree.points >= cost);
+      int locked = 0;
+      int parent = node->parent;
+      if (parent >= 0) {
+        int parent_max = skill_tree_upgrade_max_rank(parent);
+        if (g->skill_tree.upgrades[parent] < parent_max) locked = 1;
+      }
 
       SDL_Color bg = {40, 40, 50, 220};
       if (locked) bg = (SDL_Color){35, 35, 40, 220};
@@ -3028,14 +2844,77 @@ void render_game(Game *g) {
       SDL_SetRenderDrawColor(g->renderer, 90, 100, 120, 255);
       SDL_RenderDrawRect(g->renderer, &r);
 
-      char namebuf[96];
-      snprintf(namebuf, sizeof(namebuf), "%s", meta_upgrade_names[i]);
-      draw_text_centered(g->renderer, g->font, r.x + r.w / 2, r.y + 6, (SDL_Color){220, 230, 240, 255}, namebuf);
-      char rankbuf[64];
-      if (locked) snprintf(rankbuf, sizeof(rankbuf), "Requires XP 5");
-      else if (maxed) snprintf(rankbuf, sizeof(rankbuf), "Maxed");
-      else snprintf(rankbuf, sizeof(rankbuf), "Rank %d/%d  Cost %d", rank, max_rank, cost);
-      draw_text_centered(g->renderer, g->font, r.x + r.w / 2, r.y + 26, (SDL_Color){170, 180, 200, 255}, rankbuf);
+      char rankbuf[32];
+      if (maxed) snprintf(rankbuf, sizeof(rankbuf), "MAX");
+      else snprintf(rankbuf, sizeof(rankbuf), "%d/%d", rank, max_rank);
+      draw_text_centered(g->renderer, g->font, r.x + r.w / 2, r.y + r.h - 18,
+                         (SDL_Color){170, 180, 200, 255}, rankbuf);
+    }
+
+    SDL_GetMouseState(&mx, &my);
+    int hovered = -1;
+    for (int i = 0; i < count; i++) {
+      SDL_Rect r = node_rects[i];
+      if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
+        hovered = i;
+        break;
+      }
+    }
+    if (hovered >= 0) {
+      const SkillTreeNode *node = skill_tree_node_get(hovered);
+      if (node) {
+        int rank = g->skill_tree.upgrades[hovered];
+        int max_rank = skill_tree_upgrade_max_rank(hovered);
+        int cost = skill_tree_upgrade_cost(rank);
+        int locked = 0;
+        int parent = node->parent;
+        if (parent >= 0) {
+          int parent_max = skill_tree_upgrade_max_rank(parent);
+          if (g->skill_tree.upgrades[parent] < parent_max) locked = 1;
+        }
+
+        char line1[96];
+        char line2[96];
+        char line3[96];
+        snprintf(line1, sizeof(line1), "%s", node->name);
+        snprintf(line2, sizeof(line2), "%s", node->desc);
+        if (locked) {
+          const SkillTreeNode *parent_node = skill_tree_node_get(parent);
+          const char *parent_name = parent_node ? parent_node->name : "Parent";
+          snprintf(line3, sizeof(line3), "Locked: max %s", parent_name);
+        } else if (rank >= max_rank) {
+          snprintf(line3, sizeof(line3), "Maxed");
+        } else {
+          snprintf(line3, sizeof(line3), "Rank %d/%d  Cost %d", rank, max_rank, cost);
+        }
+
+        int w1 = 0, h1 = 0, w2 = 0, h2 = 0, w3 = 0, h3 = 0;
+        if (g->font) {
+          TTF_SizeText(g->font, line1, &w1, &h1);
+          TTF_SizeText(g->font, line2, &w2, &h2);
+          TTF_SizeText(g->font, line3, &w3, &h3);
+        }
+        int pad = 8;
+        int box_w = w1;
+        if (w2 > box_w) box_w = w2;
+        if (w3 > box_w) box_w = w3;
+        int line_h = (h1 > 0 ? h1 : 14);
+        int box_h = line_h * 3 + pad * 2 + 4;
+        int box_x = mx + 16;
+        int box_y = my + 16;
+        if (box_x + box_w + pad * 2 > win_w) box_x = mx - box_w - pad * 2 - 16;
+        if (box_y + box_h > win_h) box_y = my - box_h - 16;
+
+        SDL_Rect tip = { box_x, box_y, box_w + pad * 2, box_h };
+        SDL_SetRenderDrawColor(g->renderer, 20, 22, 30, 240);
+        SDL_RenderFillRect(g->renderer, &tip);
+        SDL_SetRenderDrawColor(g->renderer, 120, 130, 150, 255);
+        SDL_RenderDrawRect(g->renderer, &tip);
+        draw_text(g->renderer, g->font, box_x + pad, box_y + pad, (SDL_Color){230, 230, 240, 255}, line1);
+        draw_text(g->renderer, g->font, box_x + pad, box_y + pad + line_h, (SDL_Color){170, 180, 200, 255}, line2);
+        draw_text(g->renderer, g->font, box_x + pad, box_y + pad + line_h * 2 + 4,
+                  (SDL_Color){200, 190, 160, 255}, line3);
+      }
     }
   }
 
@@ -3051,7 +2930,7 @@ void render_game(Game *g) {
     int secs = (int)g->game_time % 60;
     snprintf(buf, sizeof(buf), "Survived %d:%02d  Kills: %d", mins, secs, g->kills);
     draw_text(g->renderer, g->font, win_w / 2 - 100, win_h / 2 - 10, text, buf);
-    snprintf(buf, sizeof(buf), "Points earned: %d  Total: %d", g->meta_points_earned_last, g->meta.total_points);
+    snprintf(buf, sizeof(buf), "Points earned: %d  Total: %d", g->skill_tree_points_earned_last, g->skill_tree.total_points);
     draw_text(g->renderer, g->font, win_w / 2 - 110, win_h / 2 + 10, text, buf);
     draw_text(g->renderer, g->font, win_w / 2 - 80, win_h / 2 + 32, text, "Press G to restart");
 
@@ -3269,4 +3148,6 @@ void handle_levelup_click(Game *g, int mx, int my) {
     }
   }
 }
+
+
 
