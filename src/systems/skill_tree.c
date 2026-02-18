@@ -46,6 +46,23 @@ static const char *skill_tree_layout_path = "data/skill_tree_layout.json";
 static float skill_tree_layout_x[MAX_SKILL_TREE_UPGRADES];
 static float skill_tree_layout_y[MAX_SKILL_TREE_UPGRADES];
 static int skill_tree_layout_is_set[MAX_SKILL_TREE_UPGRADES];
+static float skill_tree_custom_x[MAX_SKILL_TREE_CUSTOM_NODES];
+static float skill_tree_custom_y[MAX_SKILL_TREE_CUSTOM_NODES];
+static int skill_tree_custom_count_value = 0;
+static int skill_tree_custom_parent_kind_arr[MAX_SKILL_TREE_CUSTOM_NODES];
+static int skill_tree_custom_parent_index_arr[MAX_SKILL_TREE_CUSTOM_NODES];
+static int skill_tree_custom_max_rank_arr[MAX_SKILL_TREE_CUSTOM_NODES];
+static char skill_tree_custom_name_buf[MAX_SKILL_TREE_CUSTOM_NODES][32];
+static char skill_tree_custom_desc_buf[MAX_SKILL_TREE_CUSTOM_NODES][64];
+static int skill_tree_override_parent_kind_arr[MAX_SKILL_TREE_UPGRADES];
+static int skill_tree_override_parent_index_arr[MAX_SKILL_TREE_UPGRADES];
+static int skill_tree_override_has_parent_arr[MAX_SKILL_TREE_UPGRADES];
+static int skill_tree_override_max_rank_arr[MAX_SKILL_TREE_UPGRADES];
+static int skill_tree_override_has_max_rank_arr[MAX_SKILL_TREE_UPGRADES];
+static int skill_tree_override_has_name_arr[MAX_SKILL_TREE_UPGRADES];
+static int skill_tree_override_has_desc_arr[MAX_SKILL_TREE_UPGRADES];
+static char skill_tree_override_name_buf[MAX_SKILL_TREE_UPGRADES][32];
+static char skill_tree_override_desc_buf[MAX_SKILL_TREE_UPGRADES][64];
 
 static char *read_file(const char *path) {
   FILE *f = fopen(path, "rb");
@@ -182,6 +199,7 @@ const char *skill_tree_branch_name(int branch) {
 
 int skill_tree_upgrade_max_rank(int idx) {
   if (idx < 0 || idx >= skill_tree_node_count()) return 0;
+  if (skill_tree_override_has_max_rank_arr[idx]) return skill_tree_override_max_rank_arr[idx];
   return skill_tree_nodes[idx].max_rank;
 }
 
@@ -194,7 +212,17 @@ void skill_tree_layout_clear(void) {
     skill_tree_layout_x[i] = 0.0f;
     skill_tree_layout_y[i] = 0.0f;
     skill_tree_layout_is_set[i] = 0;
+    skill_tree_override_has_parent_arr[i] = 0;
+    skill_tree_override_parent_kind_arr[i] = 0;
+    skill_tree_override_parent_index_arr[i] = -1;
+    skill_tree_override_has_max_rank_arr[i] = 0;
+    skill_tree_override_max_rank_arr[i] = 0;
+    skill_tree_override_has_name_arr[i] = 0;
+    skill_tree_override_has_desc_arr[i] = 0;
+    skill_tree_override_name_buf[i][0] = '\0';
+    skill_tree_override_desc_buf[i][0] = '\0';
   }
+  skill_tree_custom_count_value = 0;
 }
 
 int skill_tree_layout_get(int index, float *x, float *y) {
@@ -214,6 +242,154 @@ void skill_tree_layout_set(int index, float x, float y) {
   skill_tree_layout_x[index] = x;
   skill_tree_layout_y[index] = y;
   skill_tree_layout_is_set[index] = 1;
+}
+
+int skill_tree_custom_count(void) {
+  return skill_tree_custom_count_value;
+}
+
+int skill_tree_custom_add(float x, float y) {
+  if (skill_tree_custom_count_value >= MAX_SKILL_TREE_CUSTOM_NODES) return -1;
+  if (x < 0.0f) x = 0.0f;
+  if (x > 1.0f) x = 1.0f;
+  if (y < 0.0f) y = 0.0f;
+  if (y > 1.0f) y = 1.0f;
+  int idx = skill_tree_custom_count_value++;
+  skill_tree_custom_x[idx] = x;
+  skill_tree_custom_y[idx] = y;
+  skill_tree_custom_parent_kind_arr[idx] = 0;
+  skill_tree_custom_parent_index_arr[idx] = -1;
+  skill_tree_custom_max_rank_arr[idx] = 3;
+  snprintf(skill_tree_custom_name_buf[idx], sizeof(skill_tree_custom_name_buf[idx]), "Custom %d", idx + 1);
+  snprintf(skill_tree_custom_desc_buf[idx], sizeof(skill_tree_custom_desc_buf[idx]), "Custom node");
+  return idx;
+}
+
+int skill_tree_custom_get(int index, float *x, float *y) {
+  if (index < 0 || index >= skill_tree_custom_count_value) return 0;
+  if (x) *x = skill_tree_custom_x[index];
+  if (y) *y = skill_tree_custom_y[index];
+  return 1;
+}
+
+void skill_tree_custom_set(int index, float x, float y) {
+  if (index < 0 || index >= skill_tree_custom_count_value) return;
+  if (x < 0.0f) x = 0.0f;
+  if (x > 1.0f) x = 1.0f;
+  if (y < 0.0f) y = 0.0f;
+  if (y > 1.0f) y = 1.0f;
+  skill_tree_custom_x[index] = x;
+  skill_tree_custom_y[index] = y;
+}
+
+const char *skill_tree_custom_name(int index) {
+  if (index < 0 || index >= skill_tree_custom_count_value) return "";
+  return skill_tree_custom_name_buf[index];
+}
+
+const char *skill_tree_custom_desc(int index) {
+  if (index < 0 || index >= skill_tree_custom_count_value) return "";
+  return skill_tree_custom_desc_buf[index];
+}
+
+void skill_tree_custom_set_name(int index, const char *name) {
+  if (index < 0 || index >= skill_tree_custom_count_value) return;
+  if (!name) return;
+  snprintf(skill_tree_custom_name_buf[index], sizeof(skill_tree_custom_name_buf[index]), "%s", name);
+}
+
+void skill_tree_custom_set_desc(int index, const char *desc) {
+  if (index < 0 || index >= skill_tree_custom_count_value) return;
+  if (!desc) return;
+  snprintf(skill_tree_custom_desc_buf[index], sizeof(skill_tree_custom_desc_buf[index]), "%s", desc);
+}
+
+int skill_tree_custom_max_rank(int index) {
+  if (index < 0 || index >= skill_tree_custom_count_value) return 0;
+  return skill_tree_custom_max_rank_arr[index];
+}
+
+void skill_tree_custom_set_max_rank(int index, int max_rank) {
+  if (index < 0 || index >= skill_tree_custom_count_value) return;
+  if (max_rank < 1) max_rank = 1;
+  if (max_rank > 20) max_rank = 20;
+  skill_tree_custom_max_rank_arr[index] = max_rank;
+}
+
+int skill_tree_custom_parent_kind(int index) {
+  if (index < 0 || index >= skill_tree_custom_count_value) return 0;
+  return skill_tree_custom_parent_kind_arr[index];
+}
+
+int skill_tree_custom_parent_index(int index) {
+  if (index < 0 || index >= skill_tree_custom_count_value) return -1;
+  return skill_tree_custom_parent_index_arr[index];
+}
+
+void skill_tree_custom_set_parent(int index, int parent_kind, int parent_index) {
+  if (index < 0 || index >= skill_tree_custom_count_value) return;
+  if (parent_kind < 0 || parent_kind > 2) return;
+  skill_tree_custom_parent_kind_arr[index] = parent_kind;
+  skill_tree_custom_parent_index_arr[index] = parent_index;
+}
+
+void skill_tree_override_set_max_rank(int index, int max_rank) {
+  if (index < 0 || index >= skill_tree_node_count()) return;
+  if (max_rank < 1) max_rank = 1;
+  if (max_rank > 20) max_rank = 20;
+  skill_tree_override_has_max_rank_arr[index] = 1;
+  skill_tree_override_max_rank_arr[index] = max_rank;
+}
+
+int skill_tree_override_max_rank(int index) {
+  if (index < 0 || index >= skill_tree_node_count()) return 0;
+  if (!skill_tree_override_has_max_rank_arr[index]) return 0;
+  return skill_tree_override_max_rank_arr[index];
+}
+
+void skill_tree_override_set_parent(int index, int parent_kind, int parent_index) {
+  if (index < 0 || index >= skill_tree_node_count()) return;
+  skill_tree_override_has_parent_arr[index] = 1;
+  skill_tree_override_parent_kind_arr[index] = parent_kind;
+  skill_tree_override_parent_index_arr[index] = parent_index;
+}
+
+int skill_tree_ui_parent_kind(int index) {
+  if (index < 0 || index >= skill_tree_node_count()) return 0;
+  if (skill_tree_override_has_parent_arr[index]) return skill_tree_override_parent_kind_arr[index];
+  return (skill_tree_nodes[index].parent >= 0) ? 1 : 0;
+}
+
+int skill_tree_ui_parent_index(int index) {
+  if (index < 0 || index >= skill_tree_node_count()) return -1;
+  if (skill_tree_override_has_parent_arr[index]) return skill_tree_override_parent_index_arr[index];
+  return skill_tree_nodes[index].parent;
+}
+
+const char *skill_tree_ui_name(int index) {
+  if (index < 0 || index >= skill_tree_node_count()) return "";
+  if (skill_tree_override_has_name_arr[index]) return skill_tree_override_name_buf[index];
+  return skill_tree_nodes[index].name;
+}
+
+const char *skill_tree_ui_desc(int index) {
+  if (index < 0 || index >= skill_tree_node_count()) return "";
+  if (skill_tree_override_has_desc_arr[index]) return skill_tree_override_desc_buf[index];
+  return skill_tree_nodes[index].desc;
+}
+
+void skill_tree_override_set_name(int index, const char *name) {
+  if (index < 0 || index >= skill_tree_node_count()) return;
+  if (!name) return;
+  skill_tree_override_has_name_arr[index] = 1;
+  snprintf(skill_tree_override_name_buf[index], sizeof(skill_tree_override_name_buf[index]), "%s", name);
+}
+
+void skill_tree_override_set_desc(int index, const char *desc) {
+  if (index < 0 || index >= skill_tree_node_count()) return;
+  if (!desc) return;
+  skill_tree_override_has_desc_arr[index] = 1;
+  snprintf(skill_tree_override_desc_buf[index], sizeof(skill_tree_override_desc_buf[index]), "%s", desc);
 }
 
 int skill_tree_layout_load(void) {
@@ -246,12 +422,74 @@ int skill_tree_layout_load(void) {
     }
   }
 
+  int custom = find_key(json, tokens, 0, "custom_nodes");
+  if (custom > 0 && tokens[custom].type == JSMN_ARRAY) {
+    int n = tokens[custom].size;
+    int idx = custom + 1;
+    for (int i = 0; i < n && skill_tree_custom_count_value < MAX_SKILL_TREE_CUSTOM_NODES; i++) {
+      int obj = idx;
+      if (tokens[obj].type == JSMN_OBJECT) {
+        int xt = find_key(json, tokens, obj, "x");
+        int yt = find_key(json, tokens, obj, "y");
+        int nt = find_key(json, tokens, obj, "name");
+        int dt = find_key(json, tokens, obj, "desc");
+        int mt = find_key(json, tokens, obj, "max_rank");
+        int pkt = find_key(json, tokens, obj, "parent_kind");
+        int pit = find_key(json, tokens, obj, "parent_index");
+        if (xt > 0 && yt > 0) {
+          float x = token_float(json, &tokens[xt]);
+          float y = token_float(json, &tokens[yt]);
+          int ci = skill_tree_custom_add(x, y);
+          if (ci >= 0) {
+            if (nt > 0) token_string(json, &tokens[nt], skill_tree_custom_name_buf[ci], (int)sizeof(skill_tree_custom_name_buf[ci]));
+            if (dt > 0) token_string(json, &tokens[dt], skill_tree_custom_desc_buf[ci], (int)sizeof(skill_tree_custom_desc_buf[ci]));
+            if (mt > 0) skill_tree_custom_max_rank_arr[ci] = token_int(json, &tokens[mt]);
+            if (pkt > 0) skill_tree_custom_parent_kind_arr[ci] = token_int(json, &tokens[pkt]);
+            if (pit > 0) skill_tree_custom_parent_index_arr[ci] = token_int(json, &tokens[pit]);
+          }
+        }
+      }
+      idx += token_span(tokens, idx);
+    }
+  }
+
+  int overrides = find_key(json, tokens, 0, "node_overrides");
+  if (overrides > 0 && tokens[overrides].type == JSMN_OBJECT) {
+    int node_count = skill_tree_node_count();
+    for (int i = 0; i < node_count; i++) {
+      int ot = find_key(json, tokens, overrides, skill_tree_nodes[i].key);
+      if (ot <= 0 || tokens[ot].type != JSMN_OBJECT) continue;
+      int mt = find_key(json, tokens, ot, "max_rank");
+      int pkt = find_key(json, tokens, ot, "parent_kind");
+      int pit = find_key(json, tokens, ot, "parent_index");
+      int nt = find_key(json, tokens, ot, "name");
+      int dt = find_key(json, tokens, ot, "desc");
+      if (mt > 0) {
+        skill_tree_override_has_max_rank_arr[i] = 1;
+        skill_tree_override_max_rank_arr[i] = token_int(json, &tokens[mt]);
+      }
+      if (pkt > 0 || pit > 0) {
+        skill_tree_override_has_parent_arr[i] = 1;
+        if (pkt > 0) skill_tree_override_parent_kind_arr[i] = token_int(json, &tokens[pkt]);
+        if (pit > 0) skill_tree_override_parent_index_arr[i] = token_int(json, &tokens[pit]);
+      }
+      if (nt > 0) {
+        skill_tree_override_has_name_arr[i] = 1;
+        token_string(json, &tokens[nt], skill_tree_override_name_buf[i], (int)sizeof(skill_tree_override_name_buf[i]));
+      }
+      if (dt > 0) {
+        skill_tree_override_has_desc_arr[i] = 1;
+        token_string(json, &tokens[dt], skill_tree_override_desc_buf[i], (int)sizeof(skill_tree_override_desc_buf[i]));
+      }
+    }
+  }
+
   free(json);
   return 1;
 }
 
 void skill_tree_layout_save(void) {
-  char buf[4096];
+  char buf[8192];
   int used = 0;
   used += snprintf(buf + used, sizeof(buf) - used, "{\n  \"nodes\": {\n");
   int count = skill_tree_node_count();
@@ -266,6 +504,36 @@ void skill_tree_layout_save(void) {
     written++;
   }
   if (written > 0) used += snprintf(buf + used, sizeof(buf) - used, "\n");
+  used += snprintf(buf + used, sizeof(buf) - used, "  },\n  \"custom_nodes\": [\n");
+  int custom_count = skill_tree_custom_count_value;
+  for (int i = 0; i < custom_count; i++) {
+    const char *comma = (i == 0) ? "" : ",\n";
+    used += snprintf(buf + used, sizeof(buf) - used,
+                     "%s    { \"x\": %.4f, \"y\": %.4f, \"name\": \"%s\", \"desc\": \"%s\", \"max_rank\": %d, \"parent_kind\": %d, \"parent_index\": %d }",
+                     comma, skill_tree_custom_x[i], skill_tree_custom_y[i],
+                     skill_tree_custom_name_buf[i], skill_tree_custom_desc_buf[i],
+                     skill_tree_custom_max_rank_arr[i], skill_tree_custom_parent_kind_arr[i], skill_tree_custom_parent_index_arr[i]);
+  }
+  if (custom_count > 0) used += snprintf(buf + used, sizeof(buf) - used, "\n");
+  used += snprintf(buf + used, sizeof(buf) - used, "  ],\n  \"node_overrides\": {\n");
+  int override_written = 0;
+  for (int i = 0; i < count; i++) {
+    if (!skill_tree_override_has_parent_arr[i] && !skill_tree_override_has_max_rank_arr[i] &&
+        !skill_tree_override_has_name_arr[i] && !skill_tree_override_has_desc_arr[i]) {
+      continue;
+    }
+    const char *comma = (override_written == 0) ? "" : ",\n";
+    used += snprintf(buf + used, sizeof(buf) - used,
+                     "%s    \"%s\": { \"max_rank\": %d, \"parent_kind\": %d, \"parent_index\": %d, \"name\": \"%s\", \"desc\": \"%s\" }",
+                     comma, skill_tree_nodes[i].key,
+                     skill_tree_override_has_max_rank_arr[i] ? skill_tree_override_max_rank_arr[i] : 0,
+                     skill_tree_override_has_parent_arr[i] ? skill_tree_override_parent_kind_arr[i] : 0,
+                     skill_tree_override_has_parent_arr[i] ? skill_tree_override_parent_index_arr[i] : -1,
+                     skill_tree_override_has_name_arr[i] ? skill_tree_override_name_buf[i] : "",
+                     skill_tree_override_has_desc_arr[i] ? skill_tree_override_desc_buf[i] : "");
+    override_written++;
+  }
+  if (override_written > 0) used += snprintf(buf + used, sizeof(buf) - used, "\n");
   used += snprintf(buf + used, sizeof(buf) - used, "  }\n}\n");
   write_file(skill_tree_layout_path, buf);
 }
@@ -390,8 +658,9 @@ int skill_tree_try_purchase_upgrade(Game *g, int upgrade_index) {
   if (!g) return 0;
   int count = skill_tree_node_count();
   if (upgrade_index < 0 || upgrade_index >= count) return 0;
-  int parent = skill_tree_nodes[upgrade_index].parent;
-  if (parent >= 0) {
+  int pk = skill_tree_ui_parent_kind(upgrade_index);
+  int parent = skill_tree_ui_parent_index(upgrade_index);
+  if (pk == 1 && parent >= 0) {
     int parent_max = skill_tree_upgrade_max_rank(parent);
     if (g->skill_tree.upgrades[parent] < parent_max) return 0;
   }
@@ -405,6 +674,15 @@ int skill_tree_try_purchase_upgrade(Game *g, int upgrade_index) {
   skill_tree_recalculate(g);
   skill_tree_progress_save(g);
   return 1;
+}
+
+void skill_tree_reset_upgrades(Game *g) {
+  if (!g) return;
+  int count = skill_tree_node_count();
+  for (int i = 0; i < count; i++) g->skill_tree.upgrades[i] = 0;
+  g->skill_tree.points = g->skill_tree.total_points;
+  skill_tree_recalculate(g);
+  skill_tree_progress_save(g);
 }
 
 

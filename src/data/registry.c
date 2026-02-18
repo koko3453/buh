@@ -341,6 +341,9 @@ static int load_characters(Database *db, const char *path) {
     int wt = find_key(json, tokens, obj, "weapon");
     int rt = find_key(json, tokens, obj, "rule");
     int ut = find_key(json, tokens, obj, "ultimate");
+    int walk = find_key(json, tokens, obj, "walk_strip");
+    int idle = find_key(json, tokens, obj, "idle_frame");
+    int fps = find_key(json, tokens, obj, "anim_fps");
     if (idt > 0) token_string(json, &tokens[idt], c->id, (int)sizeof(c->id));
     if (nt > 0) token_string(json, &tokens[nt], c->name, (int)sizeof(c->name));
     if (pt > 0) token_string(json, &tokens[pt], c->portrait, (int)sizeof(c->portrait));
@@ -348,6 +351,12 @@ static int load_characters(Database *db, const char *path) {
     if (rt > 0) token_string(json, &tokens[rt], c->rule, (int)sizeof(c->rule));
     if (ut > 0) token_string(json, &tokens[ut], c->ultimate, (int)sizeof(c->ultimate));
     else strcpy(c->ultimate, "kill_all"); /* default ultimate */
+    if (walk > 0) token_string(json, &tokens[walk], c->walk_strip, (int)sizeof(c->walk_strip));
+    else c->walk_strip[0] = '\0';
+    if (idle > 0) c->idle_frame = token_int(json, &tokens[idle]);
+    else c->idle_frame = 1;
+    if (fps > 0) c->anim_fps = token_float(json, &tokens[fps]);
+    else c->anim_fps = 6.0f;
     int stats = find_key(json, tokens, obj, "stats");
     if (stats > 0) parse_stats_object(json, tokens, stats, &c->stats);
     idx += token_span(tokens, idx);

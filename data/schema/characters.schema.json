@@ -16,6 +16,9 @@
           "weapon": {"type": "string"},
           "rule": {"type": "string"},
           "ultimate": {"type": "string"},
+          "walk_strip": {"type": "string"},
+          "idle_frame": {"type": "integer"},
+          "anim_fps": {"type": "number"},
           "stats": {
             "type": "object",
             "additionalProperties": {"type": "number"}

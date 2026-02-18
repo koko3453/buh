@@ -121,6 +121,9 @@ typedef struct {
   Stats stats;
   char rule[24];
   char ultimate[32];
+  char walk_strip[96];
+  int idle_frame;
+  float anim_fps;
 } CharacterDef;
 
 typedef struct {

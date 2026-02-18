@@ -46,6 +46,7 @@ typedef struct {
   SDL_Texture *tex_player_back;
   SDL_Texture *tex_player_right;
   SDL_Texture *tex_player_left;
+  SDL_Texture *tex_character_walk[MAX_CHARACTERS];
   SDL_Texture *tex_enemy_bolt;
   SDL_Texture *tex_lightning_zone;
   SDL_Texture *tex_laser_beam;
@@ -100,12 +101,31 @@ typedef struct {
   int show_skill_tree;
   int skill_tree_edit_mode;
   int skill_tree_drag_index;
+  int skill_tree_drag_custom_index;
+  int skill_tree_selected_kind; /* 0=none,1=node,2=custom */
+  int skill_tree_selected_index;
+  int skill_tree_connect_kind; /* 0=none,1=node,2=custom */
+  int skill_tree_connect_index;
+  int skill_tree_text_active;
+  int skill_tree_text_kind;  /* 1=node,2=custom */
+  int skill_tree_text_field; /* 1=name,2=desc */
+  char skill_tree_text_buf[128];
   float skill_tree_drag_off_x;
   float skill_tree_drag_off_y;
   SDL_Rect skill_tree_button;
   SDL_Rect skill_tree_close_button;
+  SDL_Rect skill_tree_reset_button;
   SDL_Rect skill_tree_debug_button;
   SDL_Rect skill_tree_item_rects[MAX_SKILL_TREE_UPGRADES];
+  SDL_Rect skill_tree_custom_rects[MAX_SKILL_TREE_CUSTOM_NODES];
+  float skill_tree_zoom;
+  float skill_tree_pan_x;
+  float skill_tree_pan_y;
+  int skill_tree_pan_drag;
+  float skill_tree_pan_start_x;
+  float skill_tree_pan_start_y;
+  float skill_tree_pan_base_x;
+  float skill_tree_pan_base_y;
   float skill_tree_xp_mult;
   float skill_tree_spawn_scale;
   float skill_tree_damage_bonus;
@@ -126,6 +146,7 @@ typedef struct {
   SDL_Rect reroll_button;
   SDL_Rect highroll_button;
   SDL_Rect restart_button;
+  SDL_Rect pause_end_run_button;
   int scythe_id_counter;
   float camera_x;
   float camera_y;
@@ -157,6 +178,7 @@ void skill_tree_progress_init(Game *g);
 void skill_tree_progress_save(Game *g);
 void skill_tree_apply_run_mods(Game *g);
 int skill_tree_try_purchase_upgrade(Game *g, int upgrade_index);
+void skill_tree_reset_upgrades(Game *g);
 
 void stats_clear(Stats *s);
 void stats_add(Stats *a, Stats *b);

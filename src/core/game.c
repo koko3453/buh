@@ -596,6 +596,23 @@ static void end_boss_event(Game *g, int success) {
   g->show_skill_tree = 0;
   g->skill_tree_edit_mode = 0;
   g->skill_tree_drag_index = -1;
+  g->skill_tree_drag_custom_index = -1;
+  g->skill_tree_selected_kind = 0;
+  g->skill_tree_selected_index = -1;
+  g->skill_tree_connect_kind = 0;
+  g->skill_tree_connect_index = -1;
+  g->skill_tree_text_active = 0;
+  g->skill_tree_text_kind = 0;
+  g->skill_tree_text_field = 0;
+  g->skill_tree_text_buf[0] = '\0';
+  g->skill_tree_zoom = 1.0f;
+  g->skill_tree_pan_x = 0.0f;
+  g->skill_tree_pan_y = 0.0f;
+  g->skill_tree_pan_drag = 0;
+  g->skill_tree_pan_start_x = 0.0f;
+  g->skill_tree_pan_start_y = 0.0f;
+  g->skill_tree_pan_base_x = 0.0f;
+  g->skill_tree_pan_base_y = 0.0f;
 }
 
 void spawn_drop(Game *g, float x, float y, int type, float value) {
@@ -1732,21 +1749,46 @@ void render_game(Game *g) {
   SDL_RendererFlip flip = SDL_FLIP_NONE;
   float mdx = g->player.move_dir_x;
   float mdy = g->player.move_dir_y;
-  if (g->player.is_moving) {
-    if (fabsf(mdy) >= fabsf(mdx)) {
-      if (mdy < 0.0f && g->tex_player_back) player_tex = g->tex_player_back;
-      else if (g->tex_player_front) player_tex = g->tex_player_front;
-    } else {
-      if (mdx < 0.0f) player_tex = g->tex_player_left ? g->tex_player_left : g->tex_player_right;
-      else player_tex = g->tex_player_right ? g->tex_player_right : g->tex_player_left;
+  int use_char_walk = 0;
+  CharacterDef *sel = NULL;
+  if (g->selected_character >= 0 && g->selected_character < g->db.character_count) {
+    sel = &g->db.characters[g->selected_character];
+    if (g->tex_character_walk[g->selected_character]) {
+      player_tex = g->tex_character_walk[g->selected_character];
+      use_char_walk = 1;
     }
-  } else {
-    if (g->tex_player_front) player_tex = g->tex_player_front;
+  }
+  if (!use_char_walk) {
+    if (g->player.is_moving) {
+      if (fabsf(mdy) >= fabsf(mdx)) {
+        if (mdy < 0.0f && g->tex_player_back) player_tex = g->tex_player_back;
+        else if (g->tex_player_front) player_tex = g->tex_player_front;
+      } else {
+        if (mdx < 0.0f) player_tex = g->tex_player_left ? g->tex_player_left : g->tex_player_right;
+        else player_tex = g->tex_player_right ? g->tex_player_right : g->tex_player_left;
+      }
+    } else {
+      if (g->tex_player_front) player_tex = g->tex_player_front;
+    }
   }
 
   if (player_tex) {
     SDL_Rect dst = { px - player_size/2, py - player_size/2, player_size, player_size };
-    SDL_RenderCopyEx(g->renderer, player_tex, NULL, &dst, 0.0, NULL, flip);
+    if (use_char_walk && sel) {
+      int tex_w = 0, tex_h = 0;
+      SDL_QueryTexture(player_tex, NULL, NULL, &tex_w, &tex_h);
+      int frame_w = tex_w / 3;
+      int idle_frame = sel->idle_frame;
+      float fps = (sel->anim_fps > 0.1f) ? sel->anim_fps : 6.0f;
+      if (idle_frame < 0) idle_frame = 0;
+      if (idle_frame > 2) idle_frame = 2;
+      int frame = g->player.is_moving ? ((int)(g->game_time * fps) % 3) : idle_frame;
+      SDL_Rect src = { frame * frame_w, 0, frame_w, tex_h };
+      if (g->player.is_moving && mdx < 0.0f) flip = SDL_FLIP_HORIZONTAL;
+      SDL_RenderCopyEx(g->renderer, player_tex, &src, &dst, 0.0, NULL, flip);
+    } else {
+      SDL_RenderCopyEx(g->renderer, player_tex, NULL, &dst, 0.0, NULL, flip);
+    }
   } else {
     draw_glow(g->renderer, px, py, 25, (SDL_Color){255, 200, 80, 100});
     draw_filled_circle(g->renderer, px, py, 12, (SDL_Color){255, 200, 80, 255});
@@ -2492,6 +2534,18 @@ void render_game(Game *g) {
     draw_text(g->renderer, g->font, x + 160, y, val, buf);
     y += line;
 
+    int btn_w = 200;
+    int btn_h = 36;
+    int btn_x = 20;
+    int btn_y = win_h - btn_h - 20;
+    g->pause_end_run_button = (SDL_Rect){ btn_x, btn_y, btn_w, btn_h };
+    SDL_SetRenderDrawColor(g->renderer, 60, 45, 45, 230);
+    SDL_RenderFillRect(g->renderer, &g->pause_end_run_button);
+    SDL_SetRenderDrawColor(g->renderer, 170, 120, 120, 255);
+    SDL_RenderDrawRect(g->renderer, &g->pause_end_run_button);
+    draw_text_centered(g->renderer, g->font, btn_x + btn_w / 2, btn_y + 9,
+                       (SDL_Color){240, 200, 200, 255}, "End Run");
+
     int panel_w = 320;
     int panel_x = win_w / 2 + 40;
     int panel_y = 240;
@@ -2835,6 +2889,10 @@ void render_game(Game *g) {
     int panel_h = win_h;
     int panel_x = 0;
     int panel_y = 0;
+    float zoom = (g->skill_tree_zoom > 0.1f) ? g->skill_tree_zoom : 1.0f;
+    zoom = clampf(zoom, 0.5f, 2.5f);
+    float panel_cx = panel_x + panel_w * 0.5f;
+    float panel_cy = panel_y + panel_h * 0.5f;
     SDL_Rect panel = { panel_x, panel_y, panel_w, panel_h };
     SDL_SetRenderDrawColor(g->renderer, 18, 20, 28, 235);
     SDL_RenderFillRect(g->renderer, &panel);
@@ -2855,9 +2913,21 @@ void render_game(Game *g) {
     draw_text_centered(g->renderer, g->font, g->skill_tree_close_button.x + g->skill_tree_close_button.w / 2,
                        g->skill_tree_close_button.y + 6, (SDL_Color){210, 220, 230, 255}, "Close");
 
+    g->skill_tree_reset_button = (SDL_Rect){ panel_x + panel_w - 180, panel_y + 12, 80, 26 };
+    SDL_SetRenderDrawColor(g->renderer, 60, 50, 50, 220);
+    SDL_RenderFillRect(g->renderer, &g->skill_tree_reset_button);
+    SDL_SetRenderDrawColor(g->renderer, 140, 110, 110, 255);
+    SDL_RenderDrawRect(g->renderer, &g->skill_tree_reset_button);
+    draw_text_centered(g->renderer, g->font, g->skill_tree_reset_button.x + g->skill_tree_reset_button.w / 2,
+                       g->skill_tree_reset_button.y + 6, (SDL_Color){230, 200, 200, 255}, "Reset");
+
     int count = skill_tree_node_count();
-    int node_w = 72;
-    int node_h = 72;
+    float pan_x = (g->skill_tree_edit_mode) ? 0.0f : g->skill_tree_pan_x;
+    float pan_y = (g->skill_tree_edit_mode) ? 0.0f : g->skill_tree_pan_y;
+    int node_w = (int)(72.0f * zoom);
+    int node_h = (int)(72.0f * zoom);
+    if (node_w < 36) node_w = 36;
+    if (node_h < 36) node_h = 36;
     float cx = panel_x + panel_w * 0.5f;
     float cy = panel_y + panel_h * 0.52f;
     float root_radius = 120.0f;
@@ -2870,7 +2940,12 @@ void render_game(Game *g) {
 
     if (g->skill_tree_edit_mode) {
       draw_text(g->renderer, g->font, panel_x + 20, panel_y + 62, (SDL_Color){170, 180, 200, 255},
-                "Edit Mode: drag nodes, S save, R reset");
+                "Edit Mode: LMB drag/select, RMB add, C connect, [ ] rank, N name, D desc, wheel zoom, S save, R reset");
+      draw_text(g->renderer, g->font, panel_x + 20, panel_y + 80, (SDL_Color){150, 160, 180, 255},
+                "Connect: select node, press C, click target");
+    } else {
+      draw_text(g->renderer, g->font, panel_x + 20, panel_y + 62, (SDL_Color){170, 180, 200, 255},
+                "Binds: click node to buy, drag to pan, F9 edit, wheel zoom");
     }
 
     int mx = 0;
@@ -2881,9 +2956,30 @@ void render_game(Game *g) {
       if (!left_down) {
         g->skill_tree_drag_index = -1;
       } else {
-        float nx = ((float)mx - g->skill_tree_drag_off_x - (float)panel_x) / (float)panel_w;
-        float ny = ((float)my - g->skill_tree_drag_off_y - (float)panel_y) / (float)panel_h;
+        float base_x = panel_cx + ((float)mx - g->skill_tree_drag_off_x - panel_cx) / zoom;
+        float base_y = panel_cy + ((float)my - g->skill_tree_drag_off_y - panel_cy) / zoom;
+        float nx = (base_x - (float)panel_x) / (float)panel_w;
+        float ny = (base_y - (float)panel_y) / (float)panel_h;
         skill_tree_layout_set(g->skill_tree_drag_index, nx, ny);
+      }
+    }
+    if (g->skill_tree_edit_mode && g->skill_tree_drag_custom_index >= 0) {
+      if (!left_down) {
+        g->skill_tree_drag_custom_index = -1;
+      } else {
+        float base_x = panel_cx + ((float)mx - g->skill_tree_drag_off_x - panel_cx) / zoom;
+        float base_y = panel_cy + ((float)my - g->skill_tree_drag_off_y - panel_cy) / zoom;
+        float nx = (base_x - (float)panel_x) / (float)panel_w;
+        float ny = (base_y - (float)panel_y) / (float)panel_h;
+        skill_tree_custom_set(g->skill_tree_drag_custom_index, nx, ny);
+      }
+    }
+    if (!g->skill_tree_edit_mode && g->skill_tree_pan_drag) {
+      if (!left_down) {
+        g->skill_tree_pan_drag = 0;
+      } else {
+        g->skill_tree_pan_x = g->skill_tree_pan_base_x + ((float)mx - g->skill_tree_pan_start_x);
+        g->skill_tree_pan_y = g->skill_tree_pan_base_y + ((float)my - g->skill_tree_pan_start_y);
       }
     }
 
@@ -2921,8 +3017,10 @@ void render_game(Game *g) {
         nx = (x - (float)panel_x) / (float)panel_w;
         ny = (y - (float)panel_y) / (float)panel_h;
       }
-      float sx = (float)panel_x + nx * (float)panel_w - node_w * 0.5f;
-      float sy = (float)panel_y + ny * (float)panel_h - node_h * 0.5f;
+      float base_x = (float)panel_x + nx * (float)panel_w;
+      float base_y = (float)panel_y + ny * (float)panel_h;
+      float sx = panel_cx + (base_x - panel_cx) * zoom + pan_x - node_w * 0.5f;
+      float sy = panel_cy + (base_y - panel_cy) * zoom + pan_y - node_h * 0.5f;
       node_rects[i] = (SDL_Rect){ (int)sx, (int)sy, node_w, node_h };
       g->skill_tree_item_rects[i] = node_rects[i];
     }
@@ -2930,27 +3028,85 @@ void render_game(Game *g) {
       g->skill_tree_item_rects[i] = (SDL_Rect){ 0, 0, 0, 0 };
     }
 
+    int custom_count = skill_tree_custom_count();
+    int custom_w = (int)(54.0f * zoom);
+    int custom_h = (int)(54.0f * zoom);
+    if (custom_w < 28) custom_w = 28;
+    if (custom_h < 28) custom_h = 28;
+    for (int i = 0; i < custom_count; i++) {
+      float nx = 0.0f;
+      float ny = 0.0f;
+      if (!skill_tree_custom_get(i, &nx, &ny)) {
+        g->skill_tree_custom_rects[i] = (SDL_Rect){ 0, 0, 0, 0 };
+        continue;
+      }
+      float base_x = (float)panel_x + nx * (float)panel_w;
+      float base_y = (float)panel_y + ny * (float)panel_h;
+      float sx = panel_cx + (base_x - panel_cx) * zoom + pan_x - custom_w * 0.5f;
+      float sy = panel_cy + (base_y - panel_cy) * zoom + pan_y - custom_h * 0.5f;
+      g->skill_tree_custom_rects[i] = (SDL_Rect){ (int)sx, (int)sy, custom_w, custom_h };
+    }
+    for (int i = custom_count; i < MAX_SKILL_TREE_CUSTOM_NODES; i++) {
+      g->skill_tree_custom_rects[i] = (SDL_Rect){ 0, 0, 0, 0 };
+    }
+
     for (int b = 0; b < SKILL_TREE_BRANCH_COUNT; b++) {
       float angle = angles[b];
       float px = cosf(angle);
       float py = sinf(angle);
       float label_radius = root_radius - 44.0f;
-      int lx = (int)(cx + px * label_radius);
-      int ly = (int)(cy + py * label_radius);
+      float base_lx = cx + px * label_radius;
+      float base_ly = cy + py * label_radius;
+      int lx = (int)(panel_cx + (base_lx - panel_cx) * zoom + pan_x);
+      int ly = (int)(panel_cy + (base_ly - panel_cy) * zoom + pan_y);
       draw_text_centered(g->renderer, g->font, lx, ly, (SDL_Color){200, 200, 210, 255}, skill_tree_branch_name(b));
     }
 
     SDL_SetRenderDrawColor(g->renderer, 70, 80, 100, 200);
     for (int i = 0; i < count; i++) {
-      const SkillTreeNode *node = skill_tree_node_get(i);
-      if (!node) continue;
-      if (node->parent >= 0) {
-        SDL_Rect pr = node_rects[node->parent];
+      int pk = skill_tree_ui_parent_kind(i);
+      int pi = skill_tree_ui_parent_index(i);
+      if (pk == 1 && pi >= 0 && pi < count) {
+        SDL_Rect pr = node_rects[pi];
         SDL_Rect cr = node_rects[i];
-        SDL_RenderDrawLine(g->renderer,
-                           pr.x + pr.w / 2, pr.y + pr.h / 2,
+        SDL_RenderDrawLine(g->renderer, pr.x + pr.w / 2, pr.y + pr.h / 2,
+                           cr.x + cr.w / 2, cr.y + cr.h / 2);
+      } else if (pk == 2 && pi >= 0 && pi < custom_count) {
+        SDL_Rect pr = g->skill_tree_custom_rects[pi];
+        SDL_Rect cr = node_rects[i];
+        SDL_RenderDrawLine(g->renderer, pr.x + pr.w / 2, pr.y + pr.h / 2,
                            cr.x + cr.w / 2, cr.y + cr.h / 2);
       }
+    }
+
+    for (int i = 0; i < custom_count; i++) {
+      SDL_Rect r = g->skill_tree_custom_rects[i];
+      if (r.w <= 0 || r.h <= 0) continue;
+      int pk = skill_tree_custom_parent_kind(i);
+      int pi = skill_tree_custom_parent_index(i);
+      if (pk == 1 && pi >= 0 && pi < count) {
+        SDL_Rect pr = node_rects[pi];
+        SDL_RenderDrawLine(g->renderer, pr.x + pr.w / 2, pr.y + pr.h / 2,
+                           r.x + r.w / 2, r.y + r.h / 2);
+      } else if (pk == 2 && pi >= 0 && pi < custom_count) {
+        SDL_Rect pr = g->skill_tree_custom_rects[pi];
+        SDL_RenderDrawLine(g->renderer, pr.x + pr.w / 2, pr.y + pr.h / 2,
+                           r.x + r.w / 2, r.y + r.h / 2);
+      }
+      SDL_SetRenderDrawColor(g->renderer, 28, 32, 40, 220);
+      SDL_RenderFillRect(g->renderer, &r);
+      if (g->skill_tree_selected_kind == 2 && g->skill_tree_selected_index == i) {
+        SDL_SetRenderDrawColor(g->renderer, 200, 160, 80, 255);
+      } else if (g->skill_tree_connect_kind == 2 && g->skill_tree_connect_index == i) {
+        SDL_SetRenderDrawColor(g->renderer, 120, 180, 220, 255);
+      } else {
+        SDL_SetRenderDrawColor(g->renderer, 80, 90, 110, 255);
+      }
+      SDL_RenderDrawRect(g->renderer, &r);
+      char cbuf[16];
+      snprintf(cbuf, sizeof(cbuf), "C%d", skill_tree_custom_max_rank(i));
+      draw_text_centered(g->renderer, g->font, r.x + r.w / 2, r.y + r.h / 2 - 6,
+                         (SDL_Color){160, 170, 190, 255}, cbuf);
     }
 
     for (int i = 0; i < count; i++) {
@@ -2963,10 +3119,11 @@ void render_game(Game *g) {
       int maxed = (rank >= max_rank);
       int afford = (g->skill_tree.points >= cost);
       int locked = 0;
-      int parent = node->parent;
-      if (parent >= 0) {
-        int parent_max = skill_tree_upgrade_max_rank(parent);
-        if (g->skill_tree.upgrades[parent] < parent_max) locked = 1;
+      int pk = skill_tree_ui_parent_kind(i);
+      int pi = skill_tree_ui_parent_index(i);
+      if (pk == 1 && pi >= 0) {
+        int parent_max = skill_tree_upgrade_max_rank(pi);
+        if (g->skill_tree.upgrades[pi] < parent_max) locked = 1;
       }
 
       SDL_Color bg = {40, 40, 50, 220};
@@ -2975,7 +3132,13 @@ void render_game(Game *g) {
       else if (afford) bg = (SDL_Color){40, 55, 45, 220};
       SDL_SetRenderDrawColor(g->renderer, bg.r, bg.g, bg.b, bg.a);
       SDL_RenderFillRect(g->renderer, &r);
-      SDL_SetRenderDrawColor(g->renderer, 90, 100, 120, 255);
+      if (g->skill_tree_selected_kind == 1 && g->skill_tree_selected_index == i) {
+        SDL_SetRenderDrawColor(g->renderer, 200, 160, 80, 255);
+      } else if (g->skill_tree_connect_kind == 1 && g->skill_tree_connect_index == i) {
+        SDL_SetRenderDrawColor(g->renderer, 120, 180, 220, 255);
+      } else {
+        SDL_SetRenderDrawColor(g->renderer, 90, 100, 120, 255);
+      }
       SDL_RenderDrawRect(g->renderer, &r);
 
       char rankbuf[32];
@@ -2987,11 +3150,21 @@ void render_game(Game *g) {
 
     SDL_GetMouseState(&mx, &my);
     int hovered = -1;
+    int hovered_custom = -1;
     for (int i = 0; i < count; i++) {
       SDL_Rect r = node_rects[i];
       if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
         hovered = i;
         break;
+      }
+    }
+    if (hovered < 0) {
+      for (int i = 0; i < custom_count; i++) {
+        SDL_Rect r = g->skill_tree_custom_rects[i];
+        if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
+          hovered_custom = i;
+          break;
+        }
       }
     }
     if (hovered >= 0) {
@@ -3001,19 +3174,20 @@ void render_game(Game *g) {
         int max_rank = skill_tree_upgrade_max_rank(hovered);
         int cost = skill_tree_upgrade_cost(rank);
         int locked = 0;
-        int parent = node->parent;
-        if (parent >= 0) {
-          int parent_max = skill_tree_upgrade_max_rank(parent);
-          if (g->skill_tree.upgrades[parent] < parent_max) locked = 1;
+        int pk = skill_tree_ui_parent_kind(hovered);
+        int pi = skill_tree_ui_parent_index(hovered);
+        if (pk == 1 && pi >= 0) {
+          int parent_max = skill_tree_upgrade_max_rank(pi);
+          if (g->skill_tree.upgrades[pi] < parent_max) locked = 1;
         }
 
         char line1[96];
         char line2[96];
         char line3[96];
-        snprintf(line1, sizeof(line1), "%s", node->name);
-        snprintf(line2, sizeof(line2), "%s", node->desc);
+        snprintf(line1, sizeof(line1), "%s", skill_tree_ui_name(hovered));
+        snprintf(line2, sizeof(line2), "%s", skill_tree_ui_desc(hovered));
         if (locked) {
-          const SkillTreeNode *parent_node = skill_tree_node_get(parent);
+          const SkillTreeNode *parent_node = (pk == 1) ? skill_tree_node_get(pi) : NULL;
           const char *parent_name = parent_node ? parent_node->name : "Parent";
           snprintf(line3, sizeof(line3), "Locked: max %s", parent_name);
         } else if (rank >= max_rank) {
@@ -3049,6 +3223,59 @@ void render_game(Game *g) {
         draw_text(g->renderer, g->font, box_x + pad, box_y + pad + line_h * 2 + 4,
                   (SDL_Color){200, 190, 160, 255}, line3);
       }
+    } else if (hovered_custom >= 0) {
+      char line1[96];
+      char line2[96];
+      char line3[96];
+      snprintf(line1, sizeof(line1), "%s", skill_tree_custom_name(hovered_custom));
+      snprintf(line2, sizeof(line2), "%s", skill_tree_custom_desc(hovered_custom));
+      snprintf(line3, sizeof(line3), "Max Rank %d", skill_tree_custom_max_rank(hovered_custom));
+
+      int w1 = 0, h1 = 0, w2 = 0, h2 = 0, w3 = 0, h3 = 0;
+      if (g->font) {
+        TTF_SizeText(g->font, line1, &w1, &h1);
+        TTF_SizeText(g->font, line2, &w2, &h2);
+        TTF_SizeText(g->font, line3, &w3, &h3);
+      }
+      int pad = 8;
+      int box_w = w1;
+      if (w2 > box_w) box_w = w2;
+      if (w3 > box_w) box_w = w3;
+      int line_h = (h1 > 0 ? h1 : 14);
+      int box_h = line_h * 3 + pad * 2 + 4;
+      int box_x = mx + 16;
+      int box_y = my + 16;
+      if (box_x + box_w + pad * 2 > win_w) box_x = mx - box_w - pad * 2 - 16;
+      if (box_y + box_h > win_h) box_y = my - box_h - 16;
+
+      SDL_Rect tip = { box_x, box_y, box_w + pad * 2, box_h };
+      SDL_SetRenderDrawColor(g->renderer, 20, 22, 30, 240);
+      SDL_RenderFillRect(g->renderer, &tip);
+      SDL_SetRenderDrawColor(g->renderer, 120, 130, 150, 255);
+      SDL_RenderDrawRect(g->renderer, &tip);
+      draw_text(g->renderer, g->font, box_x + pad, box_y + pad, (SDL_Color){230, 230, 240, 255}, line1);
+      draw_text(g->renderer, g->font, box_x + pad, box_y + pad + line_h, (SDL_Color){170, 180, 200, 255}, line2);
+      draw_text(g->renderer, g->font, box_x + pad, box_y + pad + line_h * 2 + 4,
+                (SDL_Color){200, 190, 160, 255}, line3);
+    }
+
+    if (g->skill_tree_text_active) {
+      int box_w = 520;
+      int box_h = 80;
+      int box_x = (win_w - box_w) / 2;
+      int box_y = win_h - box_h - 30;
+      SDL_Rect edit = { box_x, box_y, box_w, box_h };
+      SDL_SetRenderDrawColor(g->renderer, 15, 18, 26, 235);
+      SDL_RenderFillRect(g->renderer, &edit);
+      SDL_SetRenderDrawColor(g->renderer, 120, 130, 150, 255);
+      SDL_RenderDrawRect(g->renderer, &edit);
+      const char *field = (g->skill_tree_text_field == 1) ? "Name" : "Description";
+      const char *kind = (g->skill_tree_text_kind == 1) ? "Node" : "Custom";
+      char title[64];
+      snprintf(title, sizeof(title), "Editing %s (%s) - Enter to save, Esc to cancel", field, kind);
+      draw_text(g->renderer, g->font, box_x + 10, box_y + 8, (SDL_Color){200, 200, 220, 255}, title);
+      draw_text(g->renderer, g->font, box_x + 10, box_y + 36, (SDL_Color){230, 230, 240, 255},
+                g->skill_tree_text_buf);
     }
   }
 

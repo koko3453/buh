@@ -5,7 +5,10 @@
       "name": "Mage",
       "portrait": "mage.png",
       "weapon": "wand",
-      "stats": {"damage": 0.15, "max_hp": -20},
+      "stats": {
+        "damage": 0.15,
+        "max_hp": -20
+      },
       "rule": "magic_only",
       "ultimate": "kill_all"
     },
@@ -14,7 +17,10 @@
       "name": "Reaper",
       "portrait": "repear.png",
       "weapon": "scythe",
-      "stats": {"damage": 0.1, "attack_speed": 0.05},
+      "stats": {
+        "damage": 0.1,
+        "attack_speed": 0.05
+      },
       "rule": "lifesteal",
       "ultimate": "kill_all"
     },
@@ -23,7 +29,11 @@
       "name": "Rogue",
       "portrait": "rogue.png",
       "weapon": "daggers",
-      "stats": {"attack_speed": 0.2, "dodge": 0.1, "armor": -2},
+      "stats": {
+        "attack_speed": 0.2,
+        "dodge": 0.1,
+        "armor": -2
+      },
       "rule": "crit_bonus",
       "ultimate": "kill_all"
     },
@@ -32,7 +42,10 @@
       "name": "Shapeshifter",
       "portrait": "shapeshifter.png",
       "weapon": "fists",
-      "stats": {"max_hp": 30, "move_speed": 0.15},
+      "stats": {
+        "max_hp": 30,
+        "move_speed": 0.15
+      },
       "rule": "adapt",
       "ultimate": "shift_speed"
     },
@@ -41,7 +54,10 @@
       "name": "Vampire",
       "portrait": "vampire.png",
       "weapon": "vampire_bite",
-      "stats": {"damage": 0.08, "max_hp": -10},
+      "stats": {
+        "damage": 0.08,
+        "max_hp": -10
+      },
       "rule": "lifesteal",
       "ultimate": "kill_all"
     },
@@ -50,7 +66,10 @@
       "name": "Gladiator",
       "portrait": "gladiator.png",
       "weapon": "spear",
-      "stats": {"armor": 3, "damage": 0.1},
+      "stats": {
+        "armor": 3,
+        "damage": 0.1
+      },
       "rule": "no_ranged",
       "ultimate": "kill_all"
     },
@@ -59,7 +78,10 @@
       "name": "Gunslinger",
       "portrait": "gunslinger.png",
       "weapon": "pistol",
-      "stats": {"attack_speed": 0.15, "max_hp": -15},
+      "stats": {
+        "attack_speed": 0.15,
+        "max_hp": -15
+      },
       "rule": "no_melee",
       "ultimate": "kill_all"
     },
@@ -68,7 +90,10 @@
       "name": "Engineer",
       "portrait": "engineer.png",
       "weapon": "crossbow",
-      "stats": {"damage": -0.05, "attack_speed": 0.1},
+      "stats": {
+        "damage": -0.05,
+        "attack_speed": 0.1
+      },
       "rule": "turret_bonus",
       "ultimate": "kill_all"
     },
@@ -77,7 +102,11 @@
       "name": "Paladin",
       "portrait": "paladin.png",
       "weapon": "sword",
-      "stats": {"armor": 4, "max_hp": 40, "damage": 0.05},
+      "stats": {
+        "armor": 4,
+        "max_hp": 40,
+        "damage": 0.05
+      },
       "rule": "holy_guard",
       "ultimate": "kill_all"
     },
@@ -86,7 +115,10 @@
       "name": "Priestess",
       "portrait": "priestess.png",
       "weapon": "wand",
-      "stats": {"max_hp": 25, "attack_speed": -0.05},
+      "stats": {
+        "max_hp": 25,
+        "attack_speed": -0.05
+      },
       "rule": "healing_aura",
       "ultimate": "kill_all"
     },
@@ -95,7 +127,10 @@
       "name": "Sorceress",
       "portrait": "sorceress.png",
       "weapon": "orb_of_chaos",
-      "stats": {"damage": 0.12, "max_hp": -25},
+      "stats": {
+        "damage": 0.12,
+        "max_hp": -25
+      },
       "rule": "arcane_focus",
       "ultimate": "kill_all"
     },
@@ -104,7 +139,11 @@
       "name": "Molten",
       "portrait": "molten.png",
       "weapon": "fire_staff",
-      "stats": {"damage": 0.08, "armor": 2, "move_speed": -0.05},
+      "stats": {
+        "damage": 0.08,
+        "armor": 2,
+        "move_speed": -0.05
+      },
       "rule": "burning_core",
       "ultimate": "kill_all"
     },
@@ -113,9 +152,16 @@
       "name": "Alchemist",
       "portrait": "alchemist.png",
       "weapon": "alchemist_puddle",
-      "stats": {"damage": 0.05, "attack_speed": 0.1, "max_hp": -10},
+      "stats": {
+        "damage": 0.05,
+        "attack_speed": 0.1,
+        "max_hp": -10
+      },
       "rule": "toxic_brew",
-      "ultimate": "alchemist_ult"
+      "ultimate": "alchemist_ult",
+      "walk_strip": "heroes/alchemist/alchemist_walk.png",
+      "idle_frame": 2,
+      "anim_fps": 6
     }
   ]
 }
