@@ -179,6 +179,8 @@ typedef struct {
   float slow_timer;
   float stun_timer;
   float armor_shred_timer;
+  float curse_timer;
+  float curse_dps;
 } EnemyDebuffs;
 
 typedef struct {
@@ -244,6 +246,16 @@ typedef struct {
 
 typedef struct {
   int active;
+  int type; /* 0=freeze,1=curse,2=damage */
+  float x;
+  float y;
+  float hp;
+  float max_hp;
+  float radius;
+} Totem;
+
+typedef struct {
+  int active;
   int type;       /* 0=scythe throw, 1=bite on enemy, 2=dagger projectile, 3=alchemist ult */
   float x, y;
   float angle;
@@ -277,6 +289,7 @@ typedef struct {
   Drop drops[MAX_DROPS];
   Puddle puddles[MAX_PUDDLES];
   WeaponFX weapon_fx[MAX_WEAPON_FX];
+  Totem totems[MAX_TOTEMS];
   float spawn_timer;
   int kills;
   int xp;
@@ -292,6 +305,8 @@ typedef struct {
   float time_scale;
   int rerolls;
   int high_roll_used;
+  float totem_spawn_timer;
+  float totem_freeze_timer;
 } WaveSnapshot;
 
 typedef struct {

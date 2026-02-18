@@ -42,8 +42,8 @@ int main(int argc, char **argv) {
   skill_tree_progress_init(&game);
   skill_tree_layout_load();
 
-  game.window = SDL_CreateWindow("Madness Arena", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                 WINDOW_W, WINDOW_H, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+  game.window = SDL_CreateWindow("buh", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                                 WINDOW_W, WINDOW_H, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_MAXIMIZED);
   game.renderer = SDL_CreateRenderer(game.window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
   if (!game.window || !game.renderer) {
     log_linef("Window/renderer creation failed: %s", SDL_GetError());
@@ -143,6 +143,18 @@ int main(int argc, char **argv) {
   game.tex_lightning_zone = IMG_LoadTexture(game.renderer, "data/assets/lightning_zone.png");
   if (game.tex_lightning_zone) log_line("Loaded lightning_zone.png");
   else log_linef("Failed to load lightning_zone.png: %s", IMG_GetError());
+  game.tex_chest = IMG_LoadTexture(game.renderer, "data/assets/env/chest.png");
+  if (game.tex_chest) log_line("Loaded chest.png");
+  else log_linef("Failed to load chest.png: %s", IMG_GetError());
+  game.tex_totem_freeze = IMG_LoadTexture(game.renderer, "data/assets/env/freeze_totem.png");
+  if (game.tex_totem_freeze) log_line("Loaded freeze_totem.png");
+  else log_linef("Failed to load freeze_totem.png: %s", IMG_GetError());
+  game.tex_totem_curse = IMG_LoadTexture(game.renderer, "data/assets/env/curse_totem.png");
+  if (game.tex_totem_curse) log_line("Loaded curse_totem.png");
+  else log_linef("Failed to load curse_totem.png: %s", IMG_GetError());
+  game.tex_totem_damage = IMG_LoadTexture(game.renderer, "data/assets/env/damage_totem.png");
+  if (game.tex_totem_damage) log_line("Loaded damage_totem.png");
+  else log_linef("Failed to load damage_totem.png: %s", IMG_GetError());
 
   game.tex_scythe = IMG_LoadTexture(game.renderer, "data/assets/weapons/scythe.png");
   if (game.tex_scythe) log_line("Loaded scythe sprite");
@@ -643,6 +655,10 @@ int main(int argc, char **argv) {
   if (game.tex_enemy_bolt) SDL_DestroyTexture(game.tex_enemy_bolt);
   if (game.tex_laser_beam) SDL_DestroyTexture(game.tex_laser_beam);
   if (game.tex_lightning_zone) SDL_DestroyTexture(game.tex_lightning_zone);
+  if (game.tex_chest) SDL_DestroyTexture(game.tex_chest);
+  if (game.tex_totem_freeze) SDL_DestroyTexture(game.tex_totem_freeze);
+  if (game.tex_totem_curse) SDL_DestroyTexture(game.tex_totem_curse);
+  if (game.tex_totem_damage) SDL_DestroyTexture(game.tex_totem_damage);
   if (game.tex_enemy_charger) SDL_DestroyTexture(game.tex_enemy_charger);
   if (game.tex_scythe) SDL_DestroyTexture(game.tex_scythe);
   if (game.tex_bite) SDL_DestroyTexture(game.tex_bite);

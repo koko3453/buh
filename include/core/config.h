@@ -3,7 +3,7 @@
 
 #define MAX_WEAPONS 32
 #define MAX_ITEMS 128
-#define MAX_ENEMIES 512
+#define MAX_ENEMIES 2048
 #define MAX_BULLETS 512
 #define MAX_DROPS 256
 #define MAX_WEAPON_SLOTS 6
@@ -13,8 +13,8 @@
 
 #define WINDOW_W 1280
 #define WINDOW_H 720
-#define ARENA_W 4000
-#define ARENA_H 4000
+#define ARENA_W 8000
+#define ARENA_H 8000
 #define VIEW_W 1180
 #define VIEW_H 640
 #define ITEM_POPUP_DURATION 4.5f
@@ -28,6 +28,7 @@
 #define MAX_CHARACTERS 16
 #define MAX_SKILL_TREE_UPGRADES 64
 #define MAX_SKILL_TREE_CUSTOM_NODES 64
+#define MAX_TOTEMS 4
 
 #endif
 

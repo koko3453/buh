@@ -49,6 +49,7 @@ typedef struct {
   SDL_Texture *tex_character_walk[MAX_CHARACTERS];
   SDL_Texture *tex_enemy_bolt;
   SDL_Texture *tex_lightning_zone;
+  SDL_Texture *tex_chest;
   SDL_Texture *tex_laser_beam;
   SDL_Texture *tex_portraits[MAX_CHARACTERS];
   SDL_Texture *tex_scythe;
@@ -62,6 +63,9 @@ typedef struct {
   SDL_Texture *tex_orb_rare;
   SDL_Texture *tex_orb_epic;
   SDL_Texture *tex_orb_legendary;
+  SDL_Texture *tex_totem_freeze;
+  SDL_Texture *tex_totem_curse;
+  SDL_Texture *tex_totem_damage;
   int running;
   GameMode mode;
   GameMode pause_return_mode;
@@ -85,6 +89,7 @@ typedef struct {
   Bullet bullets[MAX_BULLETS];
   Drop drops[MAX_DROPS];
   Puddle puddles[MAX_PUDDLES];
+  Totem totems[MAX_TOTEMS];
   WeaponFX weapon_fx[MAX_WEAPON_FX];
   Boss boss;
   int boss_def_index;
@@ -150,6 +155,8 @@ typedef struct {
   int scythe_id_counter;
   float camera_x;
   float camera_y;
+  float totem_spawn_timer;
+  float totem_freeze_timer;
 } Game;
 
 extern const BossDef g_boss_defs[];
@@ -202,6 +209,7 @@ void player_try_item_proc(Game *g, int enemy_idx, Stats *stats);
 void spawn_drop(Game *g, float x, float y, int type, float value);
 void spawn_chest(Game *g, float x, float y);
 void mark_enemy_hit(Enemy *en);
+int totem_damage_at(Game *g, float x, float y, float radius, float dmg);
 
 void update_window_view(Game *g);
 void game_reset(Game *g);

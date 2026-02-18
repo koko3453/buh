@@ -100,6 +100,7 @@ static void wave_snapshot_save(Game *g) {
   memcpy(g->wave_snapshot.drops, g->drops, sizeof(g->drops));
   memcpy(g->wave_snapshot.puddles, g->puddles, sizeof(g->puddles));
   memcpy(g->wave_snapshot.weapon_fx, g->weapon_fx, sizeof(g->weapon_fx));
+  memcpy(g->wave_snapshot.totems, g->totems, sizeof(g->totems));
   g->wave_snapshot.spawn_timer = g->spawn_timer;
   g->wave_snapshot.kills = g->kills;
   g->wave_snapshot.xp = g->xp;
@@ -115,6 +116,8 @@ static void wave_snapshot_save(Game *g) {
   g->wave_snapshot.time_scale = g->time_scale;
   g->wave_snapshot.rerolls = g->rerolls;
   g->wave_snapshot.high_roll_used = g->high_roll_used;
+  g->wave_snapshot.totem_spawn_timer = g->totem_spawn_timer;
+  g->wave_snapshot.totem_freeze_timer = g->totem_freeze_timer;
 }
 
 static void wave_snapshot_restore(Game *g) {
@@ -126,6 +129,7 @@ static void wave_snapshot_restore(Game *g) {
   memcpy(g->drops, g->wave_snapshot.drops, sizeof(g->drops));
   memcpy(g->puddles, g->wave_snapshot.puddles, sizeof(g->puddles));
   memcpy(g->weapon_fx, g->wave_snapshot.weapon_fx, sizeof(g->weapon_fx));
+  memcpy(g->totems, g->wave_snapshot.totems, sizeof(g->totems));
   g->spawn_timer = g->wave_snapshot.spawn_timer;
   g->kills = g->wave_snapshot.kills;
   g->xp = g->wave_snapshot.xp;
@@ -141,6 +145,8 @@ static void wave_snapshot_restore(Game *g) {
   g->time_scale = g->wave_snapshot.time_scale;
   g->rerolls = g->wave_snapshot.rerolls;
   g->high_roll_used = g->wave_snapshot.high_roll_used;
+  g->totem_spawn_timer = g->wave_snapshot.totem_spawn_timer;
+  g->totem_freeze_timer = g->wave_snapshot.totem_freeze_timer;
 }
 
 static int find_nearest_enemy(Game *g, float x, float y) {
@@ -497,6 +503,7 @@ static void clear_boss_room(Game *g) {
   for (int i = 0; i < MAX_DROPS; i++) g->drops[i].active = 0;
   for (int i = 0; i < MAX_PUDDLES; i++) g->puddles[i].active = 0;
   for (int i = 0; i < MAX_WEAPON_FX; i++) g->weapon_fx[i].active = 0;
+  for (int i = 0; i < MAX_TOTEMS; i++) g->totems[i].active = 0;
 }
 
 static void spawn_boss(Game *g, float x, float y) {
@@ -1043,6 +1050,9 @@ void game_reset(Game *g) {
   for (int i = 0; i < MAX_BULLETS; i++) g->bullets[i].active = 0;
   for (int i = 0; i < MAX_DROPS; i++) g->drops[i].active = 0;
   for (int i = 0; i < MAX_PUDDLES; i++) g->puddles[i].active = 0;
+  for (int i = 0; i < MAX_TOTEMS; i++) g->totems[i].active = 0;
+  g->totem_spawn_timer = 20.0f + frandf() * 15.0f;
+  g->totem_freeze_timer = 0.0f;
 
   Player *p = &g->player;
   p->x = ARENA_W * 0.5f;
@@ -1188,6 +1198,100 @@ static void ultimate_aoe_mouse(Game *g) {
   float radius = 230.0f;
   spawn_puddle(g, world_x, world_y, radius, dps, 10.0f, 1);
   log_combatf(g, "ultimate aoe (r=%.0f dps=%.1f)", radius, dps);
+}
+
+static int any_totem_active(Game *g) {
+  for (int i = 0; i < MAX_TOTEMS; i++) {
+    if (g->totems[i].active) return 1;
+  }
+  return 0;
+}
+
+static void apply_totem_effect(Game *g, int type) {
+  if (!g) return;
+  if (type == 0) {
+    g->totem_freeze_timer = 5.0f;
+    for (int i = 0; i < MAX_ENEMIES; i++) {
+      if (!g->enemies[i].active) continue;
+      if (g->enemies[i].debuffs.stun_timer < 5.0f) g->enemies[i].debuffs.stun_timer = 5.0f;
+    }
+    log_combatf(g, "freeze_totem activated");
+  } else if (type == 1) {
+    for (int i = 0; i < MAX_ENEMIES; i++) {
+      Enemy *en = &g->enemies[i];
+      if (!en->active) continue;
+      en->debuffs.curse_timer = 5.0f;
+      en->debuffs.curse_dps = (en->max_hp * 0.5f) / 5.0f;
+    }
+    log_combatf(g, "curse_totem activated");
+  } else if (type == 2) {
+    int killed = 0;
+    float cam_x = g->camera_x;
+    float cam_y = g->camera_y;
+    float cam_x2 = cam_x + g->view_w;
+    float cam_y2 = cam_y + g->view_h;
+    for (int i = 0; i < MAX_ENEMIES; i++) {
+      Enemy *en = &g->enemies[i];
+      if (!en->active) continue;
+      float ex = en->x;
+      float ey = en->y;
+      if (ex >= cam_x && ex <= cam_x2 && ey >= cam_y && ey <= cam_y2) {
+        en->hp = 0.0f;
+        killed++;
+      }
+    }
+    log_combatf(g, "damage_totem activated killed=%d", killed);
+  }
+}
+
+static void spawn_random_totem(Game *g) {
+  if (!g) return;
+  for (int i = 0; i < MAX_TOTEMS; i++) {
+    if (g->totems[i].active) continue;
+    Totem *t = &g->totems[i];
+    memset(t, 0, sizeof(*t));
+    t->active = 1;
+    t->type = rand() % 3;
+    t->radius = 34.0f;
+    t->max_hp = 120.0f;
+    t->hp = t->max_hp;
+    float x = 0.0f;
+    float y = 0.0f;
+    int attempts = 0;
+    while (attempts++ < 80) {
+      x = 60.0f + frandf() * (ARENA_W - 120.0f);
+      y = 60.0f + frandf() * (ARENA_H - 120.0f);
+      float dx = x - g->player.x;
+      float dy = y - g->player.y;
+      if (dx * dx + dy * dy < 300.0f * 300.0f) continue;
+      break;
+    }
+    t->x = x;
+    t->y = y;
+    log_combatf(g, "spawned totem type=%d", t->type);
+    return;
+  }
+}
+
+int totem_damage_at(Game *g, float x, float y, float radius, float dmg) {
+  if (!g || dmg <= 0.0f) return 0;
+  for (int i = 0; i < MAX_TOTEMS; i++) {
+    Totem *t = &g->totems[i];
+    if (!t->active) continue;
+    float hit_r = t->radius + (radius > 0.0f ? radius : 0.0f);
+    float r2 = hit_r * hit_r;
+    float dx = t->x - x;
+    float dy = t->y - y;
+    if (dx * dx + dy * dy <= r2) {
+      t->hp -= dmg;
+      if (t->hp <= 0.0f) {
+        t->active = 0;
+        apply_totem_effect(g, t->type);
+      }
+      return 1;
+    }
+  }
+  return 0;
 }
 
 static void spawn_alchemist_ult_fx(Game *g, float x, float y, float radius) {
@@ -1371,10 +1475,27 @@ void update_game(Game *g, float dt) {
 
   handle_player_pickups(g, dt);
 
+  if (g->totem_freeze_timer > 0.0f) {
+    g->totem_freeze_timer -= dt;
+    if (g->totem_freeze_timer < 0.0f) g->totem_freeze_timer = 0.0f;
+  }
+
+  if (!any_totem_active(g)) {
+    g->totem_spawn_timer -= dt;
+    if (g->totem_spawn_timer <= 0.0f) {
+      spawn_random_totem(g);
+      g->totem_spawn_timer = 30.0f + frandf() * 25.0f;
+    }
+  }
+
   /* Update game time and spawn enemies continuously */
   g->game_time += dt;
-  g->spawn_timer -= dt;
-  if (g->spawn_timer <= 0.0f) {
+  if (g->totem_freeze_timer > 0.0f) {
+    /* Freeze totem pauses spawns */
+  } else {
+    g->spawn_timer -= dt;
+  }
+  if (g->spawn_timer <= 0.0f && g->totem_freeze_timer <= 0.0f) {
     if (g->db.enemy_count > 0) {
       int def_index = rand() % g->db.enemy_count;
       int eye_index = find_enemy_def(&g->db, "eye");
@@ -1773,7 +1894,12 @@ void render_game(Game *g) {
   }
 
   if (player_tex) {
-    SDL_Rect dst = { px - player_size/2, py - player_size/2, player_size, player_size };
+    int draw_size = player_size;
+    if (use_char_walk && sel && sel->walk_strip[0]) {
+      draw_size = (int)(player_size * 0.7f);
+      if (draw_size < 24) draw_size = 24;
+    }
+    SDL_Rect dst = { px - draw_size/2, py - draw_size/2, draw_size, draw_size };
     if (use_char_walk && sel) {
       int tex_w = 0, tex_h = 0;
       SDL_QueryTexture(player_tex, NULL, NULL, &tex_w, &tex_h);
@@ -1852,9 +1978,11 @@ void render_game(Game *g) {
           if (move_dx < 0.0f) enemy_flip = SDL_FLIP_HORIZONTAL;
         }
       }
-      /* Tint red when hit, blue when slowed */
+      /* Tint red when hit, blue when slowed/frozen */
       if (hit_flash) {
         SDL_SetTextureColorMod(enemy_tex, 255, 120, 120);
+      } else if (g->totem_freeze_timer > 0.0f) {
+        SDL_SetTextureColorMod(enemy_tex, 140, 180, 255);
       } else if (g->enemies[i].debuffs.slow_timer > 0.0f) {
         SDL_SetTextureColorMod(enemy_tex, 150, 180, 255);
       } else {
@@ -1866,6 +1994,7 @@ void render_game(Game *g) {
         SDL_QueryTexture(enemy_tex, NULL, NULL, &tex_w, &tex_h);
         int frame_w = tex_w / 3;
         int frame = (int)(g->game_time * 2.0f) % 3;
+        if (g->totem_freeze_timer > 0.0f) frame = 1;
         SDL_Rect src = { frame * frame_w, 0, frame_w, tex_h };
         SDL_RenderCopyEx(g->renderer, enemy_tex, &src, &dst, 0.0, NULL, enemy_flip);
       } else {
@@ -2108,6 +2237,29 @@ void render_game(Game *g) {
     }
   }
 
+  /* Totems (above ground, behind player/enemies) */
+  if (g->mode != MODE_LEVELUP) {
+    for (int i = 0; i < MAX_TOTEMS; i++) {
+      if (!g->totems[i].active) continue;
+      Totem *t = &g->totems[i];
+      int tx = (int)(offset_x + t->x - cam_x);
+      int ty = (int)(offset_y + t->y - cam_y);
+      int size = 72;
+      SDL_Texture *tex = g->tex_totem_freeze;
+      if (t->type == 1) tex = g->tex_totem_curse;
+      else if (t->type == 2) tex = g->tex_totem_damage;
+      if (tex) {
+        SDL_Rect dst = { tx - size/2, ty - size/2, size, size };
+        SDL_RenderCopy(g->renderer, tex, NULL, &dst);
+      } else {
+        SDL_Color c = {120, 120, 160, 220};
+        if (t->type == 1) c = (SDL_Color){160, 100, 160, 220};
+        if (t->type == 2) c = (SDL_Color){160, 120, 80, 220};
+        draw_filled_circle(g->renderer, tx, ty, size/3, c);
+      }
+    }
+  }
+
   /* Drops with sparkle effect */
   for (int i = 0; i < MAX_DROPS; i++) {
     if (!g->drops[i].active) continue;
@@ -2133,15 +2285,24 @@ void render_game(Game *g) {
       }
     } else {
       /* Chest */
-      draw_glow(g->renderer, dx, dy, 16, (SDL_Color){255, 200, 90, 120});
-      SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
-      SDL_SetRenderDrawColor(g->renderer, 140, 90, 30, 255);
-      SDL_Rect box = { dx - 13, dy - 10, 26, 20 };
-      SDL_RenderFillRect(g->renderer, &box);
-      SDL_SetRenderDrawColor(g->renderer, 230, 190, 90, 255);
-      SDL_RenderDrawRect(g->renderer, &box);
-      SDL_RenderDrawLine(g->renderer, dx - 10, dy, dx + 10, dy);
-      SDL_RenderDrawLine(g->renderer, dx, dy - 10, dx, dy + 10);
+      float pulse = 0.6f + 0.4f * sinf(g->game_time * 3.0f);
+      int glow_r = (int)(22 + pulse * 10);
+      Uint8 glow_a = (Uint8)(120 + pulse * 80);
+      draw_glow(g->renderer, dx, dy, glow_r, (SDL_Color){255, 200, 90, glow_a});
+      if (g->tex_chest) {
+        int size = 64;
+        SDL_Rect dst = { dx - size / 2, dy - size / 2, size, size };
+        SDL_RenderCopy(g->renderer, g->tex_chest, NULL, &dst);
+      } else {
+        SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(g->renderer, 140, 90, 30, 255);
+        SDL_Rect box = { dx - 13, dy - 10, 26, 20 };
+        SDL_RenderFillRect(g->renderer, &box);
+        SDL_SetRenderDrawColor(g->renderer, 230, 190, 90, 255);
+        SDL_RenderDrawRect(g->renderer, &box);
+        SDL_RenderDrawLine(g->renderer, dx - 10, dy, dx + 10, dy);
+        SDL_RenderDrawLine(g->renderer, dx, dy - 10, dx, dy + 10);
+      }
     }
   }
 
@@ -2185,6 +2346,12 @@ void render_game(Game *g) {
     draw_text(g->renderer, g->font, 380, 10, text, buf);
     snprintf(buf, sizeof(buf), "Kills %d", g->kills);
     draw_text(g->renderer, g->font, 520, 10, text, buf);
+    int enemies_alive = 0;
+    for (int i = 0; i < MAX_ENEMIES; i++) {
+      if (g->enemies[i].active) enemies_alive++;
+    }
+    snprintf(buf, sizeof(buf), "Enemies %d", enemies_alive);
+    draw_text(g->renderer, g->font, 620, 10, text, buf);
 
     if (g->ultimate_cd > 0.0f) {
       snprintf(buf, sizeof(buf), "[SPACE] Ultimate: %.0fs", g->ultimate_cd);

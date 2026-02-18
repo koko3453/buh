@@ -12,19 +12,19 @@
     "rolls_root": { "x": 0.4680, "y": 0.6139 },
     "rolls_reroll": { "x": 0.4266, "y": 0.9083 },
     "rolls_highroll": { "x": 0.3195, "y": 0.8111 },
-    "stats_root": { "x": 0.4438, "y": 0.4957 },
-    "stats_damage": { "x": 0.3125, "y": 0.4105 },
-    "stats_attack_speed": { "x": 0.1892, "y": 0.4522 },
-    "stats_crit": { "x": 0.2326, "y": 0.2685 }
+    "stats_root": { "x": 0.4431, "y": 0.4940 },
+    "stats_damage": { "x": 0.3125, "y": 0.4087 },
+    "stats_attack_speed": { "x": 0.1886, "y": 0.4504 },
+    "stats_crit": { "x": 0.2321, "y": 0.2659 }
   },
   "custom_nodes": [
-    { "x": 0.0252, "y": 0.3179, "name": "Custom 1", "desc": "Custom node", "max_rank": 3, "parent_kind": 0, "parent_index": -1 },
-    { "x": 0.0675, "y": 0.6062, "name": "moooreeeee stats!!!!!", "desc": "description test xd", "max_rank": 1, "parent_kind": 1, "parent_index": 14 }
+    { "x": 0.0240, "y": 0.3165, "name": "Custom 1", "desc": "Custom node", "max_rank": 3, "parent_kind": 0, "parent_index": -1 },
+    { "x": 0.0664, "y": 0.6062, "name": "moooreeeee stats!!!!!", "desc": "description test xd", "max_rank": 2, "parent_kind": 1, "parent_index": 14 }
   ],
   "node_overrides": {
-    "stats_root": { "max_rank": 0, "parent_kind": 1, "parent_index": 13, "name": "", "desc": "" },
-    "stats_damage": { "max_rank": 0, "parent_kind": 1, "parent_index": 14, "name": "", "desc": "" },
-    "stats_attack_speed": { "max_rank": 0, "parent_kind": 2, "parent_index": 0, "name": "", "desc": "" },
-    "stats_crit": { "max_rank": 0, "parent_kind": 1, "parent_index": 13, "name": "", "desc": "" }
+    "stats_root": { "max_rank": 2, "parent_kind": 1, "parent_index": 13, "name": "", "desc": "" },
+    "stats_damage": { "max_rank": 1, "parent_kind": 1, "parent_index": 14, "name": "", "desc": "" },
+    "stats_attack_speed": { "max_rank": 1, "parent_kind": 2, "parent_index": 0, "name": "", "desc": "" },
+    "stats_crit": { "max_rank": 2, "parent_kind": 1, "parent_index": 13, "name": "sda", "desc": "asd" }
   }
 }

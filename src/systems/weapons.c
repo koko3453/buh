@@ -127,6 +127,7 @@ void update_weapon_fx(Game *g, float dt) {
           }
         }
       }
+      totem_damage_at(g, px, py, hit_r, fx->damage);
       if (g->mode == MODE_BOSS_EVENT && g->boss.active && !fx->scythe_hit_boss) {
         float dx = g->boss.x - px;
         float dy = g->boss.y - py;
@@ -170,6 +171,9 @@ void update_puddles(Game *g, float dt) {
         }
       }
     }
+    if (p->dps > 0.0f) {
+      totem_damage_at(g, p->x, p->y, p->radius, p->dps * dt);
+    }
     if (p->log_timer <= 0.0f) p->log_timer = 0.25f;
   }
 }
@@ -212,6 +216,10 @@ void update_bullets(Game *g, float dt) {
     }
 
     if (b->from_player) {
+      if (totem_damage_at(g, b->x, b->y, b->radius + 6.0f, b->damage)) {
+        b->active = 0;
+        continue;
+      }
       if (g->mode == MODE_BOSS_EVENT && g->boss.active) {
         const BossDef *bdef = &g_boss_defs[g->boss.def_index];
         float dx = g->boss.x - b->x;
@@ -339,9 +347,9 @@ void fire_weapons(Game *g, float dt) {
         float cos_a = cosf(angle_hit);
         float sin_a = sinf(angle_hit);
 
-        if (g->mode == MODE_BOSS_EVENT && g->boss.active) {
-          if (g->boss.sword_hit_cd > 0.0f) {
-          } else {
+      if (g->mode == MODE_BOSS_EVENT && g->boss.active) {
+        if (g->boss.sword_hit_cd > 0.0f) {
+        } else {
             float dx = g->boss.x - mid_x;
             float dy = g->boss.y - mid_y;
             float local_x = -dx * sin_a + dy * cos_a;
@@ -355,11 +363,12 @@ void fire_weapons(Game *g, float dt) {
               float final_dmg = player_roll_crit_damage(&stats, w, damage);
               g->boss.hp -= final_dmg;
               g->boss.sword_hit_cd = SWORD_ORBIT_HIT_COOLDOWN / attack_speed;
-            }
           }
         }
+      }
 
-        for (int e = 0; e < MAX_ENEMIES; e++) {
+      totem_damage_at(g, tip_x, tip_y, 22.0f, damage);
+      for (int e = 0; e < MAX_ENEMIES; e++) {
           Enemy *en = &g->enemies[e];
           if (!en->active) continue;
           if (en->spawn_invuln > 0.0f) continue;
@@ -481,6 +490,7 @@ void fire_weapons(Game *g, float dt) {
     if (weapon_is(w, "lightning_zone")) {
       float range = w->range * (1.0f + 0.1f * (slot->level - 1));
       float range2 = range * range;
+      totem_damage_at(g, p->x, p->y, range, damage);
       if (g->mode == MODE_BOSS_EVENT && g->boss.active) {
         float ex = g->boss.x - p->x;
         float ey = g->boss.y - p->y;
@@ -531,6 +541,9 @@ void fire_weapons(Game *g, float dt) {
     if (weapon_is(w, "laser") || weapon_is(w, "whip") || weapon_is(w, "chain_blades")) {
       float range = w->range;
       float half_width = weapon_is(w, "whip") ? 8.0f : 10.0f;
+      float line_cx = p->x + tx * (range * 0.5f);
+      float line_cy = p->y + ty * (range * 0.5f);
+      totem_damage_at(g, line_cx, line_cy, range * 0.5f + half_width, damage);
       if (g->mode == MODE_BOSS_EVENT && g->boss.active) {
         float ex = g->boss.x - p->x;
         float ey = g->boss.y - p->y;
@@ -609,6 +622,7 @@ void fire_weapons(Game *g, float dt) {
     if (weapon_is(w, "vampire_bite")) {
       float range = w->range;
       float range2 = range * range;
+      totem_damage_at(g, p->x, p->y, range, damage);
       int hits = 0;
       for (int e = 0; e < MAX_ENEMIES; e++) {
         if (!g->enemies[e].active) continue;
@@ -733,6 +747,7 @@ void fire_weapons(Game *g, float dt) {
       float range = w->range;
       float arc_deg = weapon_is(w, "axe") || weapon_is(w, "greatsword") || weapon_is(w, "hammer") ? 110.0f : 80.0f;
       float arc_cos = cosf(arc_deg * (3.14159f / 180.0f));
+      totem_damage_at(g, p->x, p->y, range, damage);
       for (int e = 0; e < MAX_ENEMIES; e++) {
         if (!g->enemies[e].active) continue;
         float ex = g->enemies[e].x - p->x;
