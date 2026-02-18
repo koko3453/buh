@@ -130,7 +130,7 @@ void update_enemies(Game *g, float dt) {
       }
     }
 
-    if (dist < 20.0f) {
+    if (dist < 20.0f && p->alch_ult_phase == 0) {
       float dmg = damage_after_armor(def->damage, stats.armor);
       float applied = dmg * dt;
       p->hp -= applied;
@@ -141,7 +141,7 @@ void update_enemies(Game *g, float dt) {
       }
     }
 
-    if (strcmp(def->role, "exploder") == 0 && dist < 28.0f) {
+    if (strcmp(def->role, "exploder") == 0 && dist < 28.0f && p->alch_ult_phase == 0) {
       float dmg = damage_after_armor(def->damage, stats.armor);
       float applied = dmg * 2.0f;
       p->hp -= applied;
@@ -158,7 +158,7 @@ void update_enemies(Game *g, float dt) {
       g->kills += 1;
       if (e->spawn_invuln <= 0.0f) {
         float lifesteal = player_lifesteal_on_kill(p, &g->db);
-        if (lifesteal > 0.0f) {
+        if (lifesteal > 0.0f && p->alch_ult_phase == 0) {
           p->hp = clampf(p->hp + lifesteal, 0.0f, stats.max_hp);
           log_combatf(g, "lifesteal_on_kill +%.1f HP", lifesteal);
         }

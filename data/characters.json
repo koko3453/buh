@@ -115,7 +115,7 @@
       "weapon": "alchemist_puddle",
       "stats": {"damage": 0.05, "attack_speed": 0.1, "max_hp": -10},
       "rule": "toxic_brew",
-      "ultimate": "kill_all"
+      "ultimate": "alchemist_ult"
     }
   ]
 }

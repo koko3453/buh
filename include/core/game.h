@@ -39,6 +39,7 @@ typedef struct {
   SDL_Texture *tex_enemy;
   SDL_Texture *tex_enemy_eye;
   SDL_Texture *tex_enemy_ghost;
+  SDL_Texture *tex_enemy_charger;
   SDL_Texture *tex_boss;
   SDL_Texture *tex_player;
   SDL_Texture *tex_player_front;
@@ -53,6 +54,7 @@ typedef struct {
   SDL_Texture *tex_bite;
   SDL_Texture *tex_dagger;
   SDL_Texture *tex_alchemist_puddle;
+  SDL_Texture *tex_alchemist_ult;
   SDL_Texture *tex_exp_orb;
   SDL_Texture *tex_orb_common;
   SDL_Texture *tex_orb_uncommon;

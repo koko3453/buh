@@ -1049,6 +1049,10 @@ void game_reset(Game *g) {
   p->is_moving = 0;
   p->scythe_throw_angle = 0.0f;
   p->sword_orbit_angle = -1.570796f;
+  p->alch_ult_phase = 0;
+  p->alch_ult_timer = 0.0f;
+  p->alch_ult_start_hp = p->hp;
+  p->alch_ult_max_hp = p->hp;
 
   int chest_spawned = 0;
   int attempts = 0;
@@ -1121,7 +1125,9 @@ static void handle_player_pickups(Game *g, float dt) {
           }
         }
       } else if (d->type == 1) {
-        p->hp = clampf(p->hp + d->value, 0.0f, total.max_hp);
+        if (p->alch_ult_phase == 0) {
+          p->hp = clampf(p->hp + d->value, 0.0f, total.max_hp);
+        }
       } else {
         level_up(g);
       }
@@ -1167,6 +1173,82 @@ static void ultimate_aoe_mouse(Game *g) {
   log_combatf(g, "ultimate aoe (r=%.0f dps=%.1f)", radius, dps);
 }
 
+static void spawn_alchemist_ult_fx(Game *g, float x, float y, float radius) {
+  if (!g) return;
+  for (int i = 0; i < MAX_WEAPON_FX; i++) {
+    if (!g->weapon_fx[i].active) {
+      WeaponFX *fx = &g->weapon_fx[i];
+      memset(fx, 0, sizeof(*fx));
+      fx->active = 1;
+      fx->type = 3;
+      fx->x = x;
+      fx->y = y;
+      fx->radius = radius;
+      fx->timer = 0.0f;
+      fx->duration = 0.6f;
+      return;
+    }
+  }
+}
+
+static void ultimate_alchemist(Game *g) {
+  if (!g) return;
+  Player *p = &g->player;
+  if (p->alch_ult_phase != 0) return;
+  Stats stats = player_total_stats(p, &g->db);
+  p->alch_ult_phase = 1;
+  p->alch_ult_timer = 0.0f;
+  p->alch_ult_start_hp = clampf(p->hp, 1.0f, stats.max_hp);
+  p->alch_ult_max_hp = stats.max_hp;
+  log_combatf(g, "alchemist ult start");
+}
+
+static void update_alchemist_ult(Game *g, float dt) {
+  if (!g) return;
+  Player *p = &g->player;
+  if (p->alch_ult_phase == 0) return;
+
+  const float drain_time = 3.0f;
+  const float heal_time = 3.0f;
+  const float radius = 260.0f;
+
+  p->alch_ult_timer += dt;
+  if (p->alch_ult_phase == 1) {
+    float t = clampf(p->alch_ult_timer / drain_time, 0.0f, 1.0f);
+    p->hp = p->alch_ult_start_hp + (1.0f - p->alch_ult_start_hp) * t;
+    if (t >= 1.0f) {
+      float radius2 = radius * radius;
+      int killed = 0;
+      spawn_alchemist_ult_fx(g, p->x, p->y, radius);
+      for (int i = 0; i < MAX_ENEMIES; i++) {
+        Enemy *en = &g->enemies[i];
+        if (!en->active) continue;
+        EnemyDef *def = &g->db.enemies[en->def_index];
+        if (strcmp(def->role, "boss") == 0) continue;
+        float dx = en->x - p->x;
+        float dy = en->y - p->y;
+        if (dx * dx + dy * dy <= radius2) {
+          en->hp = 0.0f;
+          mark_enemy_hit(en);
+          killed++;
+        }
+      }
+      log_combatf(g, "alchemist ult explode r=%.0f killed=%d", radius, killed);
+      p->alch_ult_phase = 2;
+      p->alch_ult_timer = 0.0f;
+      p->hp = 1.0f;
+    }
+  } else if (p->alch_ult_phase == 2) {
+    float t = clampf(p->alch_ult_timer / heal_time, 0.0f, 1.0f);
+    p->hp = 1.0f + (p->alch_ult_max_hp - 1.0f) * t;
+    if (t >= 1.0f) {
+      p->hp = p->alch_ult_max_hp;
+      p->alch_ult_phase = 0;
+      p->alch_ult_timer = 0.0f;
+    }
+  }
+}
+
 static void ultimate_shift_speed(Game *g) {
   if (!g) return;
   g->player.ultimate_move_to_as_timer = 30.0f;
@@ -1182,6 +1264,8 @@ void activate_ultimate(Game *g) {
   /* Dispatch to appropriate ultimate */
   if (strcmp(ult_type, "kill_all") == 0) {
     ultimate_aoe_mouse(g);
+  } else if (strcmp(ult_type, "alchemist_ult") == 0) {
+    ultimate_alchemist(g);
   } else if (strcmp(ult_type, "shift_speed") == 0) {
     ultimate_shift_speed(g);
   } else if (strcmp(ult_type, "aoe_mouse") == 0) {
@@ -1196,6 +1280,7 @@ void update_game(Game *g, float dt) {
   const Uint8 *keys = SDL_GetKeyboardState(NULL);
   Player *p = &g->player;
   Stats stats = player_total_stats(p, &g->db);
+  update_alchemist_ult(g, dt);
 
   /* Ultimate cooldown tick */
   if (g->ultimate_cd > 0.0f) g->ultimate_cd -= dt;
@@ -1222,7 +1307,7 @@ void update_game(Game *g, float dt) {
   p->x = clampf(p->x + vx * speed * dt, 20.0f, ARENA_W - 20.0f);
   p->y = clampf(p->y + vy * speed * dt, 20.0f, ARENA_H - 20.0f);
 
-  if (stats.hp_regen > 0.0f) {
+  if (stats.hp_regen > 0.0f && p->alch_ult_phase == 0) {
     p->hp = clampf(p->hp + stats.hp_regen * dt, 0.0f, stats.max_hp);
   }
 
@@ -1309,6 +1394,8 @@ void update_boss_event(Game *g, float dt) {
   const Uint8 *keys = SDL_GetKeyboardState(NULL);
   Player *p = &g->player;
   Stats stats = player_total_stats(p, &g->db);
+  update_alchemist_ult(g, dt);
+  int player_immune = (p->alch_ult_phase != 0);
 
   if (g->boss_event_cd > 0.0f) {
     g->boss_event_cd -= dt;
@@ -1369,7 +1456,7 @@ void update_boss_event(Game *g, float dt) {
   p->x = clampf(p->x + vx * speed * dt, 20.0f, ARENA_W - 20.0f);
   p->y = clampf(p->y + vy * speed * dt, 20.0f, ARENA_H - 20.0f);
 
-  if (stats.hp_regen > 0.0f) {
+  if (stats.hp_regen > 0.0f && p->alch_ult_phase == 0) {
     p->hp = clampf(p->hp + stats.hp_regen * dt, 0.0f, stats.max_hp);
   }
 
@@ -1420,7 +1507,7 @@ void update_boss_event(Game *g, float dt) {
     float hit_range = def->radius + 14.0f;
     if (dist < hit_range && g->boss.attack_timer <= 0.0f) {
       float dmg = damage_after_armor(def->damage, stats.armor);
-      p->hp -= dmg;
+      if (!player_immune) p->hp -= dmg;
       g->boss.attack_timer = def->attack_cooldown;
     }
 
@@ -1439,7 +1526,7 @@ void update_boss_event(Game *g, float dt) {
       float perp = fabsf(dx * (-ly) + dy * lx);
       if (perp <= def->beam_width * 0.5f) {
         float dmg = damage_after_armor(def->beam_dps * dt, stats.armor);
-        p->hp -= dmg;
+        if (!player_immune) p->hp -= dmg;
       }
     }
 
@@ -1463,7 +1550,7 @@ void update_boss_event(Game *g, float dt) {
       }
       if (!safe) {
         float dmg = damage_after_armor(def->hazard_dps * dt, stats.armor);
-        p->hp -= dmg;
+        if (!player_immune) p->hp -= dmg;
       }
     } else if (g->boss.hazard_cd <= 0.0f) {
       g->boss.hazard_timer = def->hazard_duration;
@@ -1507,7 +1594,7 @@ void update_boss_event(Game *g, float dt) {
 
     if (!hazard_active && g->boss.slam_cd <= 0.0f && dist < def->slam_radius) {
       float dmg = damage_after_armor(def->slam_damage, stats.armor);
-      p->hp -= dmg;
+      if (!player_immune) p->hp -= dmg;
       g->boss.slam_cd = def->slam_cooldown;
     }
 
@@ -1689,8 +1776,24 @@ void render_game(Game *g) {
 
     /* Draw enemy sprite with color tint for slow */
     SDL_Texture *enemy_tex = g->tex_enemy;
-    if (strcmp(def->id, "eye") == 0 && g->tex_enemy_eye) enemy_tex = g->tex_enemy_eye;
-    if (strcmp(def->id, "ghost") == 0 && g->tex_enemy_ghost) enemy_tex = g->tex_enemy_ghost;
+    int use_charger_anim = 0;
+    int use_base_anim = 0;
+    int use_ghost_anim = 0;
+    int use_eye_anim = 0;
+    if (strcmp(def->id, "eye") == 0 && g->tex_enemy_eye) {
+      enemy_tex = g->tex_enemy_eye;
+      use_eye_anim = 1;
+    }
+    if (strcmp(def->id, "ghost") == 0 && g->tex_enemy_ghost) {
+      enemy_tex = g->tex_enemy_ghost;
+      use_ghost_anim = 1;
+    }
+    if (strcmp(def->id, "charger") == 0 && g->tex_enemy_charger) {
+      enemy_tex = g->tex_enemy_charger;
+      use_charger_anim = 1;
+    } else if (enemy_tex == g->tex_enemy) {
+      use_base_anim = 1;
+    }
     if (enemy_tex) {
       float move_dx = 0.0f;
       float move_dy = 0.0f;
@@ -1716,7 +1819,16 @@ void render_game(Game *g) {
         SDL_SetTextureColorMod(enemy_tex, 255, 255, 255);
       }
       SDL_Rect dst = { ex - size/2, ey - size/2, size, size };
-      SDL_RenderCopyEx(g->renderer, enemy_tex, NULL, &dst, 0.0, NULL, enemy_flip);
+      if (use_charger_anim || use_base_anim || use_ghost_anim || use_eye_anim) {
+        int tex_w = 0, tex_h = 0;
+        SDL_QueryTexture(enemy_tex, NULL, NULL, &tex_w, &tex_h);
+        int frame_w = tex_w / 3;
+        int frame = (int)(g->game_time * 2.0f) % 3;
+        SDL_Rect src = { frame * frame_w, 0, frame_w, tex_h };
+        SDL_RenderCopyEx(g->renderer, enemy_tex, &src, &dst, 0.0, NULL, enemy_flip);
+      } else {
+        SDL_RenderCopyEx(g->renderer, enemy_tex, NULL, &dst, 0.0, NULL, enemy_flip);
+      }
     } else {
       /* Fallback circle - tint blue when slowed */
       if (hit_flash) {
@@ -1928,6 +2040,28 @@ void render_game(Game *g) {
           SDL_RenderDrawLine(g->renderer, dx, dy, tip_x, tip_y);
           draw_filled_circle(g->renderer, tip_x, tip_y, 3, (SDL_Color){200, 200, 220, (Uint8)alpha});
         }
+      }
+    }
+    else if (fx->type == 3) {
+      /* Alchemist ultimate explosion */
+      int ex = (int)(offset_x + fx->x - cam_x);
+      int ey = (int)(offset_y + fx->y - cam_y);
+      float t = clampf(progress, 0.0f, 1.0f);
+      float scale = 0.75f + t * 0.45f;
+      int size = (int)(fx->radius * 2.0f * scale);
+      int alpha = (int)(230 * (1.0f - t));
+      if (size < 8) size = 8;
+
+      if (g->tex_alchemist_ult) {
+        SDL_Rect dst = { ex - size/2, ey - size/2, size, size };
+        SDL_SetTextureAlphaMod(g->tex_alchemist_ult, (Uint8)alpha);
+        SDL_RenderCopy(g->renderer, g->tex_alchemist_ult, NULL, &dst);
+        SDL_SetTextureAlphaMod(g->tex_alchemist_ult, 255);
+      } else {
+        SDL_Color core = { 220, 70, 90, (Uint8)alpha };
+        SDL_Color glow = { 255, 120, 140, (Uint8)(alpha * 0.6f) };
+        draw_filled_circle(g->renderer, ex, ey, size/4, core);
+        draw_glow(g->renderer, ex, ey, size/2, glow);
       }
     }
   }

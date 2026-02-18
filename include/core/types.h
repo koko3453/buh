@@ -145,6 +145,10 @@ typedef struct {
   int is_moving;
   float scythe_throw_angle;
   float sword_orbit_angle;
+  int alch_ult_phase; /* 0=inactive, 1=drain, 2=heal */
+  float alch_ult_timer;
+  float alch_ult_start_hp;
+  float alch_ult_max_hp;
 } Player;
 
 typedef struct {
@@ -237,7 +241,7 @@ typedef struct {
 
 typedef struct {
   int active;
-  int type;       /* 0=scythe throw, 1=bite on enemy, 2=dagger projectile */
+  int type;       /* 0=scythe throw, 1=bite on enemy, 2=dagger projectile, 3=alchemist ult */
   float x, y;
   float angle;
   float timer;

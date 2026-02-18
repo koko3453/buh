@@ -90,9 +90,10 @@ int main(int argc, char **argv) {
 
   game.tex_ground = IMG_LoadTexture(game.renderer, "data/assets/hd_ground_tile.png");
   game.tex_wall = IMG_LoadTexture(game.renderer, "data/assets/wall.png");
-  game.tex_enemy = IMG_LoadTexture(game.renderer, "data/assets/goo_green.png");
-  game.tex_enemy_eye = IMG_LoadTexture(game.renderer, "data/assets/eye_enemy.png");
-  game.tex_enemy_ghost = IMG_LoadTexture(game.renderer, "data/assets/ghost_enemy.png");
+  game.tex_enemy = IMG_LoadTexture(game.renderer, "data/assets/enemies/goo_enemy.png");
+  game.tex_enemy_eye = IMG_LoadTexture(game.renderer, "data/assets/enemies/eye_enemy.png");
+  game.tex_enemy_ghost = IMG_LoadTexture(game.renderer, "data/assets/enemies/ghost_enemy.png");
+  game.tex_enemy_charger = IMG_LoadTexture(game.renderer, "data/assets/enemies/reaper_enemy.png");
   game.tex_health_flask = IMG_LoadTexture(game.renderer, "data/assets/health_flask.png");
   if (game.tex_health_flask) log_line("Loaded health_flask.png");
   else log_linef("Failed to load health_flask.png: %s", IMG_GetError());
@@ -100,12 +101,14 @@ int main(int argc, char **argv) {
   else log_linef("Failed to load ground.png: %s", IMG_GetError());
   if (game.tex_wall) log_line("Loaded wall.png");
   else log_linef("Failed to load wall.png: %s", IMG_GetError());
-  if (game.tex_enemy) log_line("Loaded goo_green.png");
-  else log_linef("Failed to load goo_green.png: %s", IMG_GetError());
-  if (game.tex_enemy_eye) log_line("Loaded eye_enemy.png");
-  else log_linef("Failed to load eye_enemy.png: %s", IMG_GetError());
-  if (game.tex_enemy_ghost) log_line("Loaded ghost_enemy.png");
-  else log_linef("Failed to load ghost_enemy.png: %s", IMG_GetError());
+  if (game.tex_enemy) log_line("Loaded goo_enemy.png");
+  else log_linef("Failed to load goo_enemy.png: %s", IMG_GetError());
+  if (game.tex_enemy_eye) log_line("Loaded enemies/eye_enemy.png");
+  else log_linef("Failed to load enemies/eye_enemy.png: %s", IMG_GetError());
+  if (game.tex_enemy_ghost) log_line("Loaded enemies/ghost_enemy.png");
+  else log_linef("Failed to load enemies/ghost_enemy.png: %s", IMG_GetError());
+  if (game.tex_enemy_charger) log_line("Loaded reaper_enemy.png");
+  else log_linef("Failed to load reaper_enemy.png: %s", IMG_GetError());
   game.tex_boss = load_texture_fallback(game.renderer, "data/assets/fire_goo_boss.png");
   if (game.tex_boss) log_line("Loaded fire_goo_boss.png");
   else log_linef("Failed to load fire_goo_boss.png: %s", IMG_GetError());
@@ -143,6 +146,9 @@ int main(int argc, char **argv) {
   game.tex_alchemist_puddle = IMG_LoadTexture(game.renderer, "data/assets/weapons/alchemist_puddle.png");
   if (game.tex_alchemist_puddle) log_line("Loaded alchemist puddle sprite");
   else log_linef("Failed to load alchemist_puddle.png: %s", IMG_GetError());
+  game.tex_alchemist_ult = IMG_LoadTexture(game.renderer, "data/assets/alchemist_ult.png");
+  if (game.tex_alchemist_ult) log_line("Loaded alchemist ult sprite");
+  else log_linef("Failed to load alchemist_ult.png: %s", IMG_GetError());
   game.tex_exp_orb = IMG_LoadTexture(game.renderer, "data/assets/exp_orb.png");
   if (game.tex_exp_orb) log_line("Loaded exp_orb sprite");
   else log_linef("Failed to load exp_orb.png: %s", IMG_GetError());
@@ -269,7 +275,7 @@ int main(int argc, char **argv) {
             build_start_page(&game);
           }
         }
-        if (game.mode == MODE_WAVE) {
+        if (game.mode == MODE_WAVE || game.mode == MODE_BOSS_EVENT) {
           if (e.key.keysym.sym == SDLK_SPACE && game.ultimate_cd <= 0.0f) {
             activate_ultimate(&game);
             game.ultimate_cd = 120.0f;
@@ -406,10 +412,12 @@ int main(int argc, char **argv) {
   if (game.tex_enemy_bolt) SDL_DestroyTexture(game.tex_enemy_bolt);
   if (game.tex_laser_beam) SDL_DestroyTexture(game.tex_laser_beam);
   if (game.tex_lightning_zone) SDL_DestroyTexture(game.tex_lightning_zone);
+  if (game.tex_enemy_charger) SDL_DestroyTexture(game.tex_enemy_charger);
   if (game.tex_scythe) SDL_DestroyTexture(game.tex_scythe);
   if (game.tex_bite) SDL_DestroyTexture(game.tex_bite);
   if (game.tex_dagger) SDL_DestroyTexture(game.tex_dagger);
   if (game.tex_alchemist_puddle) SDL_DestroyTexture(game.tex_alchemist_puddle);
+  if (game.tex_alchemist_ult) SDL_DestroyTexture(game.tex_alchemist_ult);
   if (game.tex_exp_orb) SDL_DestroyTexture(game.tex_exp_orb);
   if (game.tex_orb_common) SDL_DestroyTexture(game.tex_orb_common);
   if (game.tex_orb_uncommon) SDL_DestroyTexture(game.tex_orb_uncommon);

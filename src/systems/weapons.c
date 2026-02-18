@@ -121,7 +121,9 @@ void update_weapon_fx(Game *g, float dt) {
           en->scythe_hit_id = fx->scythe_id;
           player_try_item_proc(g, e, &stats);
           if (en->hp <= 0.0f) {
-            g->player.hp = clampf(g->player.hp + 6.0f, 0.0f, stats.max_hp);
+            if (g->player.alch_ult_phase == 0) {
+              g->player.hp = clampf(g->player.hp + 6.0f, 0.0f, stats.max_hp);
+            }
           }
         }
       }
@@ -277,7 +279,7 @@ void update_bullets(Game *g, float dt) {
       float dy = p->y - b->y;
       if (dx * dx + dy * dy < 400.0f) {
         float dmg = damage_after_armor(b->damage, stats.armor);
-        p->hp -= dmg;
+        if (p->alch_ult_phase == 0) p->hp -= dmg;
         b->active = 0;
       }
     }
@@ -622,7 +624,9 @@ void fire_weapons(Game *g, float dt) {
           en->hp -= final_dmg;
           log_combatf(g, "hit %s with %s for %.1f", enemy_label(g, en), w->name, final_dmg);
           spawn_weapon_fx(g, 1, en->x, en->y, 0.0f, 0.6f, e);
-          p->hp = clampf(p->hp + final_dmg * 0.15f, 0.0f, stats.max_hp);
+          if (p->alch_ult_phase == 0) {
+            p->hp = clampf(p->hp + final_dmg * 0.15f, 0.0f, stats.max_hp);
+          }
           if (chances.burn > 0.0f && frandf() < chances.burn) {
             en->debuffs.burn_timer = 4.0f;
             log_combatf(g, "burn applied to %s", enemy_label(g, en));
