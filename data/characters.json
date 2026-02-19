@@ -138,14 +138,17 @@
       "id": "molten",
       "name": "Molten",
       "portrait": "molten.png",
-      "weapon": "fire_staff",
+      "weapon": "",
       "stats": {
         "damage": 0.08,
         "armor": 2,
         "move_speed": -0.05
       },
       "rule": "burning_core",
-      "ultimate": "kill_all"
+      "ultimate": "kill_all",
+      "walk_strip": "heroes/molten/molten_walk.png",
+      "idle_frame": 1,
+      "anim_fps": 6
     },
     {
       "id": "alchemist",

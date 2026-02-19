@@ -56,6 +56,7 @@ typedef struct {
   SDL_Texture *tex_bite;
   SDL_Texture *tex_dagger;
   SDL_Texture *tex_alchemist_puddle;
+  SDL_Texture *tex_fire_trail;
   SDL_Texture *tex_alchemist_ult;
   SDL_Texture *tex_exp_orb;
   SDL_Texture *tex_orb_common;

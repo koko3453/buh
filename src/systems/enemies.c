@@ -74,6 +74,7 @@ void update_enemies(Game *g, float dt) {
     if (e->debuffs.slow_timer > 0.0f) e->debuffs.slow_timer -= dt;
     if (e->debuffs.stun_timer > 0.0f) e->debuffs.stun_timer -= dt;
     if (e->debuffs.armor_shred_timer > 0.0f) e->debuffs.armor_shred_timer -= dt;
+    if (e->debuffs.molten_tick_cd > 0.0f) e->debuffs.molten_tick_cd -= dt;
     if (e->debuffs.curse_timer > 0.0f) {
       e->debuffs.curse_timer -= dt;
       e->hp -= e->debuffs.curse_dps * dt;

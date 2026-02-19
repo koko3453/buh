@@ -10,15 +10,19 @@ FILE *g_log = NULL;
 int g_log_combat = 1;
 FILE *g_combat_log = NULL;
 
-void log_line(const char *msg) {
-  if (!g_log) return;
+void log_line(const char *msg)
+{
+  if (!g_log)
+    return;
   fputs(msg, g_log);
   fputs("\n", g_log);
   fflush(g_log);
 }
 
-void log_linef(const char *fmt, ...) {
-  if (!g_log) return;
+void log_linef(const char *fmt, ...)
+{
+  if (!g_log)
+    return;
   char buf[512];
   va_list args;
   va_start(args, fmt);
@@ -27,45 +31,62 @@ void log_linef(const char *fmt, ...) {
   log_line(buf);
 }
 
-SDL_Texture *load_texture_fallback(SDL_Renderer *r, const char *path) {
+SDL_Texture *load_texture_fallback(SDL_Renderer *r, const char *path)
+{
   SDL_Texture *tex = IMG_LoadTexture(r, path);
-  if (tex) return tex;
+  if (tex)
+    return tex;
   char alt[256];
   snprintf(alt, sizeof(alt), "../%s", path);
   tex = IMG_LoadTexture(r, alt);
-  if (tex) return tex;
+  if (tex)
+    return tex;
   snprintf(alt, sizeof(alt), "../../%s", path);
   return IMG_LoadTexture(r, alt);
 }
 
-LONG WINAPI crash_handler(EXCEPTION_POINTERS *e) {
+LONG WINAPI crash_handler(EXCEPTION_POINTERS *e)
+{
   log_linef("Crash code: 0x%08lx", (unsigned long)e->ExceptionRecord->ExceptionCode);
   log_linef("Crash addr: %p", e->ExceptionRecord->ExceptionAddress);
   return EXCEPTION_EXECUTE_HANDLER;
 }
 
-int weapon_is(const WeaponDef *w, const char *id) {
+int weapon_is(const WeaponDef *w, const char *id)
+{
   return strcmp(w->id, id) == 0;
 }
 
-WeaponStatusChances weapon_status_chances(const WeaponDef *w) {
+WeaponStatusChances weapon_status_chances(const WeaponDef *w)
+{
   WeaponStatusChances chances = {0};
-  if (weapon_is(w, "daggers")) chances.bleed = 0.6f;
-  if (weapon_is(w, "sword") || weapon_is(w, "short_sword") || weapon_is(w, "longsword")) chances.bleed = 0.15f;
-  if (weapon_is(w, "axe")) chances.shred = 0.5f;
-  if (weapon_is(w, "hammer")) chances.stun = 0.35f;
-  if (weapon_is(w, "scythe")) chances.bleed = 0.35f;
-  if (weapon_is(w, "whip")) chances.slow = 0.35f;
-  if (weapon_is(w, "chain_blades")) chances.slow = 0.25f;
-  if (weapon_is(w, "wand")) chances.stun = 0.15f;
-  if (weapon_is(w, "laser")) chances.burn = 0.4f;
-  if (weapon_is(w, "greatsword")) chances.stun = 0.15f;
+  if (weapon_is(w, "daggers"))
+    chances.bleed = 0.6f;
+  if (weapon_is(w, "sword") || weapon_is(w, "short_sword") || weapon_is(w, "longsword"))
+    chances.bleed = 0.15f;
+  if (weapon_is(w, "axe"))
+    chances.shred = 0.5f;
+  if (weapon_is(w, "hammer"))
+    chances.stun = 0.35f;
+  if (weapon_is(w, "scythe"))
+    chances.bleed = 0.35f;
+  if (weapon_is(w, "whip"))
+    chances.slow = 0.35f;
+  if (weapon_is(w, "chain_blades"))
+    chances.slow = 0.25f;
+  if (weapon_is(w, "wand"))
+    chances.stun = 0.15f;
+  if (weapon_is(w, "laser"))
+    chances.burn = 0.4f;
+  if (weapon_is(w, "greatsword"))
+    chances.stun = 0.15f;
   return chances;
 }
 
-
-void log_combatf(Game *g, const char *fmt, ...) {
-  if (!g_combat_log || !g_log_combat || !g) return;
+void log_combatf(Game *g, const char *fmt, ...)
+{
+  if (!g_combat_log || !g_log_combat || !g)
+    return;
   char msg[512];
   va_list args;
   va_start(args, fmt);
@@ -79,19 +100,21 @@ void log_combatf(Game *g, const char *fmt, ...) {
 }
 
 const BossDef g_boss_defs[] = {
-  { "proto_beast", "Proto Behemoth", 1800.0f, 90.0f, 30.0f, 26.0f, 0.7f,
-    1.1f, 900.0f, 120.0f, 22.0f,
-    5.0f, 16, 220.0f,
-    4.0f, 80.0f, 45.0f,
-    12.0f, 5.0f, 60.0f, 70.0f }
-};
+    {"proto_beast", "Proto Behemoth", 1800.0f, 90.0f, 30.0f, 26.0f, 0.7f,
+     1.1f, 900.0f, 120.0f, 22.0f,
+     5.0f, 16, 220.0f,
+     4.0f, 80.0f, 45.0f,
+     12.0f, 5.0f, 60.0f, 70.0f}};
 
-int boss_def_count(void) {
+int boss_def_count(void)
+{
   return (int)(sizeof(g_boss_defs) / sizeof(g_boss_defs[0]));
 }
 
-static void wave_snapshot_save(Game *g) {
-  if (!g) return;
+static void wave_snapshot_save(Game *g)
+{
+  if (!g)
+    return;
   g->wave_snapshot.valid = 1;
   g->wave_snapshot.mode = g->mode;
   g->wave_snapshot.player = g->player;
@@ -120,8 +143,10 @@ static void wave_snapshot_save(Game *g) {
   g->wave_snapshot.totem_freeze_timer = g->totem_freeze_timer;
 }
 
-static void wave_snapshot_restore(Game *g) {
-  if (!g || !g->wave_snapshot.valid) return;
+static void wave_snapshot_restore(Game *g)
+{
+  if (!g || !g->wave_snapshot.valid)
+    return;
   g->mode = g->wave_snapshot.mode;
   g->player = g->wave_snapshot.player;
   memcpy(g->enemies, g->wave_snapshot.enemies, sizeof(g->enemies));
@@ -149,36 +174,52 @@ static void wave_snapshot_restore(Game *g) {
   g->totem_freeze_timer = g->wave_snapshot.totem_freeze_timer;
 }
 
-static int find_nearest_enemy(Game *g, float x, float y) {
+static int find_nearest_enemy(Game *g, float x, float y)
+{
   float best = 999999.0f;
   int idx = -1;
-  for (int i = 0; i < MAX_ENEMIES; i++) {
-    if (!g->enemies[i].active) continue;
+  for (int i = 0; i < MAX_ENEMIES; i++)
+  {
+    if (!g->enemies[i].active)
+      continue;
     float dx = g->enemies[i].x - x;
     float dy = g->enemies[i].y - y;
     float d2 = dx * dx + dy * dy;
-    if (d2 < best) { best = d2; idx = i; }
+    if (d2 < best)
+    {
+      best = d2;
+      idx = i;
+    }
   }
   return idx;
 }
-float clampf(float v, float a, float b) {
-  if (v < a) return a;
-  if (v > b) return b;
+float clampf(float v, float a, float b)
+{
+  if (v < a)
+    return a;
+  if (v > b)
+    return b;
   return v;
 }
 
-float frandf(void) {
+float frandf(void)
+{
   return (float)rand() / (float)RAND_MAX;
 }
 
-static float frand_range(float a, float b) {
+static float frand_range(float a, float b)
+{
   return a + (b - a) * frandf();
 }
 
-void toggle_pause(Game *g) {
-  if (!g) return;
-  if (g->mode == MODE_LEVELUP && (g->levelup_chosen >= 0 || g->levelup_selected_count > 0)) return;
-  if (g->mode == MODE_PAUSE) {
+void toggle_pause(Game *g)
+{
+  if (!g)
+    return;
+  if (g->mode == MODE_LEVELUP && (g->levelup_chosen >= 0 || g->levelup_selected_count > 0))
+    return;
+  if (g->mode == MODE_PAUSE)
+  {
     g->mode = g->pause_return_mode;
     return;
   }
@@ -188,21 +229,27 @@ void toggle_pause(Game *g) {
 
 static WeaponSlot *find_weapon_slot(Player *p, Database *db, const char *id);
 
-void vec_norm(float *x, float *y) {
+void vec_norm(float *x, float *y)
+{
   float len = sqrtf((*x) * (*x) + (*y) * (*y));
-  if (len > 0.0001f) {
+  if (len > 0.0001f)
+  {
     *x /= len;
     *y /= len;
   }
 }
 
-static int skill_tree_points_for_level(int level) {
-  if (level <= 0) return 0;
+static int skill_tree_points_for_level(int level)
+{
+  if (level <= 0)
+    return 0;
   return (level + 1) / 2;
 }
 
-static void skill_tree_award_points(Game *g) {
-  if (!g || g->skill_tree_run_awarded) return;
+static void skill_tree_award_points(Game *g)
+{
+  if (!g || g->skill_tree_run_awarded)
+    return;
   int points = skill_tree_points_for_level(g->level);
   g->skill_tree.points += points;
   g->skill_tree.total_points += points;
@@ -211,11 +258,13 @@ static void skill_tree_award_points(Game *g) {
   skill_tree_progress_save(g);
 }
 
-void stats_clear(Stats *s) {
+void stats_clear(Stats *s)
+{
   memset(s, 0, sizeof(Stats));
 }
 
-void stats_add(Stats *dst, Stats *src) {
+void stats_add(Stats *dst, Stats *src)
+{
   dst->damage += src->damage;
   dst->max_hp += src->max_hp;
   dst->move_speed += src->move_speed;
@@ -229,7 +278,8 @@ void stats_add(Stats *dst, Stats *src) {
   dst->hp_regen += src->hp_regen;
 }
 
-void stats_scale(Stats *s, float mul) {
+void stats_scale(Stats *s, float mul)
+{
   s->damage *= mul;
   s->max_hp *= mul;
   s->move_speed *= mul;
@@ -243,20 +293,29 @@ void stats_scale(Stats *s, float mul) {
   s->hp_regen *= mul;
 }
 
-static int find_enemy_def(Database *db, const char *id) {
-  if (!db || !id) return -1;
-  for (int i = 0; i < db->enemy_count; i++) {
-    if (strcmp(db->enemies[i].id, id) == 0) return i;
+static int find_enemy_def(Database *db, const char *id)
+{
+  if (!db || !id)
+    return -1;
+  for (int i = 0; i < db->enemy_count; i++)
+  {
+    if (strcmp(db->enemies[i].id, id) == 0)
+      return i;
   }
   return -1;
 }
 
-static WeaponSlot *find_weapon_slot(Player *p, Database *db, const char *id) {
-  if (!p || !db || !id) return NULL;
-  for (int i = 0; i < MAX_WEAPON_SLOTS; i++) {
-    if (!p->weapons[i].active) continue;
+static WeaponSlot *find_weapon_slot(Player *p, Database *db, const char *id)
+{
+  if (!p || !db || !id)
+    return NULL;
+  for (int i = 0; i < MAX_WEAPON_SLOTS; i++)
+  {
+    if (!p->weapons[i].active)
+      continue;
     WeaponDef *w = &db->weapons[p->weapons[i].def_index];
-    if (weapon_is(w, id)) return &p->weapons[i];
+    if (weapon_is(w, id))
+      return &p->weapons[i];
   }
   return NULL;
 }
@@ -265,10 +324,12 @@ static int roll_item_index_with_bias(Game *g);
 static int roll_weapon_index_with_bias(Game *g);
 float player_hp_regen_amp(Player *p, Database *db);
 
-Stats player_total_stats(Player *p, Database *db) {
+Stats player_total_stats(Player *p, Database *db)
+{
   Stats s = p->base;
   stats_add(&s, &p->bonus);
-  if (p->ultimate_move_to_as_timer > 0.0f) {
+  if (p->ultimate_move_to_as_timer > 0.0f)
+  {
     float ms = s.move_speed;
     s.move_speed = 0.0f;
     s.attack_speed += ms;
@@ -282,7 +343,8 @@ Stats player_total_stats(Player *p, Database *db) {
   s.cooldown_reduction = clampf(s.cooldown_reduction, 0.0f, 0.6f);
   s.xp_magnet = clampf(s.xp_magnet, 0.0f, 600.0f);
   s.hp_regen = clampf(s.hp_regen, 0.0f, 50.0f);
-  if (db) {
+  if (db)
+  {
     float regen_amp = player_hp_regen_amp(p, db);
     s.hp_regen = s.hp_regen * (1.0f + regen_amp);
   }
@@ -291,11 +353,14 @@ Stats player_total_stats(Player *p, Database *db) {
 }
 
 /* Get total slow_on_hit chance from all passive items */
-float player_slow_on_hit(Player *p, Database *db) {
+float player_slow_on_hit(Player *p, Database *db)
+{
   float total = 0.0f;
-  for (int i = 0; i < p->passive_count; i++) {
+  for (int i = 0; i < p->passive_count; i++)
+  {
     int idx = p->passive_items[i];
-    if (idx >= 0 && idx < db->item_count) {
+    if (idx >= 0 && idx < db->item_count)
+    {
       total += db->items[idx].slow_on_hit;
     }
   }
@@ -303,12 +368,16 @@ float player_slow_on_hit(Player *p, Database *db) {
 }
 
 /* Get max slow_aura range from all passive items */
-float player_slow_aura(Player *p, Database *db) {
+float player_slow_aura(Player *p, Database *db)
+{
   float max_range = 0.0f;
-  for (int i = 0; i < p->passive_count; i++) {
+  for (int i = 0; i < p->passive_count; i++)
+  {
     int idx = p->passive_items[i];
-    if (idx >= 0 && idx < db->item_count) {
-      if (db->items[idx].slow_aura > max_range) {
+    if (idx >= 0 && idx < db->item_count)
+    {
+      if (db->items[idx].slow_aura > max_range)
+      {
         max_range = db->items[idx].slow_aura;
       }
     }
@@ -316,23 +385,30 @@ float player_slow_aura(Player *p, Database *db) {
   return max_range;
 }
 
-float player_burn_on_hit(Player *p, Database *db) {
+float player_burn_on_hit(Player *p, Database *db)
+{
   float total = 0.0f;
-  for (int i = 0; i < p->passive_count; i++) {
+  for (int i = 0; i < p->passive_count; i++)
+  {
     int idx = p->passive_items[i];
-    if (idx >= 0 && idx < db->item_count) {
+    if (idx >= 0 && idx < db->item_count)
+    {
       total += db->items[idx].burn_on_hit;
     }
   }
   return clampf(total, 0.0f, 1.0f);
 }
 
-float player_burn_aura(Player *p, Database *db) {
+float player_burn_aura(Player *p, Database *db)
+{
   float max_range = 0.0f;
-  for (int i = 0; i < p->passive_count; i++) {
+  for (int i = 0; i < p->passive_count; i++)
+  {
     int idx = p->passive_items[i];
-    if (idx >= 0 && idx < db->item_count) {
-      if (db->items[idx].burn_aura > max_range) {
+    if (idx >= 0 && idx < db->item_count)
+    {
+      if (db->items[idx].burn_aura > max_range)
+      {
         max_range = db->items[idx].burn_aura;
       }
     }
@@ -340,104 +416,135 @@ float player_burn_aura(Player *p, Database *db) {
   return max_range;
 }
 
-float player_thorns_percent(Player *p, Database *db) {
+float player_thorns_percent(Player *p, Database *db)
+{
   float total = 0.0f;
-  for (int i = 0; i < p->passive_count; i++) {
+  for (int i = 0; i < p->passive_count; i++)
+  {
     int idx = p->passive_items[i];
-    if (idx >= 0 && idx < db->item_count) {
+    if (idx >= 0 && idx < db->item_count)
+    {
       total += db->items[idx].thorns_percent;
     }
   }
   return clampf(total, 0.0f, 0.9f);
 }
 
-float player_lifesteal_on_kill(Player *p, Database *db) {
+float player_lifesteal_on_kill(Player *p, Database *db)
+{
   float total = 0.0f;
-  for (int i = 0; i < p->passive_count; i++) {
+  for (int i = 0; i < p->passive_count; i++)
+  {
     int idx = p->passive_items[i];
-    if (idx >= 0 && idx < db->item_count) {
+    if (idx >= 0 && idx < db->item_count)
+    {
       total += db->items[idx].lifesteal_on_kill;
     }
   }
   return total;
 }
 
-static float player_rarity_bias(Player *p, Database *db) {
+static float player_rarity_bias(Player *p, Database *db)
+{
   float total = 0.0f;
-  for (int i = 0; i < p->passive_count; i++) {
+  for (int i = 0; i < p->passive_count; i++)
+  {
     int idx = p->passive_items[i];
-    if (idx >= 0 && idx < db->item_count) {
+    if (idx >= 0 && idx < db->item_count)
+    {
       total += db->items[idx].rarity_bias;
     }
   }
   return clampf(total, 0.0f, 0.9f);
 }
 
-float player_slow_bonus_damage(Player *p, Database *db) {
+float player_slow_bonus_damage(Player *p, Database *db)
+{
   float total = 0.0f;
-  for (int i = 0; i < p->passive_count; i++) {
+  for (int i = 0; i < p->passive_count; i++)
+  {
     int idx = p->passive_items[i];
-    if (idx >= 0 && idx < db->item_count) {
+    if (idx >= 0 && idx < db->item_count)
+    {
       total += db->items[idx].slow_bonus_damage;
     }
   }
   return clampf(total, 0.0f, 1.0f);
 }
 
-float player_legendary_amp(Player *p, Database *db) {
+float player_legendary_amp(Player *p, Database *db)
+{
   float total = 0.0f;
-  for (int i = 0; i < p->passive_count; i++) {
+  for (int i = 0; i < p->passive_count; i++)
+  {
     int idx = p->passive_items[i];
-    if (idx >= 0 && idx < db->item_count) {
+    if (idx >= 0 && idx < db->item_count)
+    {
       total += db->items[idx].legendary_amp;
     }
   }
   return clampf(total, 0.0f, 0.2f);
 }
 
-float player_hp_regen_amp(Player *p, Database *db) {
+float player_hp_regen_amp(Player *p, Database *db)
+{
   float total = 0.0f;
-  for (int i = 0; i < p->passive_count; i++) {
+  for (int i = 0; i < p->passive_count; i++)
+  {
     int idx = p->passive_items[i];
-    if (idx >= 0 && idx < db->item_count) {
+    if (idx >= 0 && idx < db->item_count)
+    {
       total += db->items[idx].hp_regen_amp;
     }
   }
   return clampf(total, 0.0f, 3.0f);
 }
 
-float player_xp_kill_chance(Player *p, Database *db) {
+float player_xp_kill_chance(Player *p, Database *db)
+{
   float total = 0.0f;
-  for (int i = 0; i < p->passive_count; i++) {
+  for (int i = 0; i < p->passive_count; i++)
+  {
     int idx = p->passive_items[i];
-    if (idx >= 0 && idx < db->item_count) {
+    if (idx >= 0 && idx < db->item_count)
+    {
       total += db->items[idx].xp_kill_chance;
     }
   }
   return clampf(total, 0.0f, 1.0f);
 }
 
-float player_roll_crit_damage(Stats *stats, WeaponDef *w, float dmg) {
-  if (!w || !w->scale_crit) return dmg;
-  if (stats->crit_chance <= 0.0f) return dmg;
-  if (frandf() < stats->crit_chance) {
+float player_roll_crit_damage(Stats *stats, WeaponDef *w, float dmg)
+{
+  if (!w || !w->scale_crit)
+    return dmg;
+  if (stats->crit_chance <= 0.0f)
+    return dmg;
+  if (frandf() < stats->crit_chance)
+  {
     float crit_mul = (w->crit_multiplier > 0.0f) ? w->crit_multiplier : 1.5f;
     crit_mul += stats->crit_damage;
-    if (crit_mul < 1.1f) crit_mul = 1.1f;
+    if (crit_mul < 1.1f)
+      crit_mul = 1.1f;
     return dmg * crit_mul;
   }
   return dmg;
 }
 
-void mark_enemy_hit(Enemy *en) {
-  if (!en) return;
+void mark_enemy_hit(Enemy *en)
+{
+  if (!en)
+    return;
   en->hit_timer = (float)SDL_GetTicks() / 1000.0f;
 }
 
-float player_apply_hit_mods(Game *g, Enemy *en, float dmg) {
-  if (en->debuffs.armor_shred_timer > 0.0f) dmg *= 1.2f;
+float player_apply_hit_mods(Game *g, Enemy *en, float dmg)
+{
+  if (en->debuffs.armor_shred_timer > 0.0f)
+    dmg *= 1.2f;
   float slow_bonus = player_slow_bonus_damage(&g->player, &g->db);
-  if (slow_bonus > 0.0f && en->debuffs.slow_timer > 0.0f) {
+  if (slow_bonus > 0.0f && en->debuffs.slow_timer > 0.0f)
+  {
     float extra = dmg * slow_bonus;
     log_combatf(g, "slow_bonus +%.1f dmg to %s", extra, enemy_label(g, en));
     dmg += extra;
@@ -445,27 +552,37 @@ float player_apply_hit_mods(Game *g, Enemy *en, float dmg) {
   return dmg;
 }
 
-static void proc_chain_lightning(Game *g, int start_idx, float dmg, int bounces, float range) {
-  if (bounces <= 0 || range <= 0.0f) return;
+static void proc_chain_lightning(Game *g, int start_idx, float dmg, int bounces, float range)
+{
+  if (bounces <= 0 || range <= 0.0f)
+    return;
   int visited[MAX_ENEMIES];
   memset(visited, 0, sizeof(visited));
   visited[start_idx] = 1;
   int current = start_idx;
   float range2 = range * range;
 
-  for (int b = 0; b < bounces; b++) {
+  for (int b = 0; b < bounces; b++)
+  {
     int next = -1;
     float best = range2;
     float cx = g->enemies[current].x;
     float cy = g->enemies[current].y;
-    for (int i = 0; i < MAX_ENEMIES; i++) {
-      if (!g->enemies[i].active || visited[i]) continue;
+    for (int i = 0; i < MAX_ENEMIES; i++)
+    {
+      if (!g->enemies[i].active || visited[i])
+        continue;
       float dx = g->enemies[i].x - cx;
       float dy = g->enemies[i].y - cy;
       float d2 = dx * dx + dy * dy;
-      if (d2 < best) { best = d2; next = i; }
+      if (d2 < best)
+      {
+        best = d2;
+        next = i;
+      }
     }
-    if (next < 0) break;
+    if (next < 0)
+      break;
     Enemy *en = &g->enemies[next];
     mark_enemy_hit(en);
     float hit = player_apply_hit_mods(g, en, dmg);
@@ -476,14 +593,20 @@ static void proc_chain_lightning(Game *g, int start_idx, float dmg, int bounces,
   }
 }
 
-void player_try_item_proc(Game *g, int enemy_idx, Stats *stats) {
-  for (int i = 0; i < g->player.passive_count; i++) {
+void player_try_item_proc(Game *g, int enemy_idx, Stats *stats)
+{
+  for (int i = 0; i < g->player.passive_count; i++)
+  {
     int idx = g->player.passive_items[i];
-    if (idx < 0 || idx >= g->db.item_count) continue;
+    if (idx < 0 || idx >= g->db.item_count)
+      continue;
     ItemDef *it = &g->db.items[idx];
-    if (!it->has_proc) continue;
-    if (it->proc_chance <= 0.0f || it->proc_damage <= 0.0f || it->proc_bounces <= 0) continue;
-    if (frandf() < it->proc_chance) {
+    if (!it->has_proc)
+      continue;
+    if (it->proc_chance <= 0.0f || it->proc_damage <= 0.0f || it->proc_bounces <= 0)
+      continue;
+    if (frandf() < it->proc_chance)
+    {
       float range = (it->proc_range > 0.0f) ? it->proc_range : 140.0f;
       float dmg = it->proc_damage * (1.0f + stats->damage);
       log_combatf(g, "chain_lightning proc dmg %.1f bounces %d", dmg, it->proc_bounces);
@@ -492,24 +615,35 @@ void player_try_item_proc(Game *g, int enemy_idx, Stats *stats) {
   }
 }
 
-float damage_after_armor(float dmg, float armor) {
+float damage_after_armor(float dmg, float armor)
+{
   float reduction = clampf(armor * 0.02f, 0.0f, 0.7f);
   return dmg * (1.0f - reduction);
 }
 
-static void clear_boss_room(Game *g) {
-  for (int i = 0; i < MAX_ENEMIES; i++) g->enemies[i].active = 0;
-  for (int i = 0; i < MAX_BULLETS; i++) g->bullets[i].active = 0;
-  for (int i = 0; i < MAX_DROPS; i++) g->drops[i].active = 0;
-  for (int i = 0; i < MAX_PUDDLES; i++) g->puddles[i].active = 0;
-  for (int i = 0; i < MAX_WEAPON_FX; i++) g->weapon_fx[i].active = 0;
-  for (int i = 0; i < MAX_TOTEMS; i++) g->totems[i].active = 0;
+static void clear_boss_room(Game *g)
+{
+  for (int i = 0; i < MAX_ENEMIES; i++)
+    g->enemies[i].active = 0;
+  for (int i = 0; i < MAX_BULLETS; i++)
+    g->bullets[i].active = 0;
+  for (int i = 0; i < MAX_DROPS; i++)
+    g->drops[i].active = 0;
+  for (int i = 0; i < MAX_PUDDLES; i++)
+    g->puddles[i].active = 0;
+  for (int i = 0; i < MAX_WEAPON_FX; i++)
+    g->weapon_fx[i].active = 0;
+  for (int i = 0; i < MAX_TOTEMS; i++)
+    g->totems[i].active = 0;
 }
 
-static void spawn_boss(Game *g, float x, float y) {
-  if (!g) return;
+static void spawn_boss(Game *g, float x, float y)
+{
+  if (!g)
+    return;
   int idx = g->boss_def_index;
-  if (idx < 0 || idx >= boss_def_count()) idx = 0;
+  if (idx < 0 || idx >= boss_def_count())
+    idx = 0;
   const BossDef *def = &g_boss_defs[idx];
   g->boss.active = 1;
   g->boss.def_index = idx;
@@ -524,14 +658,17 @@ static void spawn_boss(Game *g, float x, float y) {
   g->boss.hazard_timer = 0.0f;
   g->boss.hazard_cd = def->hazard_cooldown * 0.5f;
   g->boss.sword_hit_cd = 0.0f;
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < 3; i++)
+  {
     g->boss.safe_x[i] = g->boss.x;
     g->boss.safe_y[i] = g->boss.y;
   }
 }
 
-void start_boss_event(Game *g) {
-  if (!g) return;
+void start_boss_event(Game *g)
+{
+  if (!g)
+    return;
   wave_snapshot_save(g);
   g->mode = MODE_BOSS_EVENT;
   g->boss_countdown_timer = 3.0f;
@@ -551,50 +688,65 @@ void start_boss_event(Game *g) {
   g->camera_y = g->player.y - g->view_h * 0.5f;
   float max_cam_x = ARENA_W - g->view_w;
   float max_cam_y = ARENA_H - g->view_h;
-  if (max_cam_x < 0.0f) max_cam_x = 0.0f;
-  if (max_cam_y < 0.0f) max_cam_y = 0.0f;
+  if (max_cam_x < 0.0f)
+    max_cam_x = 0.0f;
+  if (max_cam_y < 0.0f)
+    max_cam_y = 0.0f;
   g->camera_x = clampf(g->camera_x, 0.0f, max_cam_x);
   g->camera_y = clampf(g->camera_y, 0.0f, max_cam_y);
 }
 
-static void build_boss_reward_choices(Game *g) {
+static void build_boss_reward_choices(Game *g)
+{
   g->choice_count = 0;
   int legendary_indices[MAX_ITEMS];
   int legendary_count = 0;
-  for (int i = 0; i < g->db.item_count; i++) {
-    if (strcmp(g->db.items[i].rarity, "legendary") == 0) {
+  for (int i = 0; i < g->db.item_count; i++)
+  {
+    if (strcmp(g->db.items[i].rarity, "legendary") == 0)
+    {
       legendary_indices[legendary_count++] = i;
     }
   }
-  if (legendary_count == 0) return;
+  if (legendary_count == 0)
+    return;
 
   int picks = legendary_count < 3 ? legendary_count : 3;
-  for (int i = legendary_count - 1; i > 0; i--) {
+  for (int i = legendary_count - 1; i > 0; i--)
+  {
     int j = rand() % (i + 1);
     int tmp = legendary_indices[i];
     legendary_indices[i] = legendary_indices[j];
     legendary_indices[j] = tmp;
   }
-  for (int i = 0; i < picks; i++) {
-    g->choices[g->choice_count++] = (LevelUpChoice){ .type = 0, .index = legendary_indices[i] };
+  for (int i = 0; i < picks; i++)
+  {
+    g->choices[g->choice_count++] = (LevelUpChoice){.type = 0, .index = legendary_indices[i]};
   }
 }
 
-static void end_boss_event(Game *g, int success) {
-  if (!g) return;
+static void end_boss_event(Game *g, int success)
+{
+  if (!g)
+    return;
   g->boss.active = 0;
   g->boss_timer = 0.0f;
   g->boss_timer_max = 0.0f;
   g->boss_countdown_timer = 0.0f;
   wave_snapshot_restore(g);
-  if (success) {
+  if (success)
+  {
     build_boss_reward_choices(g);
     g->levelup_chosen = -1;
     g->levelup_selected_count = 0;
     g->levelup_fade = 0.0f;
-    if (g->choice_count > 0) g->mode = MODE_LEVELUP;
-    else g->mode = MODE_WAVE;
-  } else {
+    if (g->choice_count > 0)
+      g->mode = MODE_LEVELUP;
+    else
+      g->mode = MODE_WAVE;
+  }
+  else
+  {
     g->mode = MODE_WAVE;
   }
   g->wave_snapshot.valid = 0;
@@ -622,9 +774,12 @@ static void end_boss_event(Game *g, int success) {
   g->skill_tree_pan_base_y = 0.0f;
 }
 
-void spawn_drop(Game *g, float x, float y, int type, float value) {
-  for (int i = 0; i < MAX_DROPS; i++) {
-    if (!g->drops[i].active) {
+void spawn_drop(Game *g, float x, float y, int type, float value)
+{
+  for (int i = 0; i < MAX_DROPS; i++)
+  {
+    if (!g->drops[i].active)
+    {
       Drop *d = &g->drops[i];
       memset(d, 0, sizeof(*d));
       d->active = 1;
@@ -638,9 +793,12 @@ void spawn_drop(Game *g, float x, float y, int type, float value) {
   }
 }
 
-void spawn_chest(Game *g, float x, float y) {
-  for (int i = 0; i < MAX_DROPS; i++) {
-    if (!g->drops[i].active) {
+void spawn_chest(Game *g, float x, float y)
+{
+  for (int i = 0; i < MAX_DROPS; i++)
+  {
+    if (!g->drops[i].active)
+    {
       Drop *d = &g->drops[i];
       memset(d, 0, sizeof(*d));
       d->active = 1;
@@ -654,21 +812,28 @@ void spawn_chest(Game *g, float x, float y) {
   }
 }
 
-void weapons_clear(Player *p) {
-  for (int i = 0; i < MAX_WEAPON_SLOTS; i++) {
+void weapons_clear(Player *p)
+{
+  for (int i = 0; i < MAX_WEAPON_SLOTS; i++)
+  {
     p->weapons[i].active = 0;
   }
 }
 
-void equip_weapon(Player *p, int def_index) {
-  for (int i = 0; i < MAX_WEAPON_SLOTS; i++) {
-    if (p->weapons[i].active && p->weapons[i].def_index == def_index) {
+void equip_weapon(Player *p, int def_index)
+{
+  for (int i = 0; i < MAX_WEAPON_SLOTS; i++)
+  {
+    if (p->weapons[i].active && p->weapons[i].def_index == def_index)
+    {
       p->weapons[i].level = (int)clampf(p->weapons[i].level + 1, 1, MAX_WEAPON_LEVEL);
       return;
     }
   }
-  for (int i = 0; i < MAX_WEAPON_SLOTS; i++) {
-    if (!p->weapons[i].active) {
+  for (int i = 0; i < MAX_WEAPON_SLOTS; i++)
+  {
+    if (!p->weapons[i].active)
+    {
       p->weapons[i].active = 1;
       p->weapons[i].def_index = def_index;
       p->weapons[i].level = 1;
@@ -678,83 +843,115 @@ void equip_weapon(Player *p, int def_index) {
   }
 }
 
-static int weapon_slots_full(Player *p) {
+static int weapon_slots_full(Player *p)
+{
   int count = 0;
-  for (int i = 0; i < MAX_WEAPON_SLOTS; i++) {
-    if (p->weapons[i].active) count++;
+  for (int i = 0; i < MAX_WEAPON_SLOTS; i++)
+  {
+    if (p->weapons[i].active)
+      count++;
   }
   return count >= MAX_WEAPON_SLOTS;
 }
 
-int weapon_is_owned(Player *p, int def_index, int *out_level) {
-  for (int i = 0; i < MAX_WEAPON_SLOTS; i++) {
-    if (p->weapons[i].active && p->weapons[i].def_index == def_index) {
-      if (out_level) *out_level = p->weapons[i].level;
+int weapon_is_owned(Player *p, int def_index, int *out_level)
+{
+  for (int i = 0; i < MAX_WEAPON_SLOTS; i++)
+  {
+    if (p->weapons[i].active && p->weapons[i].def_index == def_index)
+    {
+      if (out_level)
+        *out_level = p->weapons[i].level;
       return 1;
     }
   }
   return 0;
 }
 
-int weapon_choice_allowed(Game *g, int def_index) {
+int weapon_choice_allowed(Game *g, int def_index)
+{
   int level = 0;
   int owned = weapon_is_owned(&g->player, def_index, &level);
-  if (owned) return level < MAX_WEAPON_LEVEL;
-  if (weapon_slots_full(&g->player)) return 0;
+  if (owned)
+    return level < MAX_WEAPON_LEVEL;
+  if (weapon_slots_full(&g->player))
+    return 0;
   return 1;
 }
 
-static int count_allowed_weapons(Game *g) {
+static int count_allowed_weapons(Game *g)
+{
   int count = 0;
-  for (int i = 0; i < g->db.weapon_count; i++) {
-    if (weapon_choice_allowed(g, i)) count++;
+  for (int i = 0; i < g->db.weapon_count; i++)
+  {
+    if (weapon_choice_allowed(g, i))
+      count++;
   }
   return count;
 }
 
-static int roll_weapon_index_with_bias_filtered(Game *g) {
+static int roll_weapon_index_with_bias_filtered(Game *g)
+{
   int attempts = g->db.weapon_count * 2 + 5;
-  for (int i = 0; i < attempts; i++) {
+  for (int i = 0; i < attempts; i++)
+  {
     int idx = roll_weapon_index_with_bias(g);
-    if (weapon_choice_allowed(g, idx)) return idx;
+    if (weapon_choice_allowed(g, idx))
+      return idx;
   }
   int count = count_allowed_weapons(g);
-  if (count <= 0) return -1;
+  if (count <= 0)
+    return -1;
   int pick = rand() % count;
-  for (int i = 0; i < g->db.weapon_count; i++) {
-    if (!weapon_choice_allowed(g, i)) continue;
-    if (pick-- == 0) return i;
+  for (int i = 0; i < g->db.weapon_count; i++)
+  {
+    if (!weapon_choice_allowed(g, i))
+      continue;
+    if (pick-- == 0)
+      return i;
   }
   return -1;
 }
 
-static int can_equip_weapon(Player *p, int def_index) {
-  for (int i = 0; i < MAX_WEAPON_SLOTS; i++) {
-    if (p->weapons[i].active && p->weapons[i].def_index == def_index) return 1;
+static int can_equip_weapon(Player *p, int def_index)
+{
+  for (int i = 0; i < MAX_WEAPON_SLOTS; i++)
+  {
+    if (p->weapons[i].active && p->weapons[i].def_index == def_index)
+      return 1;
   }
-  for (int i = 0; i < MAX_WEAPON_SLOTS; i++) {
-    if (!p->weapons[i].active) return 1;
+  for (int i = 0; i < MAX_WEAPON_SLOTS; i++)
+  {
+    if (!p->weapons[i].active)
+      return 1;
   }
   return 0;
 }
 
-static void player_recalc(Player *p, Database *db) {
+static void player_recalc(Player *p, Database *db)
+{
   stats_clear(&p->bonus);
   float amp = player_legendary_amp(p, db);
-  if (amp <= 0.0f) {
-    for (int i = 0; i < p->passive_count; i++) {
+  if (amp <= 0.0f)
+  {
+    for (int i = 0; i < p->passive_count; i++)
+    {
       int idx = p->passive_items[i];
-      if (idx >= 0 && idx < db->item_count) stats_add(&p->bonus, &db->items[idx].stats);
+      if (idx >= 0 && idx < db->item_count)
+        stats_add(&p->bonus, &db->items[idx].stats);
     }
     return;
   }
 
   /* First pass: apply non-legendary items */
-  for (int i = 0; i < p->passive_count; i++) {
+  for (int i = 0; i < p->passive_count; i++)
+  {
     int idx = p->passive_items[i];
-    if (idx < 0 || idx >= db->item_count) continue;
+    if (idx < 0 || idx >= db->item_count)
+      continue;
     ItemDef *it = &db->items[idx];
-    if (strcmp(it->rarity, "legendary") != 0) {
+    if (strcmp(it->rarity, "legendary") != 0)
+    {
       stats_add(&p->bonus, &it->stats);
     }
   }
@@ -770,35 +967,46 @@ static void player_recalc(Player *p, Database *db) {
   float legendary_bonus = clampf(amp * secondary_score, 0.0f, 0.75f);
 
   /* Second pass: apply amplified legendary items */
-  for (int i = 0; i < p->passive_count; i++) {
+  for (int i = 0; i < p->passive_count; i++)
+  {
     int idx = p->passive_items[i];
-    if (idx < 0 || idx >= db->item_count) continue;
+    if (idx < 0 || idx >= db->item_count)
+      continue;
     ItemDef *it = &db->items[idx];
-    if (strcmp(it->rarity, "legendary") == 0) {
+    if (strcmp(it->rarity, "legendary") == 0)
+    {
       Stats scaled = it->stats;
-      if (legendary_bonus > 0.0f) stats_scale(&scaled, 1.0f + legendary_bonus);
+      if (legendary_bonus > 0.0f)
+        stats_scale(&scaled, 1.0f + legendary_bonus);
       stats_add(&p->bonus, &scaled);
     }
   }
 }
 
-void apply_item(Player *p, Database *db, ItemDef *it, int item_index) {
-  if (p->passive_count < MAX_ITEMS) {
+void apply_item(Player *p, Database *db, ItemDef *it, int item_index)
+{
+  if (p->passive_count < MAX_ITEMS)
+  {
     p->passive_items[p->passive_count++] = item_index;
   }
   player_recalc(p, db);
 }
 
-static int levelup_choice_exists(Game *g, int type, int index) {
-  for (int i = 0; i < g->choice_count; i++) {
-    if (g->choices[i].type == type && g->choices[i].index == index) return 1;
+static int levelup_choice_exists(Game *g, int type, int index)
+{
+  for (int i = 0; i < g->choice_count; i++)
+  {
+    if (g->choices[i].type == type && g->choices[i].index == index)
+      return 1;
   }
   return 0;
 }
 
-void build_levelup_choices(Game *g) {
+void build_levelup_choices(Game *g)
+{
   g->choice_count = 0;
-  if (g->db.item_count == 0 && g->db.weapon_count == 0) {
+  if (g->db.item_count == 0 && g->db.weapon_count == 0)
+  {
     log_line("Level up choices skipped: no items or weapons.");
     return;
   }
@@ -807,27 +1015,39 @@ void build_levelup_choices(Game *g) {
   int num_choices = 3;
   int attempts = 0;
   int max_attempts = 32;
-  while (g->choice_count < num_choices && attempts++ < max_attempts) {
+  while (g->choice_count < num_choices && attempts++ < max_attempts)
+  {
     int type = rand() % 3; /* 0,1 = item (66%), 2 = weapon (33%) */
-    if (type < 2 && g->db.item_count > 0) {
+    if (type < 2 && g->db.item_count > 0)
+    {
       int idx = roll_item_index_with_bias(g);
-      if (!levelup_choice_exists(g, 0, idx)) {
-        g->choices[g->choice_count++] = (LevelUpChoice){ .type = 0, .index = idx };
+      if (!levelup_choice_exists(g, 0, idx))
+      {
+        g->choices[g->choice_count++] = (LevelUpChoice){.type = 0, .index = idx};
       }
-    } else if (g->db.weapon_count > 0 && weapon_choices_available > 0) {
+    }
+    else if (g->db.weapon_count > 0 && weapon_choices_available > 0)
+    {
       int idx = roll_weapon_index_with_bias_filtered(g);
-      if (idx >= 0 && !levelup_choice_exists(g, 1, idx)) {
-        g->choices[g->choice_count++] = (LevelUpChoice){ .type = 1, .index = idx };
-      } else if (g->db.item_count > 0) {
+      if (idx >= 0 && !levelup_choice_exists(g, 1, idx))
+      {
+        g->choices[g->choice_count++] = (LevelUpChoice){.type = 1, .index = idx};
+      }
+      else if (g->db.item_count > 0)
+      {
         int item_idx = roll_item_index_with_bias(g);
-        if (!levelup_choice_exists(g, 0, item_idx)) {
-          g->choices[g->choice_count++] = (LevelUpChoice){ .type = 0, .index = item_idx };
+        if (!levelup_choice_exists(g, 0, item_idx))
+        {
+          g->choices[g->choice_count++] = (LevelUpChoice){.type = 0, .index = item_idx};
         }
       }
-    } else if (g->db.item_count > 0) {
+    }
+    else if (g->db.item_count > 0)
+    {
       int idx = roll_item_index_with_bias(g);
-      if (!levelup_choice_exists(g, 0, idx)) {
-        g->choices[g->choice_count++] = (LevelUpChoice){ .type = 0, .index = idx };
+      if (!levelup_choice_exists(g, 0, idx))
+      {
+        g->choices[g->choice_count++] = (LevelUpChoice){.type = 0, .index = idx};
       }
     }
   }
@@ -836,24 +1056,31 @@ void build_levelup_choices(Game *g) {
   g->levelup_selected_count = 0;
 }
 
-void build_start_page(Game *g) {
+void build_start_page(Game *g)
+{
   g->choice_count = 0;
   int per_page = g->db.character_count;
   int total = g->db.character_count;
   int pages = (total + per_page - 1) / per_page;
-  if (pages < 1) pages = 1;
-  if (g->start_page < 0) g->start_page = 0;
-  if (g->start_page >= pages) g->start_page = pages - 1;
+  if (pages < 1)
+    pages = 1;
+  if (g->start_page < 0)
+    g->start_page = 0;
+  if (g->start_page >= pages)
+    g->start_page = pages - 1;
   int start = g->start_page * per_page;
   int end = start + per_page;
-  if (end > total) end = total;
-  for (int i = start; i < end; i++) {
+  if (end > total)
+    end = total;
+  for (int i = start; i < end; i++)
+  {
     /* Type 2 = Character */
-    g->choices[g->choice_count++] = (LevelUpChoice){ .type = 2, .index = i };
+    g->choices[g->choice_count++] = (LevelUpChoice){.type = 2, .index = i};
   }
 }
 
-float start_scroll_max(Game *g) {
+float start_scroll_max(Game *g)
+{
   int split_x = (g->window_w * 2) / 3;
   int margin = 25;
   int cols = 4;
@@ -866,48 +1093,68 @@ float start_scroll_max(Game *g) {
   int rows = (shown + cols - 1) / cols;
   int total_grid_h = rows * (total_h + 12) - 12;
   int view_h = g->window_h - start_y - 20;
-  if (total_grid_h <= view_h) return 0.0f;
+  if (total_grid_h <= view_h)
+    return 0.0f;
   return (float)(total_grid_h - view_h);
 }
 
-static SDL_Color rarity_color(const char *rarity) {
-  if (strcmp(rarity, "uncommon") == 0) return (SDL_Color){ 75, 209, 160, 255 };
-  if (strcmp(rarity, "rare") == 0) return (SDL_Color){ 91, 177, 255, 255 };
-  if (strcmp(rarity, "epic") == 0) return (SDL_Color){ 210, 123, 255, 255 };
-  if (strcmp(rarity, "legendary") == 0) return (SDL_Color){ 255, 179, 71, 255 };
-  return (SDL_Color){ 230, 231, 234, 255 };
+static SDL_Color rarity_color(const char *rarity)
+{
+  if (strcmp(rarity, "uncommon") == 0)
+    return (SDL_Color){75, 209, 160, 255};
+  if (strcmp(rarity, "rare") == 0)
+    return (SDL_Color){91, 177, 255, 255};
+  if (strcmp(rarity, "epic") == 0)
+    return (SDL_Color){210, 123, 255, 255};
+  if (strcmp(rarity, "legendary") == 0)
+    return (SDL_Color){255, 179, 71, 255};
+  return (SDL_Color){230, 231, 234, 255};
 }
 
-static SDL_Texture *rarity_orb_texture(Game *g, const char *rarity) {
-  if (!g || !rarity) return NULL;
-  if (strcmp(rarity, "uncommon") == 0) return g->tex_orb_uncommon;
-  if (strcmp(rarity, "rare") == 0) return g->tex_orb_rare;
-  if (strcmp(rarity, "epic") == 0) return g->tex_orb_epic;
-  if (strcmp(rarity, "legendary") == 0) return g->tex_orb_legendary;
+static SDL_Texture *rarity_orb_texture(Game *g, const char *rarity)
+{
+  if (!g || !rarity)
+    return NULL;
+  if (strcmp(rarity, "uncommon") == 0)
+    return g->tex_orb_uncommon;
+  if (strcmp(rarity, "rare") == 0)
+    return g->tex_orb_rare;
+  if (strcmp(rarity, "epic") == 0)
+    return g->tex_orb_epic;
+  if (strcmp(rarity, "legendary") == 0)
+    return g->tex_orb_legendary;
   return g->tex_orb_common;
 }
 
-static int levelup_orb_size(const SDL_Rect *rect) {
+static int levelup_orb_size(const SDL_Rect *rect)
+{
   int base = rect->w < rect->h ? rect->w : rect->h;
   return (int)(base * 2.4f);
 }
 
-static int rarity_rank(const char *rarity) {
-  if (strcmp(rarity, "uncommon") == 0) return 1;
-  if (strcmp(rarity, "rare") == 0) return 2;
-  if (strcmp(rarity, "epic") == 0) return 3;
-  if (strcmp(rarity, "legendary") == 0) return 4;
+static int rarity_rank(const char *rarity)
+{
+  if (strcmp(rarity, "uncommon") == 0)
+    return 1;
+  if (strcmp(rarity, "rare") == 0)
+    return 2;
+  if (strcmp(rarity, "epic") == 0)
+    return 3;
+  if (strcmp(rarity, "legendary") == 0)
+    return 4;
   return 0;
 }
 
-static int roll_rarity_rank(float bias) {
+static int roll_rarity_rank(float bias)
+{
   float w_common = 50.0f;
   float w_uncommon = 35.0f;
   float w_rare = 20.0f;
   float w_epic = 10.0f;
   float w_legendary = 5.0f;
 
-  if (bias > 0.0f) {
+  if (bias > 0.0f)
+  {
     float down = clampf(1.0f - bias * 0.6f, 0.2f, 1.0f);
     float up = 1.0f + bias;
     w_common *= down;
@@ -919,103 +1166,143 @@ static int roll_rarity_rank(float bias) {
 
   float total = w_common + w_uncommon + w_rare + w_epic + w_legendary;
   float r = frandf() * total;
-  if (r < w_common) return 0;
+  if (r < w_common)
+    return 0;
   r -= w_common;
-  if (r < w_uncommon) return 1;
+  if (r < w_uncommon)
+    return 1;
   r -= w_uncommon;
-  if (r < w_rare) return 2;
+  if (r < w_rare)
+    return 2;
   r -= w_rare;
-  if (r < w_epic) return 3;
+  if (r < w_epic)
+    return 3;
   return 4;
 }
 
-static int pick_item_index_by_rarity(Game *g, int rank) {
+static int pick_item_index_by_rarity(Game *g, int rank)
+{
   int count = 0;
-  for (int i = 0; i < g->db.item_count; i++) {
-    if (rarity_rank(g->db.items[i].rarity) == rank) count++;
+  for (int i = 0; i < g->db.item_count; i++)
+  {
+    if (rarity_rank(g->db.items[i].rarity) == rank)
+      count++;
   }
-  if (count == 0) return -1;
+  if (count == 0)
+    return -1;
   int pick = rand() % count;
-  for (int i = 0; i < g->db.item_count; i++) {
-    if (rarity_rank(g->db.items[i].rarity) == rank) {
-      if (pick-- == 0) return i;
+  for (int i = 0; i < g->db.item_count; i++)
+  {
+    if (rarity_rank(g->db.items[i].rarity) == rank)
+    {
+      if (pick-- == 0)
+        return i;
     }
   }
   return -1;
 }
 
-static int pick_weapon_index_by_rarity(Game *g, int rank) {
+static int pick_weapon_index_by_rarity(Game *g, int rank)
+{
   int count = 0;
-  for (int i = 0; i < g->db.weapon_count; i++) {
-    if (rarity_rank(g->db.weapons[i].rarity) == rank) count++;
+  for (int i = 0; i < g->db.weapon_count; i++)
+  {
+    if (rarity_rank(g->db.weapons[i].rarity) == rank)
+      count++;
   }
-  if (count == 0) return -1;
+  if (count == 0)
+    return -1;
   int pick = rand() % count;
-  for (int i = 0; i < g->db.weapon_count; i++) {
-    if (rarity_rank(g->db.weapons[i].rarity) == rank) {
-      if (pick-- == 0) return i;
+  for (int i = 0; i < g->db.weapon_count; i++)
+  {
+    if (rarity_rank(g->db.weapons[i].rarity) == rank)
+    {
+      if (pick-- == 0)
+        return i;
     }
   }
   return -1;
 }
 
-static int roll_item_index_with_bias(Game *g) {
+static int roll_item_index_with_bias(Game *g)
+{
   float bias = player_rarity_bias(&g->player, &g->db);
   int rank = roll_rarity_rank(bias);
   int idx = pick_item_index_by_rarity(g, rank);
-  if (idx >= 0) return idx;
-  for (int r = rank - 1; r >= 0; r--) {
+  if (idx >= 0)
+    return idx;
+  for (int r = rank - 1; r >= 0; r--)
+  {
     idx = pick_item_index_by_rarity(g, r);
-    if (idx >= 0) return idx;
+    if (idx >= 0)
+      return idx;
   }
   return rand() % g->db.item_count;
 }
 
-static int roll_weapon_index_with_bias(Game *g) {
+static int roll_weapon_index_with_bias(Game *g)
+{
   float bias = player_rarity_bias(&g->player, &g->db);
   int rank = roll_rarity_rank(bias);
   int idx = pick_weapon_index_by_rarity(g, rank);
-  if (idx >= 0) return idx;
-  for (int r = rank - 1; r >= 0; r--) {
+  if (idx >= 0)
+    return idx;
+  for (int r = rank - 1; r >= 0; r--)
+  {
     idx = pick_weapon_index_by_rarity(g, r);
-    if (idx >= 0) return idx;
+    if (idx >= 0)
+      return idx;
   }
   return rand() % g->db.weapon_count;
 }
 
-static void trigger_item_popup(Game *g, ItemDef *it) {
-  if (!g || !it) return;
+static void trigger_item_popup(Game *g, ItemDef *it)
+{
+  if (!g || !it)
+    return;
   snprintf(g->item_popup_name, sizeof(g->item_popup_name), "%s", it->name);
   g->item_popup_timer = ITEM_POPUP_DURATION;
 }
 
-void update_window_view(Game *g) {
+void update_window_view(Game *g)
+{
   int w = WINDOW_W;
   int h = WINDOW_H;
-  if (g && g->window) SDL_GetWindowSize(g->window, &w, &h);
+  if (g && g->window)
+    SDL_GetWindowSize(g->window, &w, &h);
   g->window_w = w;
   g->window_h = h;
   g->view_w = w;
   g->view_h = h;
-  if (g->view_w < 200) g->view_w = 200;
-  if (g->view_h < 200) g->view_h = 200;
+  if (g->view_w < 200)
+    g->view_w = 200;
+  if (g->view_h < 200)
+    g->view_h = 200;
 }
 
-static int strcasestr_simple(const char *haystack, const char *needle) {
-  if (!haystack || !needle || !needle[0]) return 0;
+static int strcasestr_simple(const char *haystack, const char *needle)
+{
+  if (!haystack || !needle || !needle[0])
+    return 0;
   size_t nlen = strlen(needle);
-  for (const char *h = haystack; *h; h++) {
+  for (const char *h = haystack; *h; h++)
+  {
     size_t i = 0;
-    for (; i < nlen; i++) {
-      if (!h[i]) return 0;
-      if (tolower((unsigned char)h[i]) != tolower((unsigned char)needle[i])) break;
+    for (; i < nlen; i++)
+    {
+      if (!h[i])
+        return 0;
+      if (tolower((unsigned char)h[i]) != tolower((unsigned char)needle[i]))
+        break;
     }
-    if (i == nlen) return 1;
+    if (i == nlen)
+      return 1;
   }
   return 0;
 }
 
-void game_reset(Game *g) {
+void game_reset(Game *g)
+{
   update_window_view(g);
   g->spawn_timer = 0.0f;
   g->kills = 0;
@@ -1038,19 +1325,24 @@ void game_reset(Game *g) {
   g->boss_def_index = 0;
   g->wave_snapshot.valid = 0;
   g->debug_show_range = 1;
-  g->debug_show_items = 0;  /* hidden by default, toggle with key 8 */
+  g->debug_show_items = 0; /* hidden by default, toggle with key 8 */
   g->start_page = 0;
   g->start_scroll = 0.0f;
   g->ultimate_cd = 0.0f;
   g->choice_count = 0;
   g->selected_character = -1;
-  g->rerolls = 2;  /* 2 rerolls per run */
-  g->high_roll_used = 0;  /* high roll available once per run */
-  for (int i = 0; i < MAX_ENEMIES; i++) g->enemies[i].active = 0;
-  for (int i = 0; i < MAX_BULLETS; i++) g->bullets[i].active = 0;
-  for (int i = 0; i < MAX_DROPS; i++) g->drops[i].active = 0;
-  for (int i = 0; i < MAX_PUDDLES; i++) g->puddles[i].active = 0;
-  for (int i = 0; i < MAX_TOTEMS; i++) g->totems[i].active = 0;
+  g->rerolls = 2;        /* 2 rerolls per run */
+  g->high_roll_used = 0; /* high roll available once per run */
+  for (int i = 0; i < MAX_ENEMIES; i++)
+    g->enemies[i].active = 0;
+  for (int i = 0; i < MAX_BULLETS; i++)
+    g->bullets[i].active = 0;
+  for (int i = 0; i < MAX_DROPS; i++)
+    g->drops[i].active = 0;
+  for (int i = 0; i < MAX_PUDDLES; i++)
+    g->puddles[i].active = 0;
+  for (int i = 0; i < MAX_TOTEMS; i++)
+    g->totems[i].active = 0;
   g->totem_spawn_timer = 20.0f + frandf() * 15.0f;
   g->totem_freeze_timer = 0.0f;
 
@@ -1062,8 +1354,10 @@ void game_reset(Game *g) {
   g->camera_y = p->y - g->view_h * 0.5f;
   float max_cam_x = ARENA_W - g->view_w;
   float max_cam_y = ARENA_H - g->view_h;
-  if (max_cam_x < 0.0f) max_cam_x = 0.0f;
-  if (max_cam_y < 0.0f) max_cam_y = 0.0f;
+  if (max_cam_x < 0.0f)
+    max_cam_x = 0.0f;
+  if (max_cam_y < 0.0f)
+    max_cam_y = 0.0f;
   g->camera_x = clampf(g->camera_x, 0.0f, max_cam_x);
   g->camera_y = clampf(g->camera_y, 0.0f, max_cam_y);
   p->base = (Stats){0};
@@ -1080,24 +1374,35 @@ void game_reset(Game *g) {
   p->alch_ult_timer = 0.0f;
   p->alch_ult_start_hp = p->hp;
   p->alch_ult_max_hp = p->hp;
+  p->molten_trail_timer = 0.0f;
 
   int chest_spawned = 0;
   int attempts = 0;
-  while (chest_spawned < 3 && attempts++ < 200) {
+  while (chest_spawned < 3 && attempts++ < 200)
+  {
     float x = 80.0f + frandf() * (ARENA_W - 160.0f);
     float y = 80.0f + frandf() * (ARENA_H - 160.0f);
     float dx = x - p->x;
     float dy = y - p->y;
-    if (dx * dx + dy * dy < 600.0f * 600.0f) continue;
+    if (dx * dx + dy * dy < 600.0f * 600.0f)
+      continue;
     int too_close = 0;
-    for (int i = 0; i < MAX_DROPS; i++) {
-      if (!g->drops[i].active) continue;
-      if (g->drops[i].type != 2) continue;
+    for (int i = 0; i < MAX_DROPS; i++)
+    {
+      if (!g->drops[i].active)
+        continue;
+      if (g->drops[i].type != 2)
+        continue;
       float ddx = x - g->drops[i].x;
       float ddy = y - g->drops[i].y;
-      if (ddx * ddx + ddy * ddy < 400.0f * 400.0f) { too_close = 1; break; }
+      if (ddx * ddx + ddy * ddy < 400.0f * 400.0f)
+      {
+        too_close = 1;
+        break;
+      }
     }
-    if (too_close) continue;
+    if (too_close)
+      continue;
     spawn_chest(g, x, y);
     chest_spawned++;
   }
@@ -1107,55 +1412,70 @@ void game_reset(Game *g) {
   build_start_page(g);
 }
 
-static void level_up(Game *g) {
+static void level_up(Game *g)
+{
   g->level += 1;
   g->xp_to_next = 10 + g->level * 5;
   g->mode = MODE_LEVELUP;
   build_levelup_choices(g);
 }
 
-void wave_start(Game *g) {
+void wave_start(Game *g)
+{
   g->mode = MODE_WAVE;
   g->spawn_timer = 0.0f;
 }
 
-static void handle_player_pickups(Game *g, float dt) {
+static void handle_player_pickups(Game *g, float dt)
+{
   Player *p = &g->player;
   Stats total = player_total_stats(p, &g->db);
-  float xp_magnet_range = 150.0f + total.xp_magnet;  /* XP orbs start moving toward player */
-  float pickup_range = 20.0f;        /* actual pickup distance */
-  float health_pickup_range = 30.0f; /* health pickup distance */
+  float xp_magnet_range = 150.0f + total.xp_magnet; /* XP orbs start moving toward player */
+  float pickup_range = 20.0f;                       /* actual pickup distance */
+  float health_pickup_range = 30.0f;                /* health pickup distance */
   float chest_pickup_range = 26.0f;
-  
-  for (int i = 0; i < MAX_DROPS; i++) {
+
+  for (int i = 0; i < MAX_DROPS; i++)
+  {
     Drop *d = &g->drops[i];
-    if (!d->active) continue;
+    if (!d->active)
+      continue;
     float dx = d->x - p->x;
     float dy = d->y - p->y;
     float dist2 = dx * dx + dy * dy;
     float dist = sqrtf(dist2);
-    
+
     float pickup_dist = (d->type == 0) ? pickup_range : (d->type == 1 ? health_pickup_range : chest_pickup_range);
-    if (dist < pickup_dist) {
-      if (d->type == 0) {
+    if (dist < pickup_dist)
+    {
+      if (d->type == 0)
+      {
         g->xp += (int)(d->value * g->skill_tree_xp_mult);
-        if (g->xp >= g->xp_to_next) {
+        if (g->xp >= g->xp_to_next)
+        {
           g->xp -= g->xp_to_next;
           level_up(g);
         }
         float kill_chance = player_xp_kill_chance(p, &g->db);
-        if (kill_chance > 0.0f && frandf() < kill_chance) {
+        if (kill_chance > 0.0f && frandf() < kill_chance)
+        {
           int nearest = find_nearest_enemy(g, p->x, p->y);
-          if (nearest >= 0) {
+          if (nearest >= 0)
+          {
             g->enemies[nearest].hp = 0.0f;
             log_combatf(g, "xp_kill proc on %s", enemy_label(g, &g->enemies[nearest]));
           }
         }
-      } else if (d->type == 1) {
-        if (p->alch_ult_phase == 0) {
+      }
+      else if (d->type == 1)
+      {
+        if (p->alch_ult_phase == 0)
+        {
           p->hp = clampf(p->hp + d->value, 0.0f, total.max_hp);
         }
-      } else {
+      }
+      else
+      {
         level_up(g);
       }
       d->active = 0;
@@ -1163,14 +1483,17 @@ static void handle_player_pickups(Game *g, float dt) {
     }
 
     /* Once magnetized, keep flying until picked up */
-    if (d->type != 2 && (dist < xp_magnet_range || d->magnetized)) {
+    if (d->type != 2 && (dist < xp_magnet_range || d->magnetized))
+    {
       d->magnetized = 1;
       /* Accelerate magnet speed over time */
       d->magnet_speed += 400.0f * dt;
-      if (d->magnet_speed > 600.0f) d->magnet_speed = 600.0f;
+      if (d->magnet_speed > 600.0f)
+        d->magnet_speed = 600.0f;
 
       /* Move toward player */
-      if (dist > 0.0001f) {
+      if (dist > 0.0001f)
+      {
         float nx = -dx / dist;
         float ny = -dy / dist;
         d->x += nx * d->magnet_speed * dt;
@@ -1181,8 +1504,10 @@ static void handle_player_pickups(Game *g, float dt) {
 }
 
 /* Ultimate abilities - each character can have a unique one */
-static void ultimate_aoe_mouse(Game *g) {
-  if (!g) return;
+static void ultimate_aoe_mouse(Game *g)
+{
+  if (!g)
+    return;
   int mx = 0;
   int my = 0;
   SDL_GetMouseState(&mx, &my);
@@ -1200,42 +1525,60 @@ static void ultimate_aoe_mouse(Game *g) {
   log_combatf(g, "ultimate aoe (r=%.0f dps=%.1f)", radius, dps);
 }
 
-static int any_totem_active(Game *g) {
-  for (int i = 0; i < MAX_TOTEMS; i++) {
-    if (g->totems[i].active) return 1;
+static int any_totem_active(Game *g)
+{
+  for (int i = 0; i < MAX_TOTEMS; i++)
+  {
+    if (g->totems[i].active)
+      return 1;
   }
   return 0;
 }
 
-static void apply_totem_effect(Game *g, int type) {
-  if (!g) return;
-  if (type == 0) {
+static void apply_totem_effect(Game *g, int type)
+{
+  if (!g)
+    return;
+  if (type == 0)
+  {
     g->totem_freeze_timer = 5.0f;
-    for (int i = 0; i < MAX_ENEMIES; i++) {
-      if (!g->enemies[i].active) continue;
-      if (g->enemies[i].debuffs.stun_timer < 5.0f) g->enemies[i].debuffs.stun_timer = 5.0f;
+    for (int i = 0; i < MAX_ENEMIES; i++)
+    {
+      if (!g->enemies[i].active)
+        continue;
+      if (g->enemies[i].debuffs.stun_timer < 5.0f)
+        g->enemies[i].debuffs.stun_timer = 5.0f;
     }
     log_combatf(g, "freeze_totem activated");
-  } else if (type == 1) {
-    for (int i = 0; i < MAX_ENEMIES; i++) {
+  }
+  else if (type == 1)
+  {
+    for (int i = 0; i < MAX_ENEMIES; i++)
+    {
       Enemy *en = &g->enemies[i];
-      if (!en->active) continue;
+      if (!en->active)
+        continue;
       en->debuffs.curse_timer = 5.0f;
       en->debuffs.curse_dps = (en->max_hp * 0.5f) / 5.0f;
     }
     log_combatf(g, "curse_totem activated");
-  } else if (type == 2) {
+  }
+  else if (type == 2)
+  {
     int killed = 0;
     float cam_x = g->camera_x;
     float cam_y = g->camera_y;
     float cam_x2 = cam_x + g->view_w;
     float cam_y2 = cam_y + g->view_h;
-    for (int i = 0; i < MAX_ENEMIES; i++) {
+    for (int i = 0; i < MAX_ENEMIES; i++)
+    {
       Enemy *en = &g->enemies[i];
-      if (!en->active) continue;
+      if (!en->active)
+        continue;
       float ex = en->x;
       float ey = en->y;
-      if (ex >= cam_x && ex <= cam_x2 && ey >= cam_y && ey <= cam_y2) {
+      if (ex >= cam_x && ex <= cam_x2 && ey >= cam_y && ey <= cam_y2)
+      {
         en->hp = 0.0f;
         killed++;
       }
@@ -1244,10 +1587,14 @@ static void apply_totem_effect(Game *g, int type) {
   }
 }
 
-static void spawn_random_totem(Game *g) {
-  if (!g) return;
-  for (int i = 0; i < MAX_TOTEMS; i++) {
-    if (g->totems[i].active) continue;
+static void spawn_random_totem(Game *g)
+{
+  if (!g)
+    return;
+  for (int i = 0; i < MAX_TOTEMS; i++)
+  {
+    if (g->totems[i].active)
+      continue;
     Totem *t = &g->totems[i];
     memset(t, 0, sizeof(*t));
     t->active = 1;
@@ -1258,12 +1605,14 @@ static void spawn_random_totem(Game *g) {
     float x = 0.0f;
     float y = 0.0f;
     int attempts = 0;
-    while (attempts++ < 80) {
+    while (attempts++ < 80)
+    {
       x = 60.0f + frandf() * (ARENA_W - 120.0f);
       y = 60.0f + frandf() * (ARENA_H - 120.0f);
       float dx = x - g->player.x;
       float dy = y - g->player.y;
-      if (dx * dx + dy * dy < 300.0f * 300.0f) continue;
+      if (dx * dx + dy * dy < 300.0f * 300.0f)
+        continue;
       break;
     }
     t->x = x;
@@ -1273,18 +1622,24 @@ static void spawn_random_totem(Game *g) {
   }
 }
 
-int totem_damage_at(Game *g, float x, float y, float radius, float dmg) {
-  if (!g || dmg <= 0.0f) return 0;
-  for (int i = 0; i < MAX_TOTEMS; i++) {
+int totem_damage_at(Game *g, float x, float y, float radius, float dmg)
+{
+  if (!g || dmg <= 0.0f)
+    return 0;
+  for (int i = 0; i < MAX_TOTEMS; i++)
+  {
     Totem *t = &g->totems[i];
-    if (!t->active) continue;
+    if (!t->active)
+      continue;
     float hit_r = t->radius + (radius > 0.0f ? radius : 0.0f);
     float r2 = hit_r * hit_r;
     float dx = t->x - x;
     float dy = t->y - y;
-    if (dx * dx + dy * dy <= r2) {
+    if (dx * dx + dy * dy <= r2)
+    {
       t->hp -= dmg;
-      if (t->hp <= 0.0f) {
+      if (t->hp <= 0.0f)
+      {
         t->active = 0;
         apply_totem_effect(g, t->type);
       }
@@ -1294,10 +1649,14 @@ int totem_damage_at(Game *g, float x, float y, float radius, float dmg) {
   return 0;
 }
 
-static void spawn_alchemist_ult_fx(Game *g, float x, float y, float radius) {
-  if (!g) return;
-  for (int i = 0; i < MAX_WEAPON_FX; i++) {
-    if (!g->weapon_fx[i].active) {
+static void spawn_alchemist_ult_fx(Game *g, float x, float y, float radius)
+{
+  if (!g)
+    return;
+  for (int i = 0; i < MAX_WEAPON_FX; i++)
+  {
+    if (!g->weapon_fx[i].active)
+    {
       WeaponFX *fx = &g->weapon_fx[i];
       memset(fx, 0, sizeof(*fx));
       fx->active = 1;
@@ -1312,10 +1671,13 @@ static void spawn_alchemist_ult_fx(Game *g, float x, float y, float radius) {
   }
 }
 
-static void ultimate_alchemist(Game *g) {
-  if (!g) return;
+static void ultimate_alchemist(Game *g)
+{
+  if (!g)
+    return;
   Player *p = &g->player;
-  if (p->alch_ult_phase != 0) return;
+  if (p->alch_ult_phase != 0)
+    return;
   Stats stats = player_total_stats(p, &g->db);
   p->alch_ult_phase = 1;
   p->alch_ult_timer = 0.0f;
@@ -1324,31 +1686,40 @@ static void ultimate_alchemist(Game *g) {
   log_combatf(g, "alchemist ult start");
 }
 
-static void update_alchemist_ult(Game *g, float dt) {
-  if (!g) return;
+static void update_alchemist_ult(Game *g, float dt)
+{
+  if (!g)
+    return;
   Player *p = &g->player;
-  if (p->alch_ult_phase == 0) return;
+  if (p->alch_ult_phase == 0)
+    return;
 
   const float drain_time = 3.0f;
   const float heal_time = 3.0f;
   const float radius = 260.0f;
 
   p->alch_ult_timer += dt;
-  if (p->alch_ult_phase == 1) {
+  if (p->alch_ult_phase == 1)
+  {
     float t = clampf(p->alch_ult_timer / drain_time, 0.0f, 1.0f);
     p->hp = p->alch_ult_start_hp + (1.0f - p->alch_ult_start_hp) * t;
-    if (t >= 1.0f) {
+    if (t >= 1.0f)
+    {
       float radius2 = radius * radius;
       int killed = 0;
       spawn_alchemist_ult_fx(g, p->x, p->y, radius);
-      for (int i = 0; i < MAX_ENEMIES; i++) {
+      for (int i = 0; i < MAX_ENEMIES; i++)
+      {
         Enemy *en = &g->enemies[i];
-        if (!en->active) continue;
+        if (!en->active)
+          continue;
         EnemyDef *def = &g->db.enemies[en->def_index];
-        if (strcmp(def->role, "boss") == 0) continue;
+        if (strcmp(def->role, "boss") == 0)
+          continue;
         float dx = en->x - p->x;
         float dy = en->y - p->y;
-        if (dx * dx + dy * dy <= radius2) {
+        if (dx * dx + dy * dy <= radius2)
+        {
           en->hp = 0.0f;
           mark_enemy_hit(en);
           killed++;
@@ -1359,10 +1730,13 @@ static void update_alchemist_ult(Game *g, float dt) {
       p->alch_ult_timer = 0.0f;
       p->hp = 1.0f;
     }
-  } else if (p->alch_ult_phase == 2) {
+  }
+  else if (p->alch_ult_phase == 2)
+  {
     float t = clampf(p->alch_ult_timer / heal_time, 0.0f, 1.0f);
     p->hp = 1.0f + (p->alch_ult_max_hp - 1.0f) * t;
-    if (t >= 1.0f) {
+    if (t >= 1.0f)
+    {
       p->hp = p->alch_ult_max_hp;
       p->alch_ult_phase = 0;
       p->alch_ult_timer = 0.0f;
@@ -1370,66 +1744,135 @@ static void update_alchemist_ult(Game *g, float dt) {
   }
 }
 
-static void ultimate_shift_speed(Game *g) {
-  if (!g) return;
+static void ultimate_shift_speed(Game *g)
+{
+  if (!g)
+    return;
   g->player.ultimate_move_to_as_timer = 30.0f;
 }
 
-void activate_ultimate(Game *g) {
+void activate_ultimate(Game *g)
+{
   /* Get character's ultimate type */
   const char *ult_type = "kill_all";
-  if (g->selected_character >= 0 && g->selected_character < g->db.character_count) {
+  if (g->selected_character >= 0 && g->selected_character < g->db.character_count)
+  {
     ult_type = g->db.characters[g->selected_character].ultimate;
   }
-  
+
   /* Dispatch to appropriate ultimate */
-  if (strcmp(ult_type, "kill_all") == 0) {
+  if (strcmp(ult_type, "kill_all") == 0)
+  {
     ultimate_aoe_mouse(g);
-  } else if (strcmp(ult_type, "alchemist_ult") == 0) {
+  }
+  else if (strcmp(ult_type, "alchemist_ult") == 0)
+  {
     ultimate_alchemist(g);
-  } else if (strcmp(ult_type, "shift_speed") == 0) {
+  }
+  else if (strcmp(ult_type, "shift_speed") == 0)
+  {
     ultimate_shift_speed(g);
-  } else if (strcmp(ult_type, "aoe_mouse") == 0) {
+  }
+  else if (strcmp(ult_type, "aoe_mouse") == 0)
+  {
     ultimate_aoe_mouse(g);
-  } else {
+  }
+  else
+  {
     /* Unknown ultimate - fallback to kill_all */
     ultimate_aoe_mouse(g);
   }
 }
 
-void update_game(Game *g, float dt) {
+void update_game(Game *g, float dt)
+{
   const Uint8 *keys = SDL_GetKeyboardState(NULL);
   Player *p = &g->player;
   Stats stats = player_total_stats(p, &g->db);
   update_alchemist_ult(g, dt);
 
   /* Ultimate cooldown tick */
-  if (g->ultimate_cd > 0.0f) g->ultimate_cd -= dt;
-  if (g->ultimate_cd < 0.0f) g->ultimate_cd = 0.0f;
-  if (g->item_popup_timer > 0.0f) g->item_popup_timer -= dt;
-  if (p->ultimate_move_to_as_timer > 0.0f) {
+  if (g->ultimate_cd > 0.0f)
+    g->ultimate_cd -= dt;
+  if (g->ultimate_cd < 0.0f)
+    g->ultimate_cd = 0.0f;
+  if (g->item_popup_timer > 0.0f)
+    g->item_popup_timer -= dt;
+  if (p->ultimate_move_to_as_timer > 0.0f)
+  {
     p->ultimate_move_to_as_timer -= dt;
-    if (p->ultimate_move_to_as_timer < 0.0f) p->ultimate_move_to_as_timer = 0.0f;
+    if (p->ultimate_move_to_as_timer < 0.0f)
+      p->ultimate_move_to_as_timer = 0.0f;
   }
 
   float speed = 150.0f * (1.0f + stats.move_speed);
   float vx = 0.0f;
   float vy = 0.0f;
-  if (keys[SDL_SCANCODE_W]) vy -= 1.0f;
-  if (keys[SDL_SCANCODE_S]) vy += 1.0f;
-  if (keys[SDL_SCANCODE_A]) vx -= 1.0f;
-  if (keys[SDL_SCANCODE_D]) vx += 1.0f;
+  if (keys[SDL_SCANCODE_W])
+    vy -= 1.0f;
+  if (keys[SDL_SCANCODE_S])
+    vy += 1.0f;
+  if (keys[SDL_SCANCODE_A])
+    vx -= 1.0f;
+  if (keys[SDL_SCANCODE_D])
+    vx += 1.0f;
   vec_norm(&vx, &vy);
   p->is_moving = (vx != 0.0f || vy != 0.0f);
-  if (p->is_moving) {
+  if (p->is_moving)
+  {
     p->move_dir_x = vx;
     p->move_dir_y = vy;
   }
   p->x = clampf(p->x + vx * speed * dt, 20.0f, ARENA_W - 20.0f);
   p->y = clampf(p->y + vy * speed * dt, 20.0f, ARENA_H - 20.0f);
 
-  if (stats.hp_regen > 0.0f && p->alch_ult_phase == 0) {
+  if (stats.hp_regen > 0.0f && p->alch_ult_phase == 0)
+  {
     p->hp = clampf(p->hp + stats.hp_regen * dt, 0.0f, stats.max_hp);
+  }
+
+  if (g->selected_character >= 0 && g->selected_character < g->db.character_count)
+  {
+    if (strcmp(g->db.characters[g->selected_character].id, "molten") == 0)
+    {
+      if (p->is_moving)
+      {
+        p->molten_trail_timer -= dt;
+        if (p->molten_trail_timer <= 0.0f)
+        {
+          float radius = 60.0f;
+          float dps = 60.0f * (1.0f + stats.damage);
+          spawn_puddle(g, p->x, p->y, radius, dps, 3.0f, 2);
+          p->molten_trail_timer = 0.5f;
+        }
+      }
+      else
+      {
+        if (p->molten_trail_timer > 0.0f) p->molten_trail_timer -= dt;
+      }
+    }
+  }
+
+  if (g->selected_character >= 0 && g->selected_character < g->db.character_count)
+  {
+    if (strcmp(g->db.characters[g->selected_character].id, "molten") == 0)
+    {
+      if (p->is_moving)
+      {
+        p->molten_trail_timer -= dt;
+        if (p->molten_trail_timer <= 0.0f)
+        {
+          float radius = 60.0f;
+          float dps = 60.0f * (1.0f + stats.damage);
+          spawn_puddle(g, p->x, p->y, radius, dps, 3.0f, 0);
+          p->molten_trail_timer = 0.2f;
+        }
+      }
+      else
+      {
+        if (p->molten_trail_timer > 0.0f) p->molten_trail_timer -= dt;
+      }
+    }
   }
 
   /* Update camera - scroll when player reaches 4/5 of view edge */
@@ -1437,23 +1880,29 @@ void update_game(Game *g, float dt) {
   float scroll_margin_y = g->view_h * 0.2f;
   float player_screen_x = p->x - g->camera_x;
   float player_screen_y = p->y - g->camera_y;
-  
-  if (player_screen_x > g->view_w - scroll_margin_x) {
+
+  if (player_screen_x > g->view_w - scroll_margin_x)
+  {
     g->camera_x = p->x - (g->view_w - scroll_margin_x);
   }
-  if (player_screen_x < scroll_margin_x) {
+  if (player_screen_x < scroll_margin_x)
+  {
     g->camera_x = p->x - scroll_margin_x;
   }
-  if (player_screen_y > g->view_h - scroll_margin_y) {
+  if (player_screen_y > g->view_h - scroll_margin_y)
+  {
     g->camera_y = p->y - (g->view_h - scroll_margin_y);
   }
-  if (player_screen_y < scroll_margin_y) {
+  if (player_screen_y < scroll_margin_y)
+  {
     g->camera_y = p->y - scroll_margin_y;
   }
   float max_cam_x = ARENA_W - g->view_w;
   float max_cam_y = ARENA_H - g->view_h;
-  if (max_cam_x < 0.0f) max_cam_x = 0.0f;
-  if (max_cam_y < 0.0f) max_cam_y = 0.0f;
+  if (max_cam_x < 0.0f)
+    max_cam_x = 0.0f;
+  if (max_cam_y < 0.0f)
+    max_cam_y = 0.0f;
   g->camera_x = clampf(g->camera_x, 0.0f, max_cam_x);
   g->camera_y = clampf(g->camera_y, 0.0f, max_cam_y);
 
@@ -1464,9 +1913,11 @@ void update_game(Game *g, float dt) {
   update_puddles(g, dt);
   update_enemies(g, dt);
 
-  if (g->mode == MODE_LEVELUP && (g->levelup_chosen >= 0 || g->levelup_selected_count > 0) && g->levelup_fade > 0.0f) {
+  if (g->mode == MODE_LEVELUP && (g->levelup_chosen >= 0 || g->levelup_selected_count > 0) && g->levelup_fade > 0.0f)
+  {
     float now = (float)SDL_GetTicks() / 1000.0f;
-    if (now - g->levelup_fade >= 0.5f) {
+    if (now - g->levelup_fade >= 0.5f)
+    {
       g->mode = MODE_WAVE;
       g->levelup_chosen = -1;
       g->levelup_selected_count = 0;
@@ -1475,14 +1926,18 @@ void update_game(Game *g, float dt) {
 
   handle_player_pickups(g, dt);
 
-  if (g->totem_freeze_timer > 0.0f) {
+  if (g->totem_freeze_timer > 0.0f)
+  {
     g->totem_freeze_timer -= dt;
-    if (g->totem_freeze_timer < 0.0f) g->totem_freeze_timer = 0.0f;
+    if (g->totem_freeze_timer < 0.0f)
+      g->totem_freeze_timer = 0.0f;
   }
 
-  if (!any_totem_active(g)) {
+  if (!any_totem_active(g))
+  {
     g->totem_spawn_timer -= dt;
-    if (g->totem_spawn_timer <= 0.0f) {
+    if (g->totem_spawn_timer <= 0.0f)
+    {
       spawn_random_totem(g);
       g->totem_spawn_timer = 30.0f + frandf() * 25.0f;
     }
@@ -1490,24 +1945,35 @@ void update_game(Game *g, float dt) {
 
   /* Update game time and spawn enemies continuously */
   g->game_time += dt;
-  if (g->totem_freeze_timer > 0.0f) {
+  if (g->totem_freeze_timer > 0.0f)
+  {
     /* Freeze totem pauses spawns */
-  } else {
+  }
+  else
+  {
     g->spawn_timer -= dt;
   }
-  if (g->spawn_timer <= 0.0f && g->totem_freeze_timer <= 0.0f) {
-    if (g->db.enemy_count > 0) {
+  if (g->spawn_timer <= 0.0f && g->totem_freeze_timer <= 0.0f)
+  {
+    if (g->db.enemy_count > 0)
+    {
       int def_index = rand() % g->db.enemy_count;
       int eye_index = find_enemy_def(&g->db, "eye");
       int ghost_index = find_enemy_def(&g->db, "ghost");
-      if (g->game_time >= 300.0f && ghost_index >= 0) {
+      if (g->game_time >= 300.0f && ghost_index >= 0)
+      {
         def_index = ghost_index;
-      } else if (g->game_time >= 180.0f && eye_index >= 0) {
+      }
+      else if (g->game_time >= 180.0f && eye_index >= 0)
+      {
         def_index = eye_index;
-      } else {
+      }
+      else
+      {
         /* Every 60 seconds, spawn tougher enemy type */
         int difficulty_tier = (int)(g->game_time / 60.0f);
-        if (difficulty_tier > 0 && frandf() < 0.2f + difficulty_tier * 0.1f) {
+        if (difficulty_tier > 0 && frandf() < 0.2f + difficulty_tier * 0.1f)
+        {
           def_index = (def_index + difficulty_tier) % g->db.enemy_count;
         }
       }
@@ -1515,34 +1981,43 @@ void update_game(Game *g, float dt) {
       /* Spawn rate increases over time */
       float base_rate = 1.0f - g->game_time * 0.005f;
       g->spawn_timer = clampf(base_rate * g->skill_tree_spawn_scale, 0.15f, 2.0f);
-    } else {
+    }
+    else
+    {
       g->spawn_timer = 1.0f;
     }
   }
 
-  if (p->hp <= 0.0f) {
-    if (g->mode != MODE_GAMEOVER) {
+  if (p->hp <= 0.0f)
+  {
+    if (g->mode != MODE_GAMEOVER)
+    {
       skill_tree_award_points(g);
     }
     g->mode = MODE_GAMEOVER;
   }
 }
 
-void update_boss_event(Game *g, float dt) {
+void update_boss_event(Game *g, float dt)
+{
   const Uint8 *keys = SDL_GetKeyboardState(NULL);
   Player *p = &g->player;
   Stats stats = player_total_stats(p, &g->db);
   update_alchemist_ult(g, dt);
   int player_immune = (p->alch_ult_phase != 0);
 
-  if (g->boss_event_cd > 0.0f) {
+  if (g->boss_event_cd > 0.0f)
+  {
     g->boss_event_cd -= dt;
-    if (g->boss_event_cd < 0.0f) g->boss_event_cd = 0.0f;
+    if (g->boss_event_cd < 0.0f)
+      g->boss_event_cd = 0.0f;
   }
 
-  if (g->boss_countdown_timer > 0.0f) {
+  if (g->boss_countdown_timer > 0.0f)
+  {
     g->boss_countdown_timer -= dt;
-    if (g->boss_countdown_timer <= 0.0f) {
+    if (g->boss_countdown_timer <= 0.0f)
+    {
       float angle = frandf() * 6.28318f;
       float dist = 280.0f + frandf() * 80.0f;
       float bx = clampf(g->player.x + cosf(angle) * dist, 40.0f, ARENA_W - 40.0f);
@@ -1551,50 +2026,68 @@ void update_boss_event(Game *g, float dt) {
     }
   }
 
-  if (g->boss_timer > 0.0f) {
+  if (g->boss_timer > 0.0f)
+  {
     g->boss_timer -= dt;
-    if (g->boss_timer < 0.0f) g->boss_timer = 0.0f;
+    if (g->boss_timer < 0.0f)
+      g->boss_timer = 0.0f;
   }
-  if (g->boss.sword_hit_cd > 0.0f) {
+  if (g->boss.sword_hit_cd > 0.0f)
+  {
     g->boss.sword_hit_cd -= dt;
-    if (g->boss.sword_hit_cd < 0.0f) g->boss.sword_hit_cd = 0.0f;
+    if (g->boss.sword_hit_cd < 0.0f)
+      g->boss.sword_hit_cd = 0.0f;
   }
 
   /* Ultimate cooldown tick */
-  if (g->ultimate_cd > 0.0f) g->ultimate_cd -= dt;
-  if (g->ultimate_cd < 0.0f) g->ultimate_cd = 0.0f;
-  if (g->item_popup_timer > 0.0f) g->item_popup_timer -= dt;
-  if (g->boss_event_cd > 0.0f) {
+  if (g->ultimate_cd > 0.0f)
+    g->ultimate_cd -= dt;
+  if (g->ultimate_cd < 0.0f)
+    g->ultimate_cd = 0.0f;
+  if (g->item_popup_timer > 0.0f)
+    g->item_popup_timer -= dt;
+  if (g->boss_event_cd > 0.0f)
+  {
     g->boss_event_cd -= dt;
-    if (g->boss_event_cd < 0.0f) g->boss_event_cd = 0.0f;
+    if (g->boss_event_cd < 0.0f)
+      g->boss_event_cd = 0.0f;
   }
-  if (p->ultimate_move_to_as_timer > 0.0f) {
+  if (p->ultimate_move_to_as_timer > 0.0f)
+  {
     p->ultimate_move_to_as_timer -= dt;
-    if (p->ultimate_move_to_as_timer < 0.0f) p->ultimate_move_to_as_timer = 0.0f;
+    if (p->ultimate_move_to_as_timer < 0.0f)
+      p->ultimate_move_to_as_timer = 0.0f;
   }
 
   float speed = 150.0f * (1.0f + stats.move_speed);
   float vx = 0.0f;
   float vy = 0.0f;
-  if (keys[SDL_SCANCODE_W]) vy -= 1.0f;
-  if (keys[SDL_SCANCODE_S]) vy += 1.0f;
-  if (keys[SDL_SCANCODE_A]) vx -= 1.0f;
-  if (keys[SDL_SCANCODE_D]) vx += 1.0f;
+  if (keys[SDL_SCANCODE_W])
+    vy -= 1.0f;
+  if (keys[SDL_SCANCODE_S])
+    vy += 1.0f;
+  if (keys[SDL_SCANCODE_A])
+    vx -= 1.0f;
+  if (keys[SDL_SCANCODE_D])
+    vx += 1.0f;
   vec_norm(&vx, &vy);
   p->is_moving = (vx != 0.0f || vy != 0.0f);
-  if (p->is_moving) {
+  if (p->is_moving)
+  {
     p->move_dir_x = vx;
     p->move_dir_y = vy;
   }
   p->is_moving = (vx != 0.0f || vy != 0.0f);
-  if (p->is_moving) {
+  if (p->is_moving)
+  {
     p->move_dir_x = vx;
     p->move_dir_y = vy;
   }
   p->x = clampf(p->x + vx * speed * dt, 20.0f, ARENA_W - 20.0f);
   p->y = clampf(p->y + vy * speed * dt, 20.0f, ARENA_H - 20.0f);
 
-  if (stats.hp_regen > 0.0f && p->alch_ult_phase == 0) {
+  if (stats.hp_regen > 0.0f && p->alch_ult_phase == 0)
+  {
     p->hp = clampf(p->hp + stats.hp_regen * dt, 0.0f, stats.max_hp);
   }
 
@@ -1603,22 +2096,28 @@ void update_boss_event(Game *g, float dt) {
   float player_screen_x = p->x - g->camera_x;
   float player_screen_y = p->y - g->camera_y;
 
-  if (player_screen_x > g->view_w - scroll_margin_x) {
+  if (player_screen_x > g->view_w - scroll_margin_x)
+  {
     g->camera_x = p->x - (g->view_w - scroll_margin_x);
   }
-  if (player_screen_x < scroll_margin_x) {
+  if (player_screen_x < scroll_margin_x)
+  {
     g->camera_x = p->x - scroll_margin_x;
   }
-  if (player_screen_y > g->view_h - scroll_margin_y) {
+  if (player_screen_y > g->view_h - scroll_margin_y)
+  {
     g->camera_y = p->y - (g->view_h - scroll_margin_y);
   }
-  if (player_screen_y < scroll_margin_y) {
+  if (player_screen_y < scroll_margin_y)
+  {
     g->camera_y = p->y - scroll_margin_y;
   }
   float max_cam_x = ARENA_W - g->view_w;
   float max_cam_y = ARENA_H - g->view_h;
-  if (max_cam_x < 0.0f) max_cam_x = 0.0f;
-  if (max_cam_y < 0.0f) max_cam_y = 0.0f;
+  if (max_cam_x < 0.0f)
+    max_cam_x = 0.0f;
+  if (max_cam_y < 0.0f)
+    max_cam_y = 0.0f;
   g->camera_x = clampf(g->camera_x, 0.0f, max_cam_x);
   g->camera_y = clampf(g->camera_y, 0.0f, max_cam_y);
 
@@ -1628,87 +2127,116 @@ void update_boss_event(Game *g, float dt) {
   update_weapon_fx(g, dt);
   update_puddles(g, dt);
 
-  if (g->boss.active) {
+  if (g->boss.active)
+  {
     const BossDef *def = &g_boss_defs[g->boss.def_index];
     float dx = p->x - g->boss.x;
     float dy = p->y - g->boss.y;
     float dist2 = dx * dx + dy * dy;
     float dist = sqrtf(dist2);
-    if (dist > 0.001f && g->boss.hazard_timer <= 0.0f) {
+    if (dist > 0.001f && g->boss.hazard_timer <= 0.0f)
+    {
       float nx = dx / dist;
       float ny = dy / dist;
       g->boss.x += nx * def->speed * dt;
       g->boss.y += ny * def->speed * dt;
     }
 
-    if (g->boss.attack_timer > 0.0f) g->boss.attack_timer -= dt;
+    if (g->boss.attack_timer > 0.0f)
+      g->boss.attack_timer -= dt;
     float hit_range = def->radius + 14.0f;
-    if (dist < hit_range && g->boss.attack_timer <= 0.0f) {
+    if (dist < hit_range && g->boss.attack_timer <= 0.0f)
+    {
       float dmg = damage_after_armor(def->damage, stats.armor);
-      if (!player_immune) p->hp -= dmg;
+      if (!player_immune)
+        p->hp -= dmg;
       g->boss.attack_timer = def->attack_cooldown;
     }
 
-    if (g->boss.wave_cd > 0.0f) g->boss.wave_cd -= dt;
-    if (g->boss.slam_cd > 0.0f) g->boss.slam_cd -= dt;
-    if (g->boss.hazard_cd > 0.0f) g->boss.hazard_cd -= dt;
+    if (g->boss.wave_cd > 0.0f)
+      g->boss.wave_cd -= dt;
+    if (g->boss.slam_cd > 0.0f)
+      g->boss.slam_cd -= dt;
+    if (g->boss.hazard_cd > 0.0f)
+      g->boss.hazard_cd -= dt;
 
     g->boss.beam_angle += def->beam_rot_speed * dt;
-    if (g->boss.beam_angle > 6.28318f) g->boss.beam_angle -= 6.28318f;
+    if (g->boss.beam_angle > 6.28318f)
+      g->boss.beam_angle -= 6.28318f;
 
     float angle = g->boss.beam_angle;
     float lx = cosf(angle);
     float ly = sinf(angle);
     float proj = dx * lx + dy * ly;
-    if (proj > 0.0f && proj < def->beam_length) {
+    if (proj > 0.0f && proj < def->beam_length)
+    {
       float perp = fabsf(dx * (-ly) + dy * lx);
-      if (perp <= def->beam_width * 0.5f) {
+      if (perp <= def->beam_width * 0.5f)
+      {
         float dmg = damage_after_armor(def->beam_dps * dt, stats.armor);
-        if (!player_immune) p->hp -= dmg;
+        if (!player_immune)
+          p->hp -= dmg;
       }
     }
 
     int hazard_active = 0;
-    if (g->boss.hazard_timer > 0.0f) {
+    if (g->boss.hazard_timer > 0.0f)
+    {
       g->boss.hazard_timer -= dt;
-      if (g->boss.hazard_timer < 0.0f) g->boss.hazard_timer = 0.0f;
+      if (g->boss.hazard_timer < 0.0f)
+        g->boss.hazard_timer = 0.0f;
       hazard_active = 1;
 
       float safe_r = def->hazard_safe_radius;
       int safe = 0;
-      for (int i = 0; i < 3; i++) {
+      for (int i = 0; i < 3; i++)
+      {
         float sx = g->boss.safe_x[i];
         float sy = g->boss.safe_y[i];
         float ddx = p->x - sx;
         float ddy = p->y - sy;
-        if (ddx * ddx + ddy * ddy <= safe_r * safe_r) {
+        if (ddx * ddx + ddy * ddy <= safe_r * safe_r)
+        {
           safe = 1;
           break;
         }
       }
-      if (!safe) {
+      if (!safe)
+      {
         float dmg = damage_after_armor(def->hazard_dps * dt, stats.armor);
-        if (!player_immune) p->hp -= dmg;
+        if (!player_immune)
+          p->hp -= dmg;
       }
-    } else if (g->boss.hazard_cd <= 0.0f) {
+    }
+    else if (g->boss.hazard_cd <= 0.0f)
+    {
       g->boss.hazard_timer = def->hazard_duration;
       g->boss.hazard_cd = def->hazard_cooldown;
       float radius = (g->view_w < g->view_h ? g->view_w : g->view_h) * 0.35f;
-      if (radius < 120.0f) radius = 120.0f;
-      for (int i = 0; i < 3; i++) {
+      if (radius < 120.0f)
+        radius = 120.0f;
+      for (int i = 0; i < 3; i++)
+      {
         int attempts = 0;
-        while (attempts++ < 20) {
+        while (attempts++ < 20)
+        {
           float angle = frandf() * 6.28318f;
           float dist = radius * (0.4f + frandf() * 0.6f);
           float sx = clampf(p->x + cosf(angle) * dist, 40.0f, ARENA_W - 40.0f);
           float sy = clampf(p->y + sinf(angle) * dist, 40.0f, ARENA_H - 40.0f);
           int ok = 1;
-          for (int j = 0; j < i; j++) {
+          for (int j = 0; j < i; j++)
+          {
             float dxs = sx - g->boss.safe_x[j];
             float dys = sy - g->boss.safe_y[j];
-            if (dxs * dxs + dys * dys < def->hazard_safe_radius * def->hazard_safe_radius * 3.0f) { ok = 0; break; }
+            if (dxs * dxs + dys * dys < def->hazard_safe_radius * def->hazard_safe_radius * 3.0f)
+            {
+              ok = 0;
+              break;
+            }
           }
-          if (!ok) continue;
+          if (!ok)
+            continue;
           g->boss.safe_x[i] = sx;
           g->boss.safe_y[i] = sy;
           break;
@@ -1717,10 +2245,13 @@ void update_boss_event(Game *g, float dt) {
       hazard_active = 1;
     }
 
-    if (!hazard_active && g->boss.wave_cd <= 0.0f) {
+    if (!hazard_active && g->boss.wave_cd <= 0.0f)
+    {
       int n = def->wave_bullets;
-      if (n < 6) n = 6;
-      for (int i = 0; i < n; i++) {
+      if (n < 6)
+        n = 6;
+      for (int i = 0; i < n; i++)
+      {
         float a = (6.28318f * i) / n;
         float vx = cosf(a) * def->wave_speed;
         float vy = sinf(a) * def->wave_speed;
@@ -1730,24 +2261,29 @@ void update_boss_event(Game *g, float dt) {
       g->boss.wave_cd = def->wave_cooldown;
     }
 
-    if (!hazard_active && g->boss.slam_cd <= 0.0f && dist < def->slam_radius) {
+    if (!hazard_active && g->boss.slam_cd <= 0.0f && dist < def->slam_radius)
+    {
       float dmg = damage_after_armor(def->slam_damage, stats.armor);
-      if (!player_immune) p->hp -= dmg;
+      if (!player_immune)
+        p->hp -= dmg;
       g->boss.slam_cd = def->slam_cooldown;
     }
 
-    if (g->boss.hp <= 0.0f) {
+    if (g->boss.hp <= 0.0f)
+    {
       end_boss_event(g, 1);
       return;
     }
   }
 
-  if (p->hp <= 0.0f || g->boss_timer <= 0.0f) {
+  if (p->hp <= 0.0f || g->boss_timer <= 0.0f)
+  {
     end_boss_event(g, 0);
   }
 }
 
-static void layout_levelup(Game *g, int screen_w, int screen_h) {
+static void layout_levelup(Game *g, int screen_w, int screen_h)
+{
   int card_w = 260;
   int card_h = 120;
   int spacing = 40;
@@ -1755,14 +2291,17 @@ static void layout_levelup(Game *g, int screen_w, int screen_h) {
   int start_x = (screen_w - total_w) / 2;
   int start_y = (screen_h - card_h) / 2;
   int mid = g->choice_count / 2;
-  for (int i = 0; i < g->choice_count; i++) {
+  for (int i = 0; i < g->choice_count; i++)
+  {
     int y = start_y;
-    if (g->choice_count >= 3 && i == mid) y -= 46;
-    g->choices[i].rect = (SDL_Rect){ start_x + i * (card_w + spacing), y, card_w, card_h };
+    if (g->choice_count >= 3 && i == mid)
+      y -= 46;
+    g->choices[i].rect = (SDL_Rect){start_x + i * (card_w + spacing), y, card_w, card_h};
   }
 }
 
-void render_game(Game *g) {
+void render_game(Game *g)
+{
   SDL_SetRenderDrawColor(g->renderer, 8, 10, 16, 255);
   SDL_RenderClear(g->renderer);
 
@@ -1778,50 +2317,82 @@ void render_game(Game *g) {
 
   /* Arena background - tile 128x128 ground texture with camera offset */
   /* Buffer of 2 tiles beyond visible area for smoother scrolling */
-  if (g->tex_ground) {
+  if (g->tex_ground)
+  {
     int tile_size = 128;
-    int buffer = tile_size * 2;  /* 2 extra tiles on each side */
+    int buffer = tile_size * 2; /* 2 extra tiles on each side */
     int start_tx = ((cam_x - buffer) / tile_size) * tile_size;
     int start_ty = ((cam_y - buffer) / tile_size) * tile_size;
-    for (int ty = start_ty; ty < cam_y + view_h + buffer; ty += tile_size) {
-      for (int tx = start_tx; tx < cam_x + view_w + buffer; tx += tile_size) {
-        SDL_Rect dst = { offset_x + tx - cam_x, offset_y + ty - cam_y, tile_size, tile_size };
+    for (int ty = start_ty; ty < cam_y + view_h + buffer; ty += tile_size)
+    {
+      for (int tx = start_tx; tx < cam_x + view_w + buffer; tx += tile_size)
+      {
+        SDL_Rect dst = {offset_x + tx - cam_x, offset_y + ty - cam_y, tile_size, tile_size};
         SDL_RenderCopy(g->renderer, g->tex_ground, NULL, &dst);
       }
     }
-  } else {
-    SDL_Rect arena = { offset_x, offset_y, view_w, view_h };
+  }
+  else
+  {
+    SDL_Rect arena = {offset_x, offset_y, view_w, view_h};
     SDL_SetRenderDrawColor(g->renderer, 15, 18, 28, 255);
     SDL_RenderFillRect(g->renderer, &arena);
   }
-  
+
   /* No wall border for infinite map - just clip rendering */
-  SDL_Rect clip = { offset_x, offset_y, view_w, view_h };
+  SDL_Rect clip = {offset_x, offset_y, view_w, view_h};
   SDL_RenderSetClipRect(g->renderer, &clip);
 
   /* Alchemist puddles (above ground, behind player/enemies) */
-  if (g->mode != MODE_LEVELUP) {
-    for (int i = 0; i < MAX_PUDDLES; i++) {
-      if (!g->puddles[i].active) continue;
+  if (g->mode != MODE_LEVELUP)
+  {
+    for (int i = 0; i < MAX_PUDDLES; i++)
+    {
+      if (!g->puddles[i].active)
+        continue;
       int px = (int)(offset_x + g->puddles[i].x - cam_x);
       int py = (int)(offset_y + g->puddles[i].y - cam_y);
       int radius = (int)g->puddles[i].radius;
-      if (g->puddles[i].kind == 1) {
-        SDL_Color core = { 200, 40, 40, 90 };
-        SDL_Color border = { 255, 80, 80, 180 };
-        SDL_Color glow = { 220, 60, 60, 80 };
+      if (g->puddles[i].kind == 1)
+      {
+        SDL_Color core = {200, 40, 40, 90};
+        SDL_Color border = {255, 80, 80, 180};
+        SDL_Color glow = {220, 60, 60, 80};
         draw_filled_circle(g->renderer, px, py, radius, core);
         draw_circle(g->renderer, px, py, radius, border);
         draw_glow(g->renderer, px, py, radius + 8, glow);
-      } else {
-        SDL_Color core = { 60, 200, 120, 120 };
-        SDL_Color glow = { 40, 160, 90, 80 };
-        if (g->tex_alchemist_puddle) {
-          SDL_Rect dst = { px - radius, py - radius, radius * 2, radius * 2 };
+      }
+      else
+      {
+        SDL_Color core = {60, 200, 120, 120};
+        SDL_Color glow = {40, 160, 90, 80};
+        if (g->puddles[i].kind == 2)
+        {
+          core = (SDL_Color){220, 120, 40, 140};
+          glow = (SDL_Color){255, 140, 60, 90};
+        }
+        if (g->puddles[i].kind == 2 && g->tex_fire_trail)
+        {
+          int tex_w = 0;
+          int tex_h = 0;
+          SDL_QueryTexture(g->tex_fire_trail, NULL, NULL, &tex_w, &tex_h);
+          int frame_w = tex_w / 3;
+          int frame = (int)(g->game_time * 6.0f) % 3;
+          SDL_Rect src = {frame * frame_w, 0, frame_w, tex_h};
+          SDL_Rect dst = {px - radius, py - radius, radius * 2, radius * 2};
+          SDL_SetTextureAlphaMod(g->tex_fire_trail, 220);
+          SDL_RenderCopy(g->renderer, g->tex_fire_trail, &src, &dst);
+          SDL_SetTextureAlphaMod(g->tex_fire_trail, 255);
+        }
+        else if (g->tex_alchemist_puddle)
+        {
+          SDL_Rect dst = {px - radius, py - radius, radius * 2, radius * 2};
           SDL_SetTextureAlphaMod(g->tex_alchemist_puddle, 200);
           SDL_RenderCopy(g->renderer, g->tex_alchemist_puddle, NULL, &dst);
           SDL_SetTextureAlphaMod(g->tex_alchemist_puddle, 255);
-        } else {
+        }
+        else
+        {
           draw_filled_circle(g->renderer, px, py, radius, core);
         }
         draw_glow(g->renderer, px, py, radius + 6, glow);
@@ -1833,31 +2404,47 @@ void render_game(Game *g) {
   int px = (int)(offset_x + g->player.x - cam_x);
   int py = (int)(offset_y + g->player.y - cam_y);
   int player_size = 90;
-  
+  int is_molten = 0;
+  if (g->selected_character >= 0 && g->selected_character < g->db.character_count)
+  {
+    if (strcmp(g->db.characters[g->selected_character].id, "molten") == 0) is_molten = 1;
+  }
+
+  if (g->debug_show_range && g->mode != MODE_LEVELUP && is_molten)
+  {
+    SDL_Color c = {255, 120, 60, 120};
+    draw_circle(g->renderer, px, py, 60, c);
+  }
+
   /* Draw lightning zone effect if player has the weapon */
-  for (int i = 0; i < MAX_WEAPON_SLOTS; i++) {
-    if (!g->player.weapons[i].active) continue;
+  for (int i = 0; i < MAX_WEAPON_SLOTS; i++)
+  {
+    if (!g->player.weapons[i].active)
+      continue;
     WeaponDef *w = &g->db.weapons[g->player.weapons[i].def_index];
-    if (weapon_is(w, "lightning_zone")) {
+    if (weapon_is(w, "lightning_zone"))
+    {
       float range = w->range * (1.0f + 0.1f * (g->player.weapons[i].level - 1));
       float cd_ratio = g->player.weapons[i].cd_timer / w->cooldown;
       /* Pulsing effect - brighter when about to fire */
       int alpha = (int)(40 + (1.0f - cd_ratio) * 60);
       SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
       /* Draw filled circle for the zone */
-      SDL_Color zone_color = { 100, 150, 255, (Uint8)alpha };
+      SDL_Color zone_color = {100, 150, 255, (Uint8)alpha};
       draw_filled_circle(g->renderer, px, py, (int)range, zone_color);
       /* Draw border */
-      SDL_Color border_color = { 150, 200, 255, (Uint8)(alpha + 40) };
+      SDL_Color border_color = {150, 200, 255, (Uint8)(alpha + 40)};
       draw_circle(g->renderer, px, py, (int)range, border_color);
       /* Flash effect when firing */
-      if (cd_ratio > 0.95f) {
-        SDL_Color flash = { 200, 220, 255, 120 };
+      if (cd_ratio > 0.95f)
+      {
+        SDL_Color flash = {200, 220, 255, 120};
         draw_filled_circle(g->renderer, px, py, (int)range, flash);
         /* Render lightning zone sprite */
-        if (g->tex_lightning_zone) {
+        if (g->tex_lightning_zone)
+        {
           int sprite_size = (int)(range * 2.0f);
-          SDL_Rect dst = { px - sprite_size/2, py - sprite_size/2, sprite_size, sprite_size };
+          SDL_Rect dst = {px - sprite_size / 2, py - sprite_size / 2, sprite_size, sprite_size};
           SDL_SetTextureAlphaMod(g->tex_lightning_zone, 220);
           SDL_RenderCopy(g->renderer, g->tex_lightning_zone, NULL, &dst);
           SDL_SetTextureAlphaMod(g->tex_lightning_zone, 255);
@@ -1865,57 +2452,84 @@ void render_game(Game *g) {
       }
     }
   }
-  
+
   SDL_Texture *player_tex = g->tex_player_front;
   SDL_RendererFlip flip = SDL_FLIP_NONE;
   float mdx = g->player.move_dir_x;
   float mdy = g->player.move_dir_y;
   int use_char_walk = 0;
   CharacterDef *sel = NULL;
-  if (g->selected_character >= 0 && g->selected_character < g->db.character_count) {
+  if (g->selected_character >= 0 && g->selected_character < g->db.character_count)
+  {
     sel = &g->db.characters[g->selected_character];
-    if (g->tex_character_walk[g->selected_character]) {
+    if (g->tex_character_walk[g->selected_character])
+    {
       player_tex = g->tex_character_walk[g->selected_character];
       use_char_walk = 1;
     }
   }
-  if (!use_char_walk) {
-    if (g->player.is_moving) {
-      if (fabsf(mdy) >= fabsf(mdx)) {
-        if (mdy < 0.0f && g->tex_player_back) player_tex = g->tex_player_back;
-        else if (g->tex_player_front) player_tex = g->tex_player_front;
-      } else {
-        if (mdx < 0.0f) player_tex = g->tex_player_left ? g->tex_player_left : g->tex_player_right;
-        else player_tex = g->tex_player_right ? g->tex_player_right : g->tex_player_left;
+  if (!use_char_walk)
+  {
+    if (g->player.is_moving)
+    {
+      if (fabsf(mdy) >= fabsf(mdx))
+      {
+        if (mdy < 0.0f && g->tex_player_back)
+          player_tex = g->tex_player_back;
+        else if (g->tex_player_front)
+          player_tex = g->tex_player_front;
       }
-    } else {
-      if (g->tex_player_front) player_tex = g->tex_player_front;
+      else
+      {
+        if (mdx < 0.0f)
+          player_tex = g->tex_player_left ? g->tex_player_left : g->tex_player_right;
+        else
+          player_tex = g->tex_player_right ? g->tex_player_right : g->tex_player_left;
+      }
+    }
+    else
+    {
+      if (g->tex_player_front)
+        player_tex = g->tex_player_front;
     }
   }
 
-  if (player_tex) {
+  if (player_tex)
+  {
     int draw_size = player_size;
-    if (use_char_walk && sel && sel->walk_strip[0]) {
-      draw_size = (int)(player_size * 0.7f);
+    if (use_char_walk && sel && sel->walk_strip[0])
+    {
+      float scale = 1.0f;
+      if (strcmp(sel->id, "alchemist") == 0) scale = 0.7f;
+      if (strcmp(sel->id, "molten") == 0) scale = 1.2f;
+      draw_size = (int)(player_size * scale);
       if (draw_size < 24) draw_size = 24;
     }
-    SDL_Rect dst = { px - draw_size/2, py - draw_size/2, draw_size, draw_size };
-    if (use_char_walk && sel) {
+    SDL_Rect dst = {px - draw_size / 2, py - draw_size / 2, draw_size, draw_size};
+    if (use_char_walk && sel)
+    {
       int tex_w = 0, tex_h = 0;
       SDL_QueryTexture(player_tex, NULL, NULL, &tex_w, &tex_h);
       int frame_w = tex_w / 3;
       int idle_frame = sel->idle_frame;
       float fps = (sel->anim_fps > 0.1f) ? sel->anim_fps : 6.0f;
-      if (idle_frame < 0) idle_frame = 0;
-      if (idle_frame > 2) idle_frame = 2;
+      if (idle_frame < 0)
+        idle_frame = 0;
+      if (idle_frame > 2)
+        idle_frame = 2;
       int frame = g->player.is_moving ? ((int)(g->game_time * fps) % 3) : idle_frame;
-      SDL_Rect src = { frame * frame_w, 0, frame_w, tex_h };
-      if (g->player.is_moving && mdx < 0.0f) flip = SDL_FLIP_HORIZONTAL;
+      SDL_Rect src = {frame * frame_w, 0, frame_w, tex_h};
+      if (g->player.is_moving && mdx < 0.0f)
+        flip = SDL_FLIP_HORIZONTAL;
       SDL_RenderCopyEx(g->renderer, player_tex, &src, &dst, 0.0, NULL, flip);
-    } else {
+    }
+    else
+    {
       SDL_RenderCopyEx(g->renderer, player_tex, NULL, &dst, 0.0, NULL, flip);
     }
-  } else {
+  }
+  else
+  {
     draw_glow(g->renderer, px, py, 25, (SDL_Color){255, 200, 80, 100});
     draw_filled_circle(g->renderer, px, py, 12, (SDL_Color){255, 200, 80, 255});
     draw_circle(g->renderer, px, py, 12, (SDL_Color){255, 230, 150, 255});
@@ -1924,20 +2538,24 @@ void render_game(Game *g) {
   draw_sword_orbit(g, offset_x, offset_y, cam_x, cam_y);
 
   /* Enemies with sprite */
-  for (int i = 0; i < MAX_ENEMIES; i++) {
-    if (!g->enemies[i].active) continue;
+  for (int i = 0; i < MAX_ENEMIES; i++)
+  {
+    if (!g->enemies[i].active)
+      continue;
     EnemyDef *def = &g->db.enemies[g->enemies[i].def_index];
     int ex = (int)(offset_x + g->enemies[i].x - cam_x);
     int ey = (int)(offset_y + g->enemies[i].y - cam_y);
-    
+
     int size = 64;
-    if (strcmp(def->role, "boss") == 0) size = 96;
-    
+    if (strcmp(def->role, "boss") == 0)
+      size = 96;
+
     /* Status effect visuals - burn glow only */
-    if (g->enemies[i].debuffs.burn_timer > 0.0f) {
-      draw_glow(g->renderer, ex, ey, size/2 + 8, (SDL_Color){255, 100, 0, 100});
+    if (g->enemies[i].debuffs.burn_timer > 0.0f)
+    {
+      draw_glow(g->renderer, ex, ey, size / 2 + 8, (SDL_Color){255, 100, 0, 100});
     }
-    
+
     float now = (float)SDL_GetTicks() / 1000.0f;
     float hit_age = (g->enemies[i].hit_timer > 0.0f) ? (now - g->enemies[i].hit_timer) : 999.0f;
     int hit_flash = (hit_age >= 0.0f && hit_age < 0.5f);
@@ -1948,82 +2566,114 @@ void render_game(Game *g) {
     int use_base_anim = 0;
     int use_ghost_anim = 0;
     int use_eye_anim = 0;
-    if (strcmp(def->id, "eye") == 0 && g->tex_enemy_eye) {
+    if (strcmp(def->id, "eye") == 0 && g->tex_enemy_eye)
+    {
       enemy_tex = g->tex_enemy_eye;
       use_eye_anim = 1;
     }
-    if (strcmp(def->id, "ghost") == 0 && g->tex_enemy_ghost) {
+    if (strcmp(def->id, "ghost") == 0 && g->tex_enemy_ghost)
+    {
       enemy_tex = g->tex_enemy_ghost;
       use_ghost_anim = 1;
     }
-    if (strcmp(def->id, "charger") == 0 && g->tex_enemy_charger) {
+    if (strcmp(def->id, "charger") == 0 && g->tex_enemy_charger)
+    {
       enemy_tex = g->tex_enemy_charger;
       use_charger_anim = 1;
-    } else if (enemy_tex == g->tex_enemy) {
+    }
+    else if (enemy_tex == g->tex_enemy)
+    {
       use_base_anim = 1;
     }
-    if (enemy_tex) {
+    if (enemy_tex)
+    {
       float move_dx = 0.0f;
       float move_dy = 0.0f;
       SDL_RendererFlip enemy_flip = SDL_FLIP_NONE;
-      if (strcmp(def->role, "turret") != 0) {
-        if (g->enemies[i].charge_time > 0.0f) {
+      if (strcmp(def->role, "turret") != 0)
+      {
+        if (g->enemies[i].charge_time > 0.0f)
+        {
           move_dx = g->enemies[i].vx;
           move_dy = g->enemies[i].vy;
-        } else if (g->enemies[i].debuffs.stun_timer <= 0.0f) {
+        }
+        else if (g->enemies[i].debuffs.stun_timer <= 0.0f)
+        {
           move_dx = g->player.x - g->enemies[i].x;
           move_dy = g->player.y - g->enemies[i].y;
         }
-        if (fabsf(move_dx) > 0.01f || fabsf(move_dy) > 0.01f) {
-          if (move_dx < 0.0f) enemy_flip = SDL_FLIP_HORIZONTAL;
+        if (fabsf(move_dx) > 0.01f || fabsf(move_dy) > 0.01f)
+        {
+          if (move_dx < 0.0f)
+            enemy_flip = SDL_FLIP_HORIZONTAL;
         }
       }
       /* Tint red when hit, blue when slowed/frozen */
-      if (hit_flash) {
+      if (hit_flash)
+      {
         SDL_SetTextureColorMod(enemy_tex, 255, 120, 120);
-      } else if (g->totem_freeze_timer > 0.0f) {
+      }
+      else if (g->totem_freeze_timer > 0.0f)
+      {
         SDL_SetTextureColorMod(enemy_tex, 140, 180, 255);
-      } else if (g->enemies[i].debuffs.slow_timer > 0.0f) {
+      }
+      else if (g->enemies[i].debuffs.slow_timer > 0.0f)
+      {
         SDL_SetTextureColorMod(enemy_tex, 150, 180, 255);
-      } else {
+      }
+      else
+      {
         SDL_SetTextureColorMod(enemy_tex, 255, 255, 255);
       }
-      SDL_Rect dst = { ex - size/2, ey - size/2, size, size };
-      if (use_charger_anim || use_base_anim || use_ghost_anim || use_eye_anim) {
+      SDL_Rect dst = {ex - size / 2, ey - size / 2, size, size};
+      if (use_charger_anim || use_base_anim || use_ghost_anim || use_eye_anim)
+      {
         int tex_w = 0, tex_h = 0;
         SDL_QueryTexture(enemy_tex, NULL, NULL, &tex_w, &tex_h);
         int frame_w = tex_w / 3;
         int frame = (int)(g->game_time * 2.0f) % 3;
-        if (g->totem_freeze_timer > 0.0f) frame = 1;
-        SDL_Rect src = { frame * frame_w, 0, frame_w, tex_h };
+        if (g->totem_freeze_timer > 0.0f)
+          frame = 1;
+        SDL_Rect src = {frame * frame_w, 0, frame_w, tex_h};
         SDL_RenderCopyEx(g->renderer, enemy_tex, &src, &dst, 0.0, NULL, enemy_flip);
-      } else {
+      }
+      else
+      {
         SDL_RenderCopyEx(g->renderer, enemy_tex, NULL, &dst, 0.0, NULL, enemy_flip);
       }
-    } else {
+    }
+    else
+    {
       /* Fallback circle - tint blue when slowed */
-      if (hit_flash) {
-        draw_filled_circle(g->renderer, ex, ey, size/2, (SDL_Color){220, 100, 100, 255});
-      } else if (g->enemies[i].debuffs.slow_timer > 0.0f) {
-        draw_filled_circle(g->renderer, ex, ey, size/2, (SDL_Color){100, 150, 200, 255});
-      } else {
-        draw_filled_circle(g->renderer, ex, ey, size/2, (SDL_Color){100, 200, 100, 255});
+      if (hit_flash)
+      {
+        draw_filled_circle(g->renderer, ex, ey, size / 2, (SDL_Color){220, 100, 100, 255});
+      }
+      else if (g->enemies[i].debuffs.slow_timer > 0.0f)
+      {
+        draw_filled_circle(g->renderer, ex, ey, size / 2, (SDL_Color){100, 150, 200, 255});
+      }
+      else
+      {
+        draw_filled_circle(g->renderer, ex, ey, size / 2, (SDL_Color){100, 200, 100, 255});
       }
     }
 
     /* Hit flash overlay for visibility */
-    if (hit_flash) {
+    if (hit_flash)
+    {
       float t = clampf(1.0f - (hit_age / 0.5f), 0.0f, 1.0f);
       Uint8 alpha = (Uint8)(120.0f * t + 40.0f);
-      draw_glow(g->renderer, ex, ey, size/2 + 6, (SDL_Color){255, 80, 80, alpha});
+      draw_glow(g->renderer, ex, ey, size / 2 + 6, (SDL_Color){255, 80, 80, alpha});
     }
 
     /* Health bar for all enemies */
     float hp_pct = clampf(g->enemies[i].hp / g->enemies[i].max_hp, 0.0f, 1.0f);
-    if (hp_pct < 1.0f) {
+    if (hp_pct < 1.0f)
+    {
       int bar_w = size + 4;
-      SDL_Rect bar_bg = { ex - bar_w/2, ey - size/2 - 8, bar_w, 4 };
-      SDL_Rect bar_fg = { ex - bar_w/2, ey - size/2 - 8, (int)(bar_w * hp_pct), 4 };
+      SDL_Rect bar_bg = {ex - bar_w / 2, ey - size / 2 - 8, bar_w, 4};
+      SDL_Rect bar_fg = {ex - bar_w / 2, ey - size / 2 - 8, (int)(bar_w * hp_pct), 4};
       SDL_SetRenderDrawColor(g->renderer, 20, 20, 20, 200);
       SDL_RenderFillRect(g->renderer, &bar_bg);
       SDL_SetRenderDrawColor(g->renderer, 90, 220, 90, 255);
@@ -2031,62 +2681,74 @@ void render_game(Game *g) {
     }
   }
 
-  if (g->mode == MODE_BOSS_EVENT && g->boss.active && g->boss.hazard_timer > 0.0f) {
+  if (g->mode == MODE_BOSS_EVENT && g->boss.active && g->boss.hazard_timer > 0.0f)
+  {
     SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(g->renderer, 140, 30, 30, 50);
-    SDL_Rect hazard = { offset_x, offset_y, view_w, view_h };
+    SDL_Rect hazard = {offset_x, offset_y, view_w, view_h};
     SDL_RenderFillRect(g->renderer, &hazard);
   }
 
-  if (g->mode == MODE_BOSS_EVENT && g->boss.active) {
+  if (g->mode == MODE_BOSS_EVENT && g->boss.active)
+  {
     const BossDef *def = &g_boss_defs[g->boss.def_index];
     int bx = (int)(offset_x + g->boss.x - cam_x);
     int by = (int)(offset_y + g->boss.y - cam_y);
     int br = (int)def->radius;
     draw_glow(g->renderer, bx, by, br + 14, (SDL_Color){255, 120, 60, 140});
-    if (g->tex_boss) {
-      SDL_Rect dst = { bx - br * 2, by - br * 2, br * 4, br * 4 };
+    if (g->tex_boss)
+    {
+      SDL_Rect dst = {bx - br * 2, by - br * 2, br * 4, br * 4};
       SDL_RenderCopy(g->renderer, g->tex_boss, NULL, &dst);
-    } else {
+    }
+    else
+    {
       draw_filled_circle(g->renderer, bx, by, br + 6, (SDL_Color){160, 60, 40, 255});
       draw_circle(g->renderer, bx, by, br + 6, (SDL_Color){240, 200, 120, 255});
     }
 
     float hp_pct = clampf(g->boss.hp / g->boss.max_hp, 0.0f, 1.0f);
     int bar_w = br * 2 + 12;
-    SDL_Rect bar_bg = { bx - bar_w/2, by - br - 16, bar_w, 6 };
-    SDL_Rect bar_fg = { bx - bar_w/2, by - br - 16, (int)(bar_w * hp_pct), 6 };
+    SDL_Rect bar_bg = {bx - bar_w / 2, by - br - 16, bar_w, 6};
+    SDL_Rect bar_fg = {bx - bar_w / 2, by - br - 16, (int)(bar_w * hp_pct), 6};
     SDL_SetRenderDrawColor(g->renderer, 20, 20, 20, 220);
     SDL_RenderFillRect(g->renderer, &bar_bg);
     SDL_SetRenderDrawColor(g->renderer, 240, 120, 80, 255);
     SDL_RenderFillRect(g->renderer, &bar_fg);
   }
 
-  if (g->mode == MODE_BOSS_EVENT && g->boss.active) {
+  if (g->mode == MODE_BOSS_EVENT && g->boss.active)
+  {
     const BossDef *def = &g_boss_defs[g->boss.def_index];
     float angle = g->boss.beam_angle;
     int bx = (int)(offset_x + g->boss.x - cam_x);
     int by = (int)(offset_y + g->boss.y - cam_y);
     int beam_w = (int)(def->beam_width * 2.0f);
     int beam_len = (int)def->beam_length;
-    if (beam_w < 8) beam_w = 8;
-    if (beam_len < 200) beam_len = 200;
+    if (beam_w < 8)
+      beam_w = 8;
+    if (beam_len < 200)
+      beam_len = 200;
 
-    SDL_Rect dst = { bx, by - beam_w / 2, beam_len, beam_w };
-    SDL_Point pivot = { 0, beam_w / 2 };
+    SDL_Rect dst = {bx, by - beam_w / 2, beam_len, beam_w};
+    SDL_Point pivot = {0, beam_w / 2};
     double angle_deg = angle * (180.0 / 3.14159);
     SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
-    if (g->tex_laser_beam) {
+    if (g->tex_laser_beam)
+    {
       SDL_SetTextureAlphaMod(g->tex_laser_beam, 220);
       SDL_RenderCopyEx(g->renderer, g->tex_laser_beam, NULL, &dst, angle_deg, &pivot, SDL_FLIP_NONE);
       SDL_SetTextureAlphaMod(g->tex_laser_beam, 255);
-    } else {
+    }
+    else
+    {
       SDL_SetRenderDrawColor(g->renderer, 120, 220, 255, 140);
       SDL_RenderDrawLine(g->renderer, bx, by,
                          bx + (int)(cosf(angle) * beam_len),
                          by + (int)(sinf(angle) * beam_len));
       SDL_SetRenderDrawColor(g->renderer, 60, 170, 255, 200);
-      for (int i = 1; i <= beam_w / 6; i++) {
+      for (int i = 1; i <= beam_w / 6; i++)
+      {
         int ox = (int)(-sinf(angle) * i * 3.0f);
         int oy = (int)(cosf(angle) * i * 3.0f);
         SDL_RenderDrawLine(g->renderer, bx + ox, by + oy,
@@ -2099,9 +2761,11 @@ void render_game(Game *g) {
     }
   }
 
-  if (g->mode == MODE_BOSS_EVENT && g->boss.active && g->boss.hazard_timer > 0.0f) {
+  if (g->mode == MODE_BOSS_EVENT && g->boss.active && g->boss.hazard_timer > 0.0f)
+  {
     const BossDef *def = &g_boss_defs[g->boss.def_index];
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 3; i++)
+    {
       int sx = (int)(offset_x + g->boss.safe_x[i] - cam_x);
       int sy = (int)(offset_y + g->boss.safe_y[i] - cam_y);
       draw_glow(g->renderer, sx, sy, (int)def->hazard_safe_radius + 12, (SDL_Color){80, 220, 140, 120});
@@ -2110,19 +2774,27 @@ void render_game(Game *g) {
   }
 
   /* Bullets with trails */
-  for (int i = 0; i < MAX_BULLETS; i++) {
-    if (!g->bullets[i].active) continue;
+  for (int i = 0; i < MAX_BULLETS; i++)
+  {
+    if (!g->bullets[i].active)
+      continue;
     int bx = (int)(offset_x + g->bullets[i].x - cam_x);
     int by = (int)(offset_y + g->bullets[i].y - cam_y);
-    if (g->bullets[i].from_player) {
+    if (g->bullets[i].from_player)
+    {
       draw_glow(g->renderer, bx, by, 8, (SDL_Color){100, 220, 255, 80});
       draw_filled_circle(g->renderer, bx, by, 4, (SDL_Color){150, 230, 255, 255});
-    } else {
+    }
+    else
+    {
       /* Enemy projectile - use goo_bolt sprite */
-      if (g->tex_enemy_bolt) {
-        SDL_Rect dst = { bx - 16, by - 16, 32, 32 };
+      if (g->tex_enemy_bolt)
+      {
+        SDL_Rect dst = {bx - 16, by - 16, 32, 32};
         SDL_RenderCopy(g->renderer, g->tex_enemy_bolt, NULL, &dst);
-      } else {
+      }
+      else
+      {
         draw_glow(g->renderer, bx, by, 8, (SDL_Color){255, 100, 100, 80});
         draw_filled_circle(g->renderer, bx, by, 4, (SDL_Color){255, 120, 120, 255});
       }
@@ -2130,79 +2802,95 @@ void render_game(Game *g) {
   }
 
   /* Weapon visual effects */
-  for (int i = 0; i < MAX_WEAPON_FX; i++) {
-    if (!g->weapon_fx[i].active) continue;
+  for (int i = 0; i < MAX_WEAPON_FX; i++)
+  {
+    if (!g->weapon_fx[i].active)
+      continue;
     WeaponFX *fx = &g->weapon_fx[i];
     float progress = fx->timer / fx->duration;
-    
-    if (fx->type == 0) {
+
+    if (fx->type == 0)
+    {
       float sx = fx->x + cosf(fx->angle) * fx->radius;
       float sy = fx->y + sinf(fx->angle) * fx->radius;
       int draw_x = (int)(offset_x + sx - cam_x);
       int draw_y = (int)(offset_y + sy - cam_y);
       int scythe_size = 64;
       int alpha = 220;
-      if (g->tex_scythe) {
-        SDL_Rect dst = { draw_x - scythe_size/2, draw_y - scythe_size/2, scythe_size, scythe_size };
+      if (g->tex_scythe)
+      {
+        SDL_Rect dst = {draw_x - scythe_size / 2, draw_y - scythe_size / 2, scythe_size, scythe_size};
         double angle_deg = fx->angle * (180.0 / 3.14159);
         SDL_SetTextureAlphaMod(g->tex_scythe, (Uint8)alpha);
         SDL_RenderCopyEx(g->renderer, g->tex_scythe, NULL, &dst, angle_deg + 90, NULL, SDL_FLIP_NONE);
         SDL_SetTextureAlphaMod(g->tex_scythe, 255);
-      } else {
+      }
+      else
+      {
         SDL_SetRenderDrawColor(g->renderer, 200, 80, 220, (Uint8)alpha);
         SDL_RenderDrawLine(g->renderer, draw_x - 10, draw_y - 10, draw_x + 10, draw_y + 10);
         draw_filled_circle(g->renderer, draw_x, draw_y, 6, (SDL_Color){220, 100, 240, (Uint8)alpha});
       }
     }
-    else if (fx->type == 1) {
+    else if (fx->type == 1)
+    {
       /* Vampire bite - appears on enemy */
       int target = fx->target_enemy;
-      if (target >= 0 && target < MAX_ENEMIES && g->enemies[target].active) {
+      if (target >= 0 && target < MAX_ENEMIES && g->enemies[target].active)
+      {
         int ex = (int)(offset_x + g->enemies[target].x - cam_x);
         int ey = (int)(offset_y + g->enemies[target].y - cam_y);
         int alpha = (int)(255 * (1.0f - progress));
-        float scale = 0.5f + progress * 0.5f;  /* Grow from 0.5 to 1.0 */
-        int size = (int)(96 * scale);  /* 3x bigger (was 32) */
-        
-        if (g->tex_bite) {
-          SDL_Rect dst = { ex - size/2, ey - size/2, size, size };
+        float scale = 0.5f + progress * 0.5f; /* Grow from 0.5 to 1.0 */
+        int size = (int)(96 * scale);         /* 3x bigger (was 32) */
+
+        if (g->tex_bite)
+        {
+          SDL_Rect dst = {ex - size / 2, ey - size / 2, size, size};
           SDL_SetTextureAlphaMod(g->tex_bite, (Uint8)alpha);
           SDL_RenderCopy(g->renderer, g->tex_bite, NULL, &dst);
           SDL_SetTextureAlphaMod(g->tex_bite, 255);
-        } else {
+        }
+        else
+        {
           /* Fallback - red fangs effect */
           SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
-          draw_glow(g->renderer, ex, ey, size/2, (SDL_Color){180, 0, 40, (Uint8)(alpha * 0.6f)});
+          draw_glow(g->renderer, ex, ey, size / 2, (SDL_Color){180, 0, 40, (Uint8)(alpha * 0.6f)});
           /* Draw two fang marks */
           draw_filled_circle(g->renderer, ex - 12, ey - 8, 6, (SDL_Color){220, 20, 60, (Uint8)alpha});
           draw_filled_circle(g->renderer, ex + 12, ey - 8, 6, (SDL_Color){220, 20, 60, (Uint8)alpha});
         }
       }
     }
-    else if (fx->type == 2) {
+    else if (fx->type == 2)
+    {
       /* Dagger throw - travels from player to target */
       int target = fx->target_enemy;
-      if (target >= 0 && target < MAX_ENEMIES) {
+      if (target >= 0 && target < MAX_ENEMIES)
+      {
         float start_x = fx->x;
         float start_y = fx->y;
         float end_x = g->enemies[target].active ? g->enemies[target].x : start_x + cosf(fx->angle) * 150.0f;
         float end_y = g->enemies[target].active ? g->enemies[target].y : start_y + sinf(fx->angle) * 150.0f;
-        
+
         /* Interpolate position */
         float curr_x = start_x + (end_x - start_x) * progress;
         float curr_y = start_y + (end_y - start_y) * progress;
-        
+
         int dx = (int)(offset_x + curr_x - cam_x);
         int dy = (int)(offset_y + curr_y - cam_y);
         int alpha = progress < 0.8f ? 255 : (int)(255 * (1.0f - (progress - 0.8f) / 0.2f));
-        
-        if (g->tex_dagger) {
-          SDL_Rect dst = { dx - 12, dy - 12, 24, 24 };
+
+        if (g->tex_dagger)
+        {
+          SDL_Rect dst = {dx - 12, dy - 12, 24, 24};
           double angle_deg = fx->angle * (180.0 / 3.14159);
           SDL_SetTextureAlphaMod(g->tex_dagger, (Uint8)alpha);
           SDL_RenderCopyEx(g->renderer, g->tex_dagger, NULL, &dst, angle_deg + 90, NULL, SDL_FLIP_NONE);
           SDL_SetTextureAlphaMod(g->tex_dagger, 255);
-        } else {
+        }
+        else
+        {
           /* Fallback - simple dagger shape */
           SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
           int tip_x = dx + (int)(cosf(fx->angle) * 10);
@@ -2213,7 +2901,8 @@ void render_game(Game *g) {
         }
       }
     }
-    else if (fx->type == 3) {
+    else if (fx->type == 3)
+    {
       /* Alchemist ultimate explosion */
       int ex = (int)(offset_x + fx->x - cam_x);
       int ey = (int)(offset_y + fx->y - cam_y);
@@ -2221,82 +2910,112 @@ void render_game(Game *g) {
       float scale = 0.75f + t * 0.45f;
       int size = (int)(fx->radius * 2.0f * scale);
       int alpha = (int)(230 * (1.0f - t));
-      if (size < 8) size = 8;
+      if (size < 8)
+        size = 8;
 
-      if (g->tex_alchemist_ult) {
-        SDL_Rect dst = { ex - size/2, ey - size/2, size, size };
+      if (g->tex_alchemist_ult)
+      {
+        SDL_Rect dst = {ex - size / 2, ey - size / 2, size, size};
         SDL_SetTextureAlphaMod(g->tex_alchemist_ult, (Uint8)alpha);
         SDL_RenderCopy(g->renderer, g->tex_alchemist_ult, NULL, &dst);
         SDL_SetTextureAlphaMod(g->tex_alchemist_ult, 255);
-      } else {
-        SDL_Color core = { 220, 70, 90, (Uint8)alpha };
-        SDL_Color glow = { 255, 120, 140, (Uint8)(alpha * 0.6f) };
-        draw_filled_circle(g->renderer, ex, ey, size/4, core);
-        draw_glow(g->renderer, ex, ey, size/2, glow);
+      }
+      else
+      {
+        SDL_Color core = {220, 70, 90, (Uint8)alpha};
+        SDL_Color glow = {255, 120, 140, (Uint8)(alpha * 0.6f)};
+        draw_filled_circle(g->renderer, ex, ey, size / 4, core);
+        draw_glow(g->renderer, ex, ey, size / 2, glow);
       }
     }
   }
 
   /* Totems (above ground, behind player/enemies) */
-  if (g->mode != MODE_LEVELUP) {
-    for (int i = 0; i < MAX_TOTEMS; i++) {
-      if (!g->totems[i].active) continue;
+  if (g->mode != MODE_LEVELUP)
+  {
+    for (int i = 0; i < MAX_TOTEMS; i++)
+    {
+      if (!g->totems[i].active)
+        continue;
       Totem *t = &g->totems[i];
       int tx = (int)(offset_x + t->x - cam_x);
       int ty = (int)(offset_y + t->y - cam_y);
       int size = 72;
       SDL_Texture *tex = g->tex_totem_freeze;
-      if (t->type == 1) tex = g->tex_totem_curse;
-      else if (t->type == 2) tex = g->tex_totem_damage;
-      if (tex) {
-        SDL_Rect dst = { tx - size/2, ty - size/2, size, size };
+      if (t->type == 1)
+        tex = g->tex_totem_curse;
+      else if (t->type == 2)
+        tex = g->tex_totem_damage;
+      if (tex)
+      {
+        SDL_Rect dst = {tx - size / 2, ty - size / 2, size, size};
         SDL_RenderCopy(g->renderer, tex, NULL, &dst);
-      } else {
+      }
+      else
+      {
         SDL_Color c = {120, 120, 160, 220};
-        if (t->type == 1) c = (SDL_Color){160, 100, 160, 220};
-        if (t->type == 2) c = (SDL_Color){160, 120, 80, 220};
-        draw_filled_circle(g->renderer, tx, ty, size/3, c);
+        if (t->type == 1)
+          c = (SDL_Color){160, 100, 160, 220};
+        if (t->type == 2)
+          c = (SDL_Color){160, 120, 80, 220};
+        draw_filled_circle(g->renderer, tx, ty, size / 3, c);
       }
     }
   }
 
   /* Drops with sparkle effect */
-  for (int i = 0; i < MAX_DROPS; i++) {
-    if (!g->drops[i].active) continue;
+  for (int i = 0; i < MAX_DROPS; i++)
+  {
+    if (!g->drops[i].active)
+      continue;
     int dx = (int)(offset_x + g->drops[i].x - cam_x);
     int dy = (int)(offset_y + g->drops[i].y - cam_y);
-    if (g->drops[i].type == 0) {
+    if (g->drops[i].type == 0)
+    {
       /* XP orb (0.6x size) */
-      if (g->tex_exp_orb) {
-        SDL_Rect dst = { dx - 7, dy - 7, 14, 14 };
+      if (g->tex_exp_orb)
+      {
+        SDL_Rect dst = {dx - 7, dy - 7, 14, 14};
         SDL_RenderCopy(g->renderer, g->tex_exp_orb, NULL, &dst);
-      } else {
+      }
+      else
+      {
         draw_glow(g->renderer, dx, dy, 6, (SDL_Color){80, 180, 255, 80});
         draw_filled_circle(g->renderer, dx, dy, 3, (SDL_Color){100, 200, 255, 255});
       }
-    } else if (g->drops[i].type == 1) {
+    }
+    else if (g->drops[i].type == 1)
+    {
       /* Health pack */
-      if (g->tex_health_flask) {
-        SDL_Rect dst = { dx - 10, dy - 10, 20, 20 };
+      if (g->tex_health_flask)
+      {
+        SDL_Rect dst = {dx - 10, dy - 10, 20, 20};
         SDL_RenderCopy(g->renderer, g->tex_health_flask, NULL, &dst);
-      } else {
+      }
+      else
+      {
         draw_glow(g->renderer, dx, dy, 12, (SDL_Color){255, 80, 120, 100});
         draw_diamond(g->renderer, dx, dy, 6, (SDL_Color){255, 100, 130, 255});
       }
-    } else {
+    }
+    else
+    {
       /* Chest */
       float pulse = 0.6f + 0.4f * sinf(g->game_time * 3.0f);
       int glow_r = (int)(22 + pulse * 10);
       Uint8 glow_a = (Uint8)(120 + pulse * 80);
       draw_glow(g->renderer, dx, dy, glow_r, (SDL_Color){255, 200, 90, glow_a});
-      if (g->tex_chest) {
+      if (g->tex_chest)
+      {
         int size = 64;
-        SDL_Rect dst = { dx - size / 2, dy - size / 2, size, size };
+        SDL_Rect dst = {dx - size / 2, dy - size / 2, size, size};
         SDL_RenderCopy(g->renderer, g->tex_chest, NULL, &dst);
-      } else {
+      }
+      else
+      {
         SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(g->renderer, 140, 90, 30, 255);
-        SDL_Rect box = { dx - 13, dy - 10, 26, 20 };
+        SDL_Rect box = {dx - 13, dy - 10, 26, 20};
         SDL_RenderFillRect(g->renderer, &box);
         SDL_SetRenderDrawColor(g->renderer, 230, 190, 90, 255);
         SDL_RenderDrawRect(g->renderer, &box);
@@ -2309,161 +3028,183 @@ void render_game(Game *g) {
   /* Reset clip rect for UI */
   SDL_RenderSetClipRect(g->renderer, NULL);
 
-    SDL_Color text = { 230, 231, 234, 255 };
-    char buf[128];
-    Stats stats = player_total_stats(&g->player, &g->db);
+  SDL_Color text = {230, 231, 234, 255};
+  char buf[128];
+  Stats stats = player_total_stats(&g->player, &g->db);
 
-    /* Top bar */
-    SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(g->renderer, 10, 12, 18, 210);
-    SDL_Rect top_bar = { 0, 0, win_w, 38 };
-    SDL_RenderFillRect(g->renderer, &top_bar);
+  /* Top bar */
+  SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
+  SDL_SetRenderDrawColor(g->renderer, 10, 12, 18, 210);
+  SDL_Rect top_bar = {0, 0, win_w, 38};
+  SDL_RenderFillRect(g->renderer, &top_bar);
 
-    /* HP bar */
-    float hp_pct = clampf(g->player.hp / stats.max_hp, 0.0f, 1.0f);
-    SDL_Rect hp_bg = { 20, 10, 120, 18 };
-    SDL_Rect hp_fill = { 20, 10, (int)(120 * hp_pct), 18 };
-    SDL_SetRenderDrawColor(g->renderer, 40, 40, 48, 255);
-    SDL_RenderFillRect(g->renderer, &hp_bg);
-    SDL_SetRenderDrawColor(g->renderer, 200, 60, 60, 255);
-    SDL_RenderFillRect(g->renderer, &hp_fill);
-    SDL_SetRenderDrawColor(g->renderer, 90, 90, 110, 255);
-    SDL_RenderDrawRect(g->renderer, &hp_bg);
-    snprintf(buf, sizeof(buf), "Lv %d", g->level);
-    draw_text(g->renderer, g->font, 150, 10, text, buf);
-    float xp_pct = clampf((float)g->xp / (float)g->xp_to_next, 0.0f, 1.0f);
-    SDL_Rect xp_bg = { 200, 10, 140, 18 };
-    SDL_Rect xp_fill = { 200, 10, (int)(140 * xp_pct), 18 };
-    SDL_SetRenderDrawColor(g->renderer, 30, 45, 60, 255);
-    SDL_RenderFillRect(g->renderer, &xp_bg);
+  /* HP bar */
+  float hp_pct = clampf(g->player.hp / stats.max_hp, 0.0f, 1.0f);
+  SDL_Rect hp_bg = {20, 10, 120, 18};
+  SDL_Rect hp_fill = {20, 10, (int)(120 * hp_pct), 18};
+  SDL_SetRenderDrawColor(g->renderer, 40, 40, 48, 255);
+  SDL_RenderFillRect(g->renderer, &hp_bg);
+  SDL_SetRenderDrawColor(g->renderer, 200, 60, 60, 255);
+  SDL_RenderFillRect(g->renderer, &hp_fill);
+  SDL_SetRenderDrawColor(g->renderer, 90, 90, 110, 255);
+  SDL_RenderDrawRect(g->renderer, &hp_bg);
+  snprintf(buf, sizeof(buf), "Lv %d", g->level);
+  draw_text(g->renderer, g->font, 150, 10, text, buf);
+  float xp_pct = clampf((float)g->xp / (float)g->xp_to_next, 0.0f, 1.0f);
+  SDL_Rect xp_bg = {200, 10, 140, 18};
+  SDL_Rect xp_fill = {200, 10, (int)(140 * xp_pct), 18};
+  SDL_SetRenderDrawColor(g->renderer, 30, 45, 60, 255);
+  SDL_RenderFillRect(g->renderer, &xp_bg);
+  SDL_SetRenderDrawColor(g->renderer, 80, 160, 230, 255);
+  SDL_RenderFillRect(g->renderer, &xp_fill);
+  SDL_SetRenderDrawColor(g->renderer, 80, 100, 130, 255);
+  SDL_RenderDrawRect(g->renderer, &xp_bg);
+  int mins = (int)(g->game_time / 60.0f);
+  int secs = (int)g->game_time % 60;
+  snprintf(buf, sizeof(buf), "Time %d:%02d", mins, secs);
+  draw_text(g->renderer, g->font, 380, 10, text, buf);
+  snprintf(buf, sizeof(buf), "Kills %d", g->kills);
+  draw_text(g->renderer, g->font, 520, 10, text, buf);
+  int enemies_alive = 0;
+  for (int i = 0; i < MAX_ENEMIES; i++)
+  {
+    if (g->enemies[i].active)
+      enemies_alive++;
+  }
+  snprintf(buf, sizeof(buf), "Enemies %d", enemies_alive);
+  draw_text(g->renderer, g->font, 620, 10, text, buf);
+
+  if (g->ultimate_cd > 0.0f)
+  {
+    snprintf(buf, sizeof(buf), "[SPACE] Ultimate: %.0fs", g->ultimate_cd);
+  }
+  else
+  {
+    snprintf(buf, sizeof(buf), "[SPACE] Ultimate: READY!");
+  }
+  draw_text(g->renderer, g->font, 20, 88, text, buf);
+  draw_text(g->renderer, g->font, 20, 108, text, "TAB/P pause  F1 spawn  F2/F3 speed  F4 range");
+
+  if (g->mode == MODE_BOSS_EVENT)
+  {
+    float time_pct = 0.0f;
+    if (g->boss_timer_max > 0.0f)
+    {
+      time_pct = clampf(g->boss_timer / g->boss_timer_max, 0.0f, 1.0f);
+    }
+    int time_bar_w = 200;
+    int time_bar_h = 8;
+    int time_bar_x = win_w - time_bar_w - 20;
+    int time_bar_y = 10;
+    SDL_Rect time_bg = {time_bar_x, time_bar_y, time_bar_w, time_bar_h};
+    SDL_Rect time_fg = {time_bar_x, time_bar_y, (int)(time_bar_w * time_pct), time_bar_h};
+    SDL_SetRenderDrawColor(g->renderer, 20, 20, 20, 220);
+    SDL_RenderFillRect(g->renderer, &time_bg);
     SDL_SetRenderDrawColor(g->renderer, 80, 160, 230, 255);
-    SDL_RenderFillRect(g->renderer, &xp_fill);
+    SDL_RenderFillRect(g->renderer, &time_fg);
     SDL_SetRenderDrawColor(g->renderer, 80, 100, 130, 255);
-    SDL_RenderDrawRect(g->renderer, &xp_bg);
-    int mins = (int)(g->game_time / 60.0f);
-    int secs = (int)g->game_time % 60;
-    snprintf(buf, sizeof(buf), "Time %d:%02d", mins, secs);
-    draw_text(g->renderer, g->font, 380, 10, text, buf);
-    snprintf(buf, sizeof(buf), "Kills %d", g->kills);
-    draw_text(g->renderer, g->font, 520, 10, text, buf);
-    int enemies_alive = 0;
-    for (int i = 0; i < MAX_ENEMIES; i++) {
-      if (g->enemies[i].active) enemies_alive++;
-    }
-    snprintf(buf, sizeof(buf), "Enemies %d", enemies_alive);
-    draw_text(g->renderer, g->font, 620, 10, text, buf);
+    SDL_RenderDrawRect(g->renderer, &time_bg);
+    int mins = (int)(g->boss_timer / 60.0f);
+    int secs = (int)g->boss_timer % 60;
+    snprintf(buf, sizeof(buf), "Boss Time: %d:%02d", mins, secs);
+    draw_text(g->renderer, g->font, win_w - 220, 22, text, buf);
 
-    if (g->ultimate_cd > 0.0f) {
-      snprintf(buf, sizeof(buf), "[SPACE] Ultimate: %.0fs", g->ultimate_cd);
-    } else {
-      snprintf(buf, sizeof(buf), "[SPACE] Ultimate: READY!");
-    }
-    draw_text(g->renderer, g->font, 20, 88, text, buf);
-    draw_text(g->renderer, g->font, 20, 108, text, "TAB/P pause  F1 spawn  F2/F3 speed  F4 range");
-
-  if (g->mode == MODE_BOSS_EVENT) {
-      float time_pct = 0.0f;
-      if (g->boss_timer_max > 0.0f) {
-        time_pct = clampf(g->boss_timer / g->boss_timer_max, 0.0f, 1.0f);
-      }
-      int time_bar_w = 200;
-      int time_bar_h = 8;
-      int time_bar_x = win_w - time_bar_w - 20;
-      int time_bar_y = 10;
-      SDL_Rect time_bg = { time_bar_x, time_bar_y, time_bar_w, time_bar_h };
-      SDL_Rect time_fg = { time_bar_x, time_bar_y, (int)(time_bar_w * time_pct), time_bar_h };
+    if (g->boss.active)
+    {
+      const BossDef *def = &g_boss_defs[g->boss.def_index];
+      float hp_pct = clampf(g->boss.hp / g->boss.max_hp, 0.0f, 1.0f);
+      int bar_w = 200;
+      SDL_Rect bar_bg = {win_w - bar_w - 20, 36, bar_w, 8};
+      SDL_Rect bar_fg = {win_w - bar_w - 20, 36, (int)(bar_w * hp_pct), 8};
       SDL_SetRenderDrawColor(g->renderer, 20, 20, 20, 220);
-      SDL_RenderFillRect(g->renderer, &time_bg);
-      SDL_SetRenderDrawColor(g->renderer, 80, 160, 230, 255);
-      SDL_RenderFillRect(g->renderer, &time_fg);
-      SDL_SetRenderDrawColor(g->renderer, 80, 100, 130, 255);
-      SDL_RenderDrawRect(g->renderer, &time_bg);
-      int mins = (int)(g->boss_timer / 60.0f);
-      int secs = (int)g->boss_timer % 60;
-      snprintf(buf, sizeof(buf), "Boss Time: %d:%02d", mins, secs);
-      draw_text(g->renderer, g->font, win_w - 220, 22, text, buf);
-
-      if (g->boss.active) {
-        const BossDef *def = &g_boss_defs[g->boss.def_index];
-        float hp_pct = clampf(g->boss.hp / g->boss.max_hp, 0.0f, 1.0f);
-        int bar_w = 200;
-        SDL_Rect bar_bg = { win_w - bar_w - 20, 36, bar_w, 8 };
-        SDL_Rect bar_fg = { win_w - bar_w - 20, 36, (int)(bar_w * hp_pct), 8 };
-        SDL_SetRenderDrawColor(g->renderer, 20, 20, 20, 220);
-        SDL_RenderFillRect(g->renderer, &bar_bg);
-        SDL_SetRenderDrawColor(g->renderer, 240, 120, 80, 255);
-        SDL_RenderFillRect(g->renderer, &bar_fg);
-        draw_text(g->renderer, g->font, win_w - bar_w - 20, 48, text, def->name);
-      }
-
-      if (g->boss_countdown_timer > 0.0f) {
-        int count = (int)ceilf(g->boss_countdown_timer);
-        SDL_Color c = {255, 220, 120, 255};
-        char cbuf[8];
-        snprintf(cbuf, sizeof(cbuf), "%d", count);
-        draw_text_centered_outline(g->renderer, g->font_title_big ? g->font_title_big : g->font_title,
-                                   win_w / 2, win_h / 2 - 40, c, (SDL_Color){0, 0, 0, 200}, 2, cbuf);
-      }
+      SDL_RenderFillRect(g->renderer, &bar_bg);
+      SDL_SetRenderDrawColor(g->renderer, 240, 120, 80, 255);
+      SDL_RenderFillRect(g->renderer, &bar_fg);
+      draw_text(g->renderer, g->font, win_w - bar_w - 20, 48, text, def->name);
     }
 
-    if (g->item_popup_timer > 0.0f && g->item_popup_name[0]) {
-      float t = clampf(g->item_popup_timer / ITEM_POPUP_DURATION, 0.0f, 1.0f);
-      SDL_Color c = {255, 220, 120, (Uint8)(255.0f * t)};
-      int tw = 0, th = 0;
-      if (g->font) TTF_SizeText(g->font, g->item_popup_name, &tw, &th);
-      int tx = win_w - tw - 20;
-      if (tx < 20) tx = 20;
-      draw_text(g->renderer, g->font, tx, 50, c, g->item_popup_name);
+    if (g->boss_countdown_timer > 0.0f)
+    {
+      int count = (int)ceilf(g->boss_countdown_timer);
+      SDL_Color c = {255, 220, 120, 255};
+      char cbuf[8];
+      snprintf(cbuf, sizeof(cbuf), "%d", count);
+      draw_text_centered_outline(g->renderer, g->font_title_big ? g->font_title_big : g->font_title,
+                                 win_w / 2, win_h / 2 - 40, c, (SDL_Color){0, 0, 0, 200}, 2, cbuf);
     }
+  }
 
-    int wx = 20;
-    int wy = 130;
-    draw_text(g->renderer, g->font, wx, wy, text, "Weapons:");
+  if (g->item_popup_timer > 0.0f && g->item_popup_name[0])
+  {
+    float t = clampf(g->item_popup_timer / ITEM_POPUP_DURATION, 0.0f, 1.0f);
+    SDL_Color c = {255, 220, 120, (Uint8)(255.0f * t)};
+    int tw = 0, th = 0;
+    if (g->font)
+      TTF_SizeText(g->font, g->item_popup_name, &tw, &th);
+    int tx = win_w - tw - 20;
+    if (tx < 20)
+      tx = 20;
+    draw_text(g->renderer, g->font, tx, 50, c, g->item_popup_name);
+  }
+
+  int wx = 20;
+  int wy = 130;
+  draw_text(g->renderer, g->font, wx, wy, text, "Weapons:");
+  wy += 18;
+  for (int i = 0; i < MAX_WEAPON_SLOTS; i++)
+  {
+    if (!g->player.weapons[i].active)
+      continue;
+    WeaponDef *w = &g->db.weapons[g->player.weapons[i].def_index];
+    snprintf(buf, sizeof(buf), "%s Lv%d", w->name, g->player.weapons[i].level);
+    draw_text(g->renderer, g->font, wx, wy, text, buf);
     wy += 18;
-    for (int i = 0; i < MAX_WEAPON_SLOTS; i++) {
-      if (!g->player.weapons[i].active) continue;
+  }
+
+  if (g->debug_show_range)
+  {
+    float max_range = 0.0f;
+    for (int i = 0; i < MAX_WEAPON_SLOTS; i++)
+    {
+      if (!g->player.weapons[i].active)
+        continue;
       WeaponDef *w = &g->db.weapons[g->player.weapons[i].def_index];
-      snprintf(buf, sizeof(buf), "%s Lv%d", w->name, g->player.weapons[i].level);
-      draw_text(g->renderer, g->font, wx, wy, text, buf);
-      wy += 18;
+      float r = w->range;
+      if (r > max_range)
+        max_range = r;
     }
-
-    if (g->debug_show_range) {
-      float max_range = 0.0f;
-      for (int i = 0; i < MAX_WEAPON_SLOTS; i++) {
-        if (!g->player.weapons[i].active) continue;
-        WeaponDef *w = &g->db.weapons[g->player.weapons[i].def_index];
-        float r = w->range;
-        if (r > max_range) max_range = r;
-      }
-      if (max_range > 0.0f) {
-        SDL_Color c = { 80, 180, 220, 160 };
-        draw_circle(g->renderer, px, py, (int)max_range, c);
-      }
+    if (max_range > 0.0f)
+    {
+      SDL_Color c = {80, 180, 220, 160};
+      draw_circle(g->renderer, px, py, (int)max_range, c);
     }
+  }
 
-  if (g->mode == MODE_LEVELUP) {
+  if (g->mode == MODE_LEVELUP)
+  {
     SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(g->renderer, 5, 8, 15, 200);
-    SDL_Rect overlay = { 0, 0, win_w, win_h };
+    SDL_Rect overlay = {0, 0, win_w, win_h};
     SDL_RenderFillRect(g->renderer, &overlay);
-    
+
     /* Level up title */
     SDL_Color gold = {255, 215, 100, 255};
     char lvl_str[64];
     snprintf(lvl_str, sizeof(lvl_str), "LEVEL UP! (Lv %d)", g->level);
     draw_text(g->renderer, g->font, win_w / 2 - 80, 200, gold, lvl_str);
     draw_text(g->renderer, g->font, win_w / 2 - 60, 230, text, "Choose one:");
-    
+
     layout_levelup(g, win_w, win_h);
     int mx, my;
     SDL_GetMouseState(&mx, &my);
     float fade = 1.0f;
-    if ((g->levelup_chosen >= 0 || g->levelup_selected_count > 0) && g->levelup_fade > 0.0f) {
+    if ((g->levelup_chosen >= 0 || g->levelup_selected_count > 0) && g->levelup_fade > 0.0f)
+    {
       float now = (float)SDL_GetTicks() / 1000.0f;
       fade = clampf((now - g->levelup_fade) / 0.5f, 0.0f, 1.0f);
     }
-    for (int i = 0; i < g->choice_count; i++) {
+    for (int i = 0; i < g->choice_count; i++)
+    {
       LevelUpChoice *choice = &g->choices[i];
       int base_orb_size = levelup_orb_size(&choice->rect);
       float cx = (float)(choice->rect.x + choice->rect.w / 2);
@@ -2472,27 +3213,36 @@ void render_game(Game *g) {
       float dx = (float)mx - cx;
       float dy = (float)my - cy;
       int hovered = (dx * dx + dy * dy) <= (radius * radius);
-      if (g->levelup_chosen >= 0 || g->levelup_selected_count > 0) hovered = 0;
+      if (g->levelup_chosen >= 0 || g->levelup_selected_count > 0)
+        hovered = 0;
 
       /* Rarity orb background (no card box) */
       const char *rarity_str = (choice->type == 0) ? g->db.items[choice->index].rarity : g->db.weapons[choice->index].rarity;
       SDL_Texture *orb_tex = rarity_orb_texture(g, rarity_str);
-      if (orb_tex) {
+      if (orb_tex)
+      {
         int orb_size = hovered ? (int)(base_orb_size * 1.08f) : base_orb_size;
         SDL_Rect orb_dst = {
-          choice->rect.x + (choice->rect.w - orb_size) / 2,
-          choice->rect.y + (choice->rect.h - orb_size) / 2,
-          orb_size,
-          orb_size
-        };
+            choice->rect.x + (choice->rect.w - orb_size) / 2,
+            choice->rect.y + (choice->rect.h - orb_size) / 2,
+            orb_size,
+            orb_size};
         float alpha_mul = 1.0f;
-        if (g->levelup_selected_count > 0) {
+        if (g->levelup_selected_count > 0)
+        {
           int keep = 0;
-          for (int k = 0; k < g->levelup_selected_count; k++) {
-            if (g->levelup_selected[k] == i) { keep = 1; break; }
+          for (int k = 0; k < g->levelup_selected_count; k++)
+          {
+            if (g->levelup_selected[k] == i)
+            {
+              keep = 1;
+              break;
+            }
           }
           alpha_mul = keep ? 1.0f : (1.0f - fade);
-        } else if (g->levelup_chosen >= 0) {
+        }
+        else if (g->levelup_chosen >= 0)
+        {
           alpha_mul = (i == g->levelup_chosen) ? 1.0f : (1.0f - fade);
         }
         SDL_SetTextureAlphaMod(orb_tex, (Uint8)(235.0f * alpha_mul));
@@ -2500,16 +3250,25 @@ void render_game(Game *g) {
         SDL_SetTextureAlphaMod(orb_tex, 255);
       }
 
-      if (choice->type == 0) {
+      if (choice->type == 0)
+      {
         ItemDef *it = &g->db.items[choice->index];
         float alpha_mul = 1.0f;
-        if (g->levelup_selected_count > 0) {
+        if (g->levelup_selected_count > 0)
+        {
           int keep = 0;
-          for (int k = 0; k < g->levelup_selected_count; k++) {
-            if (g->levelup_selected[k] == i) { keep = 1; break; }
+          for (int k = 0; k < g->levelup_selected_count; k++)
+          {
+            if (g->levelup_selected[k] == i)
+            {
+              keep = 1;
+              break;
+            }
           }
           alpha_mul = keep ? 1.0f : (1.0f - fade);
-        } else if (g->levelup_chosen >= 0) {
+        }
+        else if (g->levelup_chosen >= 0)
+        {
           alpha_mul = (i == g->levelup_chosen) ? 1.0f : (1.0f - fade);
         }
         SDL_Color outline = {0, 0, 0, (Uint8)(220.0f * alpha_mul)};
@@ -2520,12 +3279,13 @@ void render_game(Game *g) {
         int y = choice->rect.y + 18;
         TTF_Font *font_main = hovered ? (g->font_title_big ? g->font_title_big : g->font_title) : g->font_title;
         draw_text_centered_outline(g->renderer, font_main, tx, y, white, outline, 2, it->name);
-        
-        if (it->desc[0]) {
+
+        if (it->desc[0])
+        {
           int dy = choice->rect.y + 38;
           draw_text_centered_outline(g->renderer, font_main, tx, dy, white, outline, 2, it->desc);
         }
-        
+
         char statline[128];
         Stats *s = &it->stats;
         int pos = 0;
@@ -2538,25 +3298,43 @@ void render_game(Game *g) {
         int show_armor = (s->armor != 0) && !strcasestr_simple(desc, "armor") && !strcasestr_simple(desc, "arm");
         int show_dodge = (s->dodge != 0) && !strcasestr_simple(desc, "dodge");
         int show_regen = (s->hp_regen != 0) && !strcasestr_simple(desc, "regen") && !strcasestr_simple(desc, "hp/s");
-        if (show_damage) pos += snprintf(statline + pos, sizeof(statline) - pos, "DMG%+.0f%% ", s->damage * 100);
-        if (show_hp) pos += snprintf(statline + pos, sizeof(statline) - pos, "HP%+.0f ", s->max_hp);
-        if (show_as) pos += snprintf(statline + pos, sizeof(statline) - pos, "AS%+.0f%% ", s->attack_speed * 100);
-        if (show_speed) pos += snprintf(statline + pos, sizeof(statline) - pos, "SPD%+.0f%% ", s->move_speed * 100);
-        if (show_armor) pos += snprintf(statline + pos, sizeof(statline) - pos, "ARM%+.0f ", s->armor);
-        if (show_dodge) pos += snprintf(statline + pos, sizeof(statline) - pos, "DDG%+.0f%% ", s->dodge * 100);
-        if (show_regen) pos += snprintf(statline + pos, sizeof(statline) - pos, "REG%+.1f ", s->hp_regen);
+        if (show_damage)
+          pos += snprintf(statline + pos, sizeof(statline) - pos, "DMG%+.0f%% ", s->damage * 100);
+        if (show_hp)
+          pos += snprintf(statline + pos, sizeof(statline) - pos, "HP%+.0f ", s->max_hp);
+        if (show_as)
+          pos += snprintf(statline + pos, sizeof(statline) - pos, "AS%+.0f%% ", s->attack_speed * 100);
+        if (show_speed)
+          pos += snprintf(statline + pos, sizeof(statline) - pos, "SPD%+.0f%% ", s->move_speed * 100);
+        if (show_armor)
+          pos += snprintf(statline + pos, sizeof(statline) - pos, "ARM%+.0f ", s->armor);
+        if (show_dodge)
+          pos += snprintf(statline + pos, sizeof(statline) - pos, "DDG%+.0f%% ", s->dodge * 100);
+        if (show_regen)
+          pos += snprintf(statline + pos, sizeof(statline) - pos, "REG%+.1f ", s->hp_regen);
         int sy = choice->rect.y + 60;
-        if (pos > 0) draw_text_centered_outline(g->renderer, font_main, tx, sy, white, outline, 2, statline);
-      } else {
+        if (pos > 0)
+          draw_text_centered_outline(g->renderer, font_main, tx, sy, white, outline, 2, statline);
+      }
+      else
+      {
         WeaponDef *w = &g->db.weapons[choice->index];
         float alpha_mul = 1.0f;
-        if (g->levelup_selected_count > 0) {
+        if (g->levelup_selected_count > 0)
+        {
           int keep = 0;
-          for (int k = 0; k < g->levelup_selected_count; k++) {
-            if (g->levelup_selected[k] == i) { keep = 1; break; }
+          for (int k = 0; k < g->levelup_selected_count; k++)
+          {
+            if (g->levelup_selected[k] == i)
+            {
+              keep = 1;
+              break;
+            }
           }
           alpha_mul = keep ? 1.0f : (1.0f - fade);
-        } else if (g->levelup_chosen >= 0) {
+        }
+        else if (g->levelup_chosen >= 0)
+        {
           alpha_mul = (i == g->levelup_chosen) ? 1.0f : (1.0f - fade);
         }
         SDL_Color outline = {0, 0, 0, (Uint8)(220.0f * alpha_mul)};
@@ -2576,11 +3354,13 @@ void render_game(Game *g) {
         draw_text_centered_outline(g->renderer, font_main, tx, sy, white, outline, 2, statline);
       }
     }
-    
+
     int max_orb_bottom = 0;
-    for (int i = 0; i < g->choice_count; i++) {
+    for (int i = 0; i < g->choice_count; i++)
+    {
       int bottom = g->choices[i].rect.y + g->choices[i].rect.h;
-      if (bottom > max_orb_bottom) max_orb_bottom = bottom;
+      if (bottom > max_orb_bottom)
+        max_orb_bottom = bottom;
     }
 
     /* Reroll button */
@@ -2588,9 +3368,10 @@ void render_game(Game *g) {
     int btn_h = 36;
     int btn_x = win_w / 2 - btn_w / 2;
     int btn_y = max_orb_bottom + 20;
-    g->reroll_button = (SDL_Rect){ btn_x, btn_y, btn_w, btn_h };
-    
-    if (g->rerolls > 0) {
+    g->reroll_button = (SDL_Rect){btn_x, btn_y, btn_w, btn_h};
+
+    if (g->rerolls > 0)
+    {
       /* Active button */
       SDL_SetRenderDrawColor(g->renderer, 50, 70, 100, 255);
       SDL_RenderFillRect(g->renderer, &g->reroll_button);
@@ -2599,7 +3380,9 @@ void render_game(Game *g) {
       char reroll_text[32];
       snprintf(reroll_text, sizeof(reroll_text), "Reroll (%d)", g->rerolls);
       draw_text_centered(g->renderer, g->font, btn_x + btn_w / 2, btn_y + 10, (SDL_Color){200, 220, 255, 255}, reroll_text);
-    } else {
+    }
+    else
+    {
       /* Disabled button */
       SDL_SetRenderDrawColor(g->renderer, 30, 35, 45, 255);
       SDL_RenderFillRect(g->renderer, &g->reroll_button);
@@ -2607,19 +3390,22 @@ void render_game(Game *g) {
       SDL_RenderDrawRect(g->renderer, &g->reroll_button);
       draw_text_centered(g->renderer, g->font, btn_x + btn_w / 2, btn_y + 10, (SDL_Color){80, 85, 95, 255}, "No Rerolls");
     }
-    
+
     /* High Roll button - below reroll button */
     int hr_btn_y = btn_y + btn_h + 10;
-    g->highroll_button = (SDL_Rect){ btn_x, hr_btn_y, btn_w, btn_h };
-    
-    if (!g->high_roll_used) {
+    g->highroll_button = (SDL_Rect){btn_x, hr_btn_y, btn_w, btn_h};
+
+    if (!g->high_roll_used)
+    {
       /* Active button - golden/yellow color for gambling feel */
       SDL_SetRenderDrawColor(g->renderer, 90, 70, 20, 255);
       SDL_RenderFillRect(g->renderer, &g->highroll_button);
       SDL_SetRenderDrawColor(g->renderer, 200, 160, 60, 255);
       SDL_RenderDrawRect(g->renderer, &g->highroll_button);
       draw_text_centered(g->renderer, g->font, btn_x + btn_w / 2, hr_btn_y + 10, (SDL_Color){255, 220, 100, 255}, "High Roll!");
-    } else {
+    }
+    else
+    {
       /* Disabled button */
       SDL_SetRenderDrawColor(g->renderer, 30, 35, 45, 255);
       SDL_RenderFillRect(g->renderer, &g->highroll_button);
@@ -2629,10 +3415,11 @@ void render_game(Game *g) {
     }
   }
 
-  if (g->mode == MODE_PAUSE) {
+  if (g->mode == MODE_PAUSE)
+  {
     SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(g->renderer, 8, 8, 12, 200);
-    SDL_Rect overlay = { 0, 0, win_w, win_h };
+    SDL_Rect overlay = {0, 0, win_w, win_h};
     SDL_RenderFillRect(g->renderer, &overlay);
     draw_text_centered(g->renderer, g->font_title, win_w / 2, 180, (SDL_Color){255, 215, 100, 255}, "PAUSED");
 
@@ -2705,7 +3492,7 @@ void render_game(Game *g) {
     int btn_h = 36;
     int btn_x = 20;
     int btn_y = win_h - btn_h - 20;
-    g->pause_end_run_button = (SDL_Rect){ btn_x, btn_y, btn_w, btn_h };
+    g->pause_end_run_button = (SDL_Rect){btn_x, btn_y, btn_w, btn_h};
     SDL_SetRenderDrawColor(g->renderer, 60, 45, 45, 230);
     SDL_RenderFillRect(g->renderer, &g->pause_end_run_button);
     SDL_SetRenderDrawColor(g->renderer, 170, 120, 120, 255);
@@ -2720,28 +3507,35 @@ void render_game(Game *g) {
     int max_visible = 12;
     int weapon_indices[MAX_WEAPON_SLOTS];
     int weapon_count = 0;
-    for (int i = 0; i < MAX_WEAPON_SLOTS; i++) {
-      if (!g->player.weapons[i].active) continue;
+    for (int i = 0; i < MAX_WEAPON_SLOTS; i++)
+    {
+      if (!g->player.weapons[i].active)
+        continue;
       weapon_indices[weapon_count++] = i;
     }
     int show_weapons = weapon_count;
     int extra_weapons = 0;
-    if (show_weapons > max_visible) {
+    if (show_weapons > max_visible)
+    {
       show_weapons = max_visible;
       extra_weapons = 1;
     }
     int item_counts[MAX_ITEMS] = {0};
     int unique_indices[MAX_ITEMS];
     int unique_count = 0;
-    for (int i = 0; i < g->player.passive_count; i++) {
+    for (int i = 0; i < g->player.passive_count; i++)
+    {
       int idx = g->player.passive_items[i];
-      if (idx < 0 || idx >= g->db.item_count) continue;
-      if (item_counts[idx] == 0) unique_indices[unique_count++] = idx;
+      if (idx < 0 || idx >= g->db.item_count)
+        continue;
+      if (item_counts[idx] == 0)
+        unique_indices[unique_count++] = idx;
       item_counts[idx]++;
     }
     int show_items = unique_count;
     int extra_more = 0;
-    if (show_items > max_visible) {
+    if (show_items > max_visible)
+    {
       show_items = max_visible;
       extra_more = 1;
     }
@@ -2757,7 +3551,7 @@ void render_game(Game *g) {
 
     SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(g->renderer, 12, 14, 20, 210);
-    SDL_Rect panel = { panel_x, panel_y, panel_w, panel_h };
+    SDL_Rect panel = {panel_x, panel_y, panel_w, panel_h};
     SDL_RenderFillRect(g->renderer, &panel);
     SDL_SetRenderDrawColor(g->renderer, 60, 70, 90, 255);
     SDL_RenderDrawRect(g->renderer, &panel);
@@ -2768,22 +3562,29 @@ void render_game(Game *g) {
 
     draw_text(g->renderer, g->font, panel_x + 10, py, header, "LAST ITEM");
     py += line_h;
-    if (g->last_item_index >= 0 && g->last_item_index < g->db.item_count) {
+    if (g->last_item_index >= 0 && g->last_item_index < g->db.item_count)
+    {
       ItemDef *it = &g->db.items[g->last_item_index];
       SDL_Color rc = rarity_color(it->rarity);
       draw_text(g->renderer, g->font, panel_x + 12, py, rc, it->name);
-    } else {
+    }
+    else
+    {
       draw_text(g->renderer, g->font, panel_x + 12, py, dim, "(none)");
     }
     py += line_h;
 
     draw_text(g->renderer, g->font, panel_x + 10, py, header, "WEAPONS");
     py += line_h + 2;
-    if (weapon_count == 0) {
+    if (weapon_count == 0)
+    {
       draw_text(g->renderer, g->font, panel_x + 12, py, dim, "(none)");
       py += line_h;
-    } else {
-      for (int i = 0; i < weapon_count && i < show_weapons; i++) {
+    }
+    else
+    {
+      for (int i = 0; i < weapon_count && i < show_weapons; i++)
+      {
         int slot = weapon_indices[i];
         WeaponDef *w = &g->db.weapons[g->player.weapons[slot].def_index];
         SDL_Color rc = rarity_color(w->rarity);
@@ -2791,7 +3592,8 @@ void render_game(Game *g) {
         draw_text(g->renderer, g->font, panel_x + 12, py, rc, buf);
         py += line_h;
       }
-      if (extra_weapons) {
+      if (extra_weapons)
+      {
         int remaining = weapon_count - show_weapons;
         snprintf(buf, sizeof(buf), "... +%d more", remaining);
         draw_text(g->renderer, g->font, panel_x + 12, py, dim, buf);
@@ -2805,27 +3607,36 @@ void render_game(Game *g) {
     py += line_h + 2;
 
     int hovered_item_index = -1;
-    if (unique_count == 0) {
+    if (unique_count == 0)
+    {
       draw_text(g->renderer, g->font, panel_x + 12, py, dim, "(none)");
       py += line_h;
-    } else {
-      for (int i = 0; i < unique_count && i < show_items; i++) {
+    }
+    else
+    {
+      for (int i = 0; i < unique_count && i < show_items; i++)
+      {
         int idx = unique_indices[i];
         ItemDef *it = &g->db.items[idx];
         SDL_Color rc = rarity_color(it->rarity);
-        SDL_Rect row = { panel_x + 12, py, panel_w - 24, line_h };
-        if (mx >= row.x && mx <= row.x + row.w && my >= row.y && my <= row.y + row.h) {
+        SDL_Rect row = {panel_x + 12, py, panel_w - 24, line_h};
+        if (mx >= row.x && mx <= row.x + row.w && my >= row.y && my <= row.y + row.h)
+        {
           hovered_item_index = idx;
         }
-        if (item_counts[idx] > 1) {
+        if (item_counts[idx] > 1)
+        {
           snprintf(buf, sizeof(buf), "%s x%d", it->name, item_counts[idx]);
           draw_text(g->renderer, g->font, panel_x + 12, py, rc, buf);
-        } else {
+        }
+        else
+        {
           draw_text(g->renderer, g->font, panel_x + 12, py, rc, it->name);
         }
         py += line_h;
       }
-      if (extra_more) {
+      if (extra_more)
+      {
         int remaining = unique_count - show_items;
         snprintf(buf, sizeof(buf), "... +%d more", remaining);
         draw_text(g->renderer, g->font, panel_x + 12, py, dim, buf);
@@ -2835,11 +3646,14 @@ void render_game(Game *g) {
 
     draw_text_centered(g->renderer, g->font, win_w / 2, y + 20, (SDL_Color){140, 140, 160, 255}, "Press TAB or P to resume");
 
-    if (hovered_item_index >= 0 && hovered_item_index < g->db.item_count) {
+    if (hovered_item_index >= 0 && hovered_item_index < g->db.item_count)
+    {
       ItemDef *it = &g->db.items[hovered_item_index];
-      if (it->desc[0]) {
+      if (it->desc[0])
+      {
         int name_w = 0, name_h = 0, desc_w = 0, desc_h = 0;
-        if (g->font) {
+        if (g->font)
+        {
           TTF_SizeText(g->font, it->name, &name_w, &name_h);
           TTF_SizeText(g->font, it->desc, &desc_w, &desc_h);
         }
@@ -2848,11 +3662,13 @@ void render_game(Game *g) {
         int box_h = name_h + desc_h + pad * 3;
         int box_x = win_w - box_w - 20;
         int box_y = win_h - box_h - 20;
-        if (box_x < 20) box_x = 20;
-        if (box_y < 20) box_y = 20;
+        if (box_x < 20)
+          box_x = 20;
+        if (box_y < 20)
+          box_y = 20;
         SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(g->renderer, 12, 14, 20, 235);
-        SDL_Rect tip = { box_x, box_y, box_w, box_h };
+        SDL_Rect tip = {box_x, box_y, box_w, box_h};
         SDL_RenderFillRect(g->renderer, &tip);
         SDL_SetRenderDrawColor(g->renderer, 70, 80, 100, 255);
         SDL_RenderDrawRect(g->renderer, &tip);
@@ -2865,8 +3681,8 @@ void render_game(Game *g) {
     }
   }
 
-
-  if (g->mode == MODE_START) {
+  if (g->mode == MODE_START)
+  {
     /* Background */
     SDL_SetRenderDrawColor(g->renderer, 8, 8, 12, 255);
     SDL_RenderClear(g->renderer);
@@ -2874,7 +3690,7 @@ void render_game(Game *g) {
     int split_x = (win_w * 2) / 3;
 
     /* Right Panel Background */
-    SDL_Rect right_panel = { split_x, 0, win_w - split_x, win_h };
+    SDL_Rect right_panel = {split_x, 0, win_w - split_x, win_h};
     SDL_SetRenderDrawColor(g->renderer, 12, 14, 20, 255);
     SDL_RenderFillRect(g->renderer, &right_panel);
     SDL_SetRenderDrawColor(g->renderer, 40, 45, 60, 255);
@@ -2884,7 +3700,7 @@ void render_game(Game *g) {
     int btn_h = 32;
     int btn_x = win_w - btn_w - 20;
     int btn_y = 20;
-    g->skill_tree_button = (SDL_Rect){ btn_x, btn_y, btn_w, btn_h };
+    g->skill_tree_button = (SDL_Rect){btn_x, btn_y, btn_w, btn_h};
     SDL_SetRenderDrawColor(g->renderer, 40, 45, 60, 220);
     SDL_RenderFillRect(g->renderer, &g->skill_tree_button);
     SDL_SetRenderDrawColor(g->renderer, 120, 130, 150, 255);
@@ -2898,7 +3714,7 @@ void render_game(Game *g) {
     int dbg_h = 26;
     int dbg_x = btn_x + (btn_w - dbg_w) / 2;
     int dbg_y = btn_y + 72;
-    g->skill_tree_debug_button = (SDL_Rect){ dbg_x, dbg_y, dbg_w, dbg_h };
+    g->skill_tree_debug_button = (SDL_Rect){dbg_x, dbg_y, dbg_w, dbg_h};
     SDL_SetRenderDrawColor(g->renderer, 55, 40, 40, 220);
     SDL_RenderFillRect(g->renderer, &g->skill_tree_debug_button);
     SDL_SetRenderDrawColor(g->renderer, 150, 110, 110, 255);
@@ -2908,16 +3724,16 @@ void render_game(Game *g) {
     /* Left Panel: Character Grid */
     int margin = 25;
     int cols = 4;
-    int name_area_h = 32;  /* Space below card for name */
+    int name_area_h = 32; /* Space below card for name */
     int card_w = (split_x - margin * 2 - (cols - 1) * 20) / cols;
-    int card_h = card_w + 60;  /* Taller portrait cards */
+    int card_h = card_w + 60; /* Taller portrait cards */
     int total_h = card_h + name_area_h;
     int start_y = 90;
-    
+
     /* Title */
     draw_text_centered(g->renderer, g->font_title, split_x / 2, 30, (SDL_Color){255, 215, 100, 255}, "SELECT YOUR CHARACTER");
     draw_text_centered(g->renderer, g->font, split_x / 2, 58, (SDL_Color){100, 100, 120, 255}, "Scroll to view more - Hover for details");
-    
+
     /* Mouse for hover */
     int mx, my;
     SDL_GetMouseState(&mx, &my);
@@ -2926,102 +3742,154 @@ void render_game(Game *g) {
     int shown = g->choice_count;
     float scroll_max = start_scroll_max(g);
     g->start_scroll = clampf(g->start_scroll, 0.0f, scroll_max);
-    for (int i = 0; i < shown; i++) {
+    for (int i = 0; i < shown; i++)
+    {
       int col = i % cols;
       int row = i / cols;
       int card_x = margin + col * (card_w + 20);
       int card_y = start_y + row * (total_h + 12) - (int)g->start_scroll;
-      SDL_Rect r = { card_x, card_y, card_w, card_h };
-      
+      SDL_Rect r = {card_x, card_y, card_w, card_h};
+
       /* Full clickable area includes name */
-      SDL_Rect click_r = { card_x, card_y, card_w, total_h };
+      SDL_Rect click_r = {card_x, card_y, card_w, total_h};
       g->choices[i].rect = click_r;
 
-      if (card_y + total_h < start_y - 10 || card_y > win_h) {
+      if (card_y + total_h < start_y - 10 || card_y > win_h)
+      {
         continue;
       }
 
       int hovered = (mx >= click_r.x && mx <= click_r.x + click_r.w && my >= click_r.y && my <= click_r.y + click_r.h);
-      if (hovered) hovered_idx = i;
+      if (hovered)
+        hovered_idx = i;
 
       int char_idx = g->choices[i].index;
       CharacterDef *c = &g->db.characters[char_idx];
-      
+
       /* Portrait fills the entire card */
-      if (g->tex_portraits[char_idx]) {
+      if (g->tex_portraits[char_idx])
+      {
         SDL_RenderCopy(g->renderer, g->tex_portraits[char_idx], NULL, &r);
-      } else {
+      }
+      else
+      {
         /* Fallback - draw placeholder */
         SDL_SetRenderDrawColor(g->renderer, 30, 35, 50, 255);
         SDL_RenderFillRect(g->renderer, &r);
-        draw_text_centered(g->renderer, g->font_title, r.x + card_w/2, r.y + card_h/2 - 10, (SDL_Color){60, 65, 80, 255}, "?");
+        draw_text_centered(g->renderer, g->font_title, r.x + card_w / 2, r.y + card_h / 2 - 10, (SDL_Color){60, 65, 80, 255}, "?");
       }
-      
+
       /* Border - thicker gold glow for hovered */
-      if (hovered) {
+      if (hovered)
+      {
         /* Outer glow */
         SDL_SetRenderDrawColor(g->renderer, 180, 150, 60, 100);
-        SDL_Rect glow1 = { r.x - 3, r.y - 3, r.w + 6, r.h + 6 };
+        SDL_Rect glow1 = {r.x - 3, r.y - 3, r.w + 6, r.h + 6};
         SDL_RenderDrawRect(g->renderer, &glow1);
-        SDL_Rect glow2 = { r.x - 2, r.y - 2, r.w + 4, r.h + 4 };
+        SDL_Rect glow2 = {r.x - 2, r.y - 2, r.w + 4, r.h + 4};
         SDL_RenderDrawRect(g->renderer, &glow2);
         /* Main border */
         SDL_SetRenderDrawColor(g->renderer, 220, 190, 90, 255);
         SDL_RenderDrawRect(g->renderer, &r);
-      } else {
+      }
+      else
+      {
         SDL_SetRenderDrawColor(g->renderer, 50, 55, 70, 255);
         SDL_RenderDrawRect(g->renderer, &r);
       }
-      
+
       /* Character name centered below portrait */
-      SDL_Color name_color = hovered ? (SDL_Color){ 255, 220, 120, 255 } : (SDL_Color){ 180, 180, 200, 255 };
+      SDL_Color name_color = hovered ? (SDL_Color){255, 220, 120, 255} : (SDL_Color){180, 180, 200, 255};
       int name_y = card_y + card_h + 6;
       draw_text_centered(g->renderer, g->font_title, card_x + card_w / 2, name_y, name_color, c->name);
     }
 
     /* Right Panel: Details */
-    if (hovered_idx >= 0) {
+    if (hovered_idx >= 0)
+    {
       int char_idx = g->choices[hovered_idx].index;
       CharacterDef *c = &g->db.characters[char_idx];
       int rx = split_x + 20;
       int ry = 30;
       int panel_w = win_w - split_x - 40;
-      
+
       /* Large portrait on right panel */
       int big_portrait_w = 200;
       int big_portrait_h = 260;
-      SDL_Rect big_portrait = { rx + (panel_w - big_portrait_w) / 2, ry, big_portrait_w, big_portrait_h };
-      if (g->tex_portraits[char_idx]) {
+      SDL_Rect big_portrait = {rx + (panel_w - big_portrait_w) / 2, ry, big_portrait_w, big_portrait_h};
+      if (g->tex_portraits[char_idx])
+      {
         SDL_RenderCopy(g->renderer, g->tex_portraits[char_idx], NULL, &big_portrait);
         /* Gold border */
         SDL_SetRenderDrawColor(g->renderer, 200, 170, 80, 255);
         SDL_RenderDrawRect(g->renderer, &big_portrait);
       }
       ry += big_portrait_h + 15;
-      
+
       /* Character name centered */
       draw_text_centered(g->renderer, g->font_title, rx + panel_w / 2, ry, (SDL_Color){255, 215, 100, 255}, c->name);
       ry += 30;
-      
+
       /* Passive Bonuses */
       draw_text(g->renderer, g->font, rx, ry, (SDL_Color){150, 150, 170, 255}, "Passive Bonuses:");
       ry += 20;
       char sbuf[128];
       Stats *s = &c->stats;
       int has_bonus = 0;
-      if (s->max_hp != 0) { snprintf(sbuf, sizeof(sbuf), "Max HP: %+.0f", s->max_hp); draw_text(g->renderer, g->font, rx + 10, ry, s->max_hp > 0 ? (SDL_Color){100, 220, 100, 255} : (SDL_Color){220, 100, 100, 255}, sbuf); ry += 17; has_bonus = 1; }
-      if (s->damage != 0) { snprintf(sbuf, sizeof(sbuf), "Damage: %+.0f%%", s->damage * 100); draw_text(g->renderer, g->font, rx + 10, ry, s->damage > 0 ? (SDL_Color){100, 220, 100, 255} : (SDL_Color){220, 100, 100, 255}, sbuf); ry += 17; has_bonus = 1; }
-      if (s->attack_speed != 0) { snprintf(sbuf, sizeof(sbuf), "Atk Speed: %+.0f%%", s->attack_speed * 100); draw_text(g->renderer, g->font, rx + 10, ry, s->attack_speed > 0 ? (SDL_Color){100, 220, 100, 255} : (SDL_Color){220, 100, 100, 255}, sbuf); ry += 17; has_bonus = 1; }
-      if (s->move_speed != 0) { snprintf(sbuf, sizeof(sbuf), "Speed: %+.0f%%", s->move_speed * 100); draw_text(g->renderer, g->font, rx + 10, ry, s->move_speed > 0 ? (SDL_Color){100, 220, 100, 255} : (SDL_Color){220, 100, 100, 255}, sbuf); ry += 17; has_bonus = 1; }
-      if (s->armor != 0) { snprintf(sbuf, sizeof(sbuf), "Armor: %+.0f", s->armor); draw_text(g->renderer, g->font, rx + 10, ry, s->armor > 0 ? (SDL_Color){100, 220, 100, 255} : (SDL_Color){220, 100, 100, 255}, sbuf); ry += 17; has_bonus = 1; }
-      if (s->dodge != 0) { snprintf(sbuf, sizeof(sbuf), "Dodge: %+.0f%%", s->dodge * 100); draw_text(g->renderer, g->font, rx + 10, ry, s->dodge > 0 ? (SDL_Color){100, 220, 100, 255} : (SDL_Color){220, 100, 100, 255}, sbuf); ry += 17; has_bonus = 1; }
-      if (!has_bonus) { draw_text(g->renderer, g->font, rx + 10, ry, (SDL_Color){100, 100, 120, 255}, "None"); ry += 17; }
-      
+      if (s->max_hp != 0)
+      {
+        snprintf(sbuf, sizeof(sbuf), "Max HP: %+.0f", s->max_hp);
+        draw_text(g->renderer, g->font, rx + 10, ry, s->max_hp > 0 ? (SDL_Color){100, 220, 100, 255} : (SDL_Color){220, 100, 100, 255}, sbuf);
+        ry += 17;
+        has_bonus = 1;
+      }
+      if (s->damage != 0)
+      {
+        snprintf(sbuf, sizeof(sbuf), "Damage: %+.0f%%", s->damage * 100);
+        draw_text(g->renderer, g->font, rx + 10, ry, s->damage > 0 ? (SDL_Color){100, 220, 100, 255} : (SDL_Color){220, 100, 100, 255}, sbuf);
+        ry += 17;
+        has_bonus = 1;
+      }
+      if (s->attack_speed != 0)
+      {
+        snprintf(sbuf, sizeof(sbuf), "Atk Speed: %+.0f%%", s->attack_speed * 100);
+        draw_text(g->renderer, g->font, rx + 10, ry, s->attack_speed > 0 ? (SDL_Color){100, 220, 100, 255} : (SDL_Color){220, 100, 100, 255}, sbuf);
+        ry += 17;
+        has_bonus = 1;
+      }
+      if (s->move_speed != 0)
+      {
+        snprintf(sbuf, sizeof(sbuf), "Speed: %+.0f%%", s->move_speed * 100);
+        draw_text(g->renderer, g->font, rx + 10, ry, s->move_speed > 0 ? (SDL_Color){100, 220, 100, 255} : (SDL_Color){220, 100, 100, 255}, sbuf);
+        ry += 17;
+        has_bonus = 1;
+      }
+      if (s->armor != 0)
+      {
+        snprintf(sbuf, sizeof(sbuf), "Armor: %+.0f", s->armor);
+        draw_text(g->renderer, g->font, rx + 10, ry, s->armor > 0 ? (SDL_Color){100, 220, 100, 255} : (SDL_Color){220, 100, 100, 255}, sbuf);
+        ry += 17;
+        has_bonus = 1;
+      }
+      if (s->dodge != 0)
+      {
+        snprintf(sbuf, sizeof(sbuf), "Dodge: %+.0f%%", s->dodge * 100);
+        draw_text(g->renderer, g->font, rx + 10, ry, s->dodge > 0 ? (SDL_Color){100, 220, 100, 255} : (SDL_Color){220, 100, 100, 255}, sbuf);
+        ry += 17;
+        has_bonus = 1;
+      }
+      if (!has_bonus)
+      {
+        draw_text(g->renderer, g->font, rx + 10, ry, (SDL_Color){100, 100, 120, 255}, "None");
+        ry += 17;
+      }
+
       ry += 12;
       draw_text(g->renderer, g->font, rx, ry, (SDL_Color){150, 150, 170, 255}, "Starting Weapon:");
       ry += 20;
       int widx = find_weapon(&g->db, c->weapon);
-      if (widx >= 0) {
+      if (widx >= 0)
+      {
         WeaponDef *w = &g->db.weapons[widx];
         draw_text(g->renderer, g->font, rx + 10, ry, (SDL_Color){100, 180, 255, 255}, w->name);
         ry += 18;
@@ -3031,14 +3899,17 @@ void render_game(Game *g) {
         snprintf(sbuf, sizeof(sbuf), "Range: %.0f  Type: %s", w->range, w->type);
         draw_text(g->renderer, g->font, rx + 10, ry, text, sbuf);
       }
-      
-      if (c->rule[0]) {
+
+      if (c->rule[0])
+      {
         ry += 22;
-        draw_text(g->renderer, g->font, rx, ry, (SDL_Color){255, 150, 100, 255}, "Special Rule:");
+        draw_text(g->renderer, g->font, rx, ry, (SDL_Color){255, 150, 100, 255}, "Ultimate:");
         ry += 20;
-        draw_text(g->renderer, g->font, rx + 10, ry, (SDL_Color){200, 180, 150, 255}, c->rule);
+        draw_text(g->renderer, g->font, rx + 10, ry, (SDL_Color){200, 180, 150, 255}, c->ultimate);
       }
-    } else {
+    }
+    else
+    {
       int rx = split_x + 20;
       int panel_w = win_w - split_x - 40;
       draw_text_centered(g->renderer, g->font, rx + panel_w / 2, win_h / 2 - 20, (SDL_Color){80, 80, 100, 255}, "Hover over a character");
@@ -3046,10 +3917,11 @@ void render_game(Game *g) {
     }
   }
 
-  if (g->mode == MODE_START && g->show_skill_tree) {
+  if (g->mode == MODE_START && g->show_skill_tree)
+  {
     SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(g->renderer, 0, 0, 0, 200);
-    SDL_Rect overlay = { 0, 0, win_w, win_h };
+    SDL_Rect overlay = {0, 0, win_w, win_h};
     SDL_RenderFillRect(g->renderer, &overlay);
 
     int panel_w = win_w;
@@ -3060,7 +3932,7 @@ void render_game(Game *g) {
     zoom = clampf(zoom, 0.5f, 2.5f);
     float panel_cx = panel_x + panel_w * 0.5f;
     float panel_cy = panel_y + panel_h * 0.5f;
-    SDL_Rect panel = { panel_x, panel_y, panel_w, panel_h };
+    SDL_Rect panel = {panel_x, panel_y, panel_w, panel_h};
     SDL_SetRenderDrawColor(g->renderer, 18, 20, 28, 235);
     SDL_RenderFillRect(g->renderer, &panel);
     SDL_SetRenderDrawColor(g->renderer, 90, 100, 120, 255);
@@ -3072,7 +3944,7 @@ void render_game(Game *g) {
     snprintf(pbuf, sizeof(pbuf), "Available Points: %d", g->skill_tree.points);
     draw_text(g->renderer, g->font, panel_x + 20, panel_y + 42, (SDL_Color){180, 190, 210, 255}, pbuf);
 
-    g->skill_tree_close_button = (SDL_Rect){ panel_x + panel_w - 90, panel_y + 12, 70, 26 };
+    g->skill_tree_close_button = (SDL_Rect){panel_x + panel_w - 90, panel_y + 12, 70, 26};
     SDL_SetRenderDrawColor(g->renderer, 50, 55, 70, 220);
     SDL_RenderFillRect(g->renderer, &g->skill_tree_close_button);
     SDL_SetRenderDrawColor(g->renderer, 110, 120, 140, 255);
@@ -3080,7 +3952,7 @@ void render_game(Game *g) {
     draw_text_centered(g->renderer, g->font, g->skill_tree_close_button.x + g->skill_tree_close_button.w / 2,
                        g->skill_tree_close_button.y + 6, (SDL_Color){210, 220, 230, 255}, "Close");
 
-    g->skill_tree_reset_button = (SDL_Rect){ panel_x + panel_w - 180, panel_y + 12, 80, 26 };
+    g->skill_tree_reset_button = (SDL_Rect){panel_x + panel_w - 180, panel_y + 12, 80, 26};
     SDL_SetRenderDrawColor(g->renderer, 60, 50, 50, 220);
     SDL_RenderFillRect(g->renderer, &g->skill_tree_reset_button);
     SDL_SetRenderDrawColor(g->renderer, 140, 110, 110, 255);
@@ -3093,24 +3965,30 @@ void render_game(Game *g) {
     float pan_y = (g->skill_tree_edit_mode) ? 0.0f : g->skill_tree_pan_y;
     int node_w = (int)(72.0f * zoom);
     int node_h = (int)(72.0f * zoom);
-    if (node_w < 36) node_w = 36;
-    if (node_h < 36) node_h = 36;
+    if (node_w < 36)
+      node_w = 36;
+    if (node_h < 36)
+      node_h = 36;
     float cx = panel_x + panel_w * 0.5f;
     float cy = panel_y + panel_h * 0.52f;
     float root_radius = 120.0f;
     float depth_step = 130.0f;
     float spread = 46.0f;
     float angles[SKILL_TREE_BRANCH_COUNT];
-    for (int b = 0; b < SKILL_TREE_BRANCH_COUNT; b++) {
+    for (int b = 0; b < SKILL_TREE_BRANCH_COUNT; b++)
+    {
       angles[b] = (-90.0f + 72.0f * (float)b) * (3.14159265f / 180.0f);
     }
 
-    if (g->skill_tree_edit_mode) {
+    if (g->skill_tree_edit_mode)
+    {
       draw_text(g->renderer, g->font, panel_x + 20, panel_y + 62, (SDL_Color){170, 180, 200, 255},
                 "Edit Mode: LMB drag/select, RMB add, C connect, [ ] rank, N name, D desc, wheel zoom, S save, R reset");
       draw_text(g->renderer, g->font, panel_x + 20, panel_y + 80, (SDL_Color){150, 160, 180, 255},
                 "Connect: select node, press C, click target");
-    } else {
+    }
+    else
+    {
       draw_text(g->renderer, g->font, panel_x + 20, panel_y + 62, (SDL_Color){170, 180, 200, 255},
                 "Binds: click node to buy, drag to pan, F9 edit, wheel zoom");
     }
@@ -3119,10 +3997,14 @@ void render_game(Game *g) {
     int my = 0;
     Uint32 mouse_buttons = SDL_GetMouseState(&mx, &my);
     int left_down = (mouse_buttons & SDL_BUTTON(SDL_BUTTON_LEFT)) != 0;
-    if (g->skill_tree_edit_mode && g->skill_tree_drag_index >= 0) {
-      if (!left_down) {
+    if (g->skill_tree_edit_mode && g->skill_tree_drag_index >= 0)
+    {
+      if (!left_down)
+      {
         g->skill_tree_drag_index = -1;
-      } else {
+      }
+      else
+      {
         float base_x = panel_cx + ((float)mx - g->skill_tree_drag_off_x - panel_cx) / zoom;
         float base_y = panel_cy + ((float)my - g->skill_tree_drag_off_y - panel_cy) / zoom;
         float nx = (base_x - (float)panel_x) / (float)panel_w;
@@ -3130,10 +4012,14 @@ void render_game(Game *g) {
         skill_tree_layout_set(g->skill_tree_drag_index, nx, ny);
       }
     }
-    if (g->skill_tree_edit_mode && g->skill_tree_drag_custom_index >= 0) {
-      if (!left_down) {
+    if (g->skill_tree_edit_mode && g->skill_tree_drag_custom_index >= 0)
+    {
+      if (!left_down)
+      {
         g->skill_tree_drag_custom_index = -1;
-      } else {
+      }
+      else
+      {
         float base_x = panel_cx + ((float)mx - g->skill_tree_drag_off_x - panel_cx) / zoom;
         float base_y = panel_cy + ((float)my - g->skill_tree_drag_off_y - panel_cy) / zoom;
         float nx = (base_x - (float)panel_x) / (float)panel_w;
@@ -3141,22 +4027,29 @@ void render_game(Game *g) {
         skill_tree_custom_set(g->skill_tree_drag_custom_index, nx, ny);
       }
     }
-    if (!g->skill_tree_edit_mode && g->skill_tree_pan_drag) {
-      if (!left_down) {
+    if (!g->skill_tree_edit_mode && g->skill_tree_pan_drag)
+    {
+      if (!left_down)
+      {
         g->skill_tree_pan_drag = 0;
-      } else {
+      }
+      else
+      {
         g->skill_tree_pan_x = g->skill_tree_pan_base_x + ((float)mx - g->skill_tree_pan_start_x);
         g->skill_tree_pan_y = g->skill_tree_pan_base_y + ((float)my - g->skill_tree_pan_start_y);
       }
     }
 
     SDL_Rect node_rects[MAX_SKILL_TREE_UPGRADES];
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < count; i++)
+    {
       const SkillTreeNode *node = skill_tree_node_get(i);
-      if (!node) continue;
+      if (!node)
+        continue;
       float nx = 0.0f;
       float ny = 0.0f;
-      if (!skill_tree_layout_get(i, &nx, &ny)) {
+      if (!skill_tree_layout_get(i, &nx, &ny))
+      {
         float angle = angles[node->branch];
         float radius = root_radius + (float)node->depth * depth_step;
         float px = cosf(angle);
@@ -3166,16 +4059,21 @@ void render_game(Game *g) {
 
         int same_count = 0;
         int same_index = 0;
-        for (int j = 0; j < count; j++) {
+        for (int j = 0; j < count; j++)
+        {
           const SkillTreeNode *other = skill_tree_node_get(j);
-          if (!other) continue;
-          if (other->branch == node->branch && other->depth == node->depth) {
-            if (j < i) same_index++;
+          if (!other)
+            continue;
+          if (other->branch == node->branch && other->depth == node->depth)
+          {
+            if (j < i)
+              same_index++;
             same_count++;
           }
         }
         float offset = 0.0f;
-        if (same_count > 1) {
+        if (same_count > 1)
+        {
           offset = ((float)same_index - (float)(same_count - 1) * 0.5f) * spread;
         }
 
@@ -3188,36 +4086,43 @@ void render_game(Game *g) {
       float base_y = (float)panel_y + ny * (float)panel_h;
       float sx = panel_cx + (base_x - panel_cx) * zoom + pan_x - node_w * 0.5f;
       float sy = panel_cy + (base_y - panel_cy) * zoom + pan_y - node_h * 0.5f;
-      node_rects[i] = (SDL_Rect){ (int)sx, (int)sy, node_w, node_h };
+      node_rects[i] = (SDL_Rect){(int)sx, (int)sy, node_w, node_h};
       g->skill_tree_item_rects[i] = node_rects[i];
     }
-    for (int i = count; i < MAX_SKILL_TREE_UPGRADES; i++) {
-      g->skill_tree_item_rects[i] = (SDL_Rect){ 0, 0, 0, 0 };
+    for (int i = count; i < MAX_SKILL_TREE_UPGRADES; i++)
+    {
+      g->skill_tree_item_rects[i] = (SDL_Rect){0, 0, 0, 0};
     }
 
     int custom_count = skill_tree_custom_count();
     int custom_w = (int)(54.0f * zoom);
     int custom_h = (int)(54.0f * zoom);
-    if (custom_w < 28) custom_w = 28;
-    if (custom_h < 28) custom_h = 28;
-    for (int i = 0; i < custom_count; i++) {
+    if (custom_w < 28)
+      custom_w = 28;
+    if (custom_h < 28)
+      custom_h = 28;
+    for (int i = 0; i < custom_count; i++)
+    {
       float nx = 0.0f;
       float ny = 0.0f;
-      if (!skill_tree_custom_get(i, &nx, &ny)) {
-        g->skill_tree_custom_rects[i] = (SDL_Rect){ 0, 0, 0, 0 };
+      if (!skill_tree_custom_get(i, &nx, &ny))
+      {
+        g->skill_tree_custom_rects[i] = (SDL_Rect){0, 0, 0, 0};
         continue;
       }
       float base_x = (float)panel_x + nx * (float)panel_w;
       float base_y = (float)panel_y + ny * (float)panel_h;
       float sx = panel_cx + (base_x - panel_cx) * zoom + pan_x - custom_w * 0.5f;
       float sy = panel_cy + (base_y - panel_cy) * zoom + pan_y - custom_h * 0.5f;
-      g->skill_tree_custom_rects[i] = (SDL_Rect){ (int)sx, (int)sy, custom_w, custom_h };
+      g->skill_tree_custom_rects[i] = (SDL_Rect){(int)sx, (int)sy, custom_w, custom_h};
     }
-    for (int i = custom_count; i < MAX_SKILL_TREE_CUSTOM_NODES; i++) {
-      g->skill_tree_custom_rects[i] = (SDL_Rect){ 0, 0, 0, 0 };
+    for (int i = custom_count; i < MAX_SKILL_TREE_CUSTOM_NODES; i++)
+    {
+      g->skill_tree_custom_rects[i] = (SDL_Rect){0, 0, 0, 0};
     }
 
-    for (int b = 0; b < SKILL_TREE_BRANCH_COUNT; b++) {
+    for (int b = 0; b < SKILL_TREE_BRANCH_COUNT; b++)
+    {
       float angle = angles[b];
       float px = cosf(angle);
       float py = sinf(angle);
@@ -3230,15 +4135,19 @@ void render_game(Game *g) {
     }
 
     SDL_SetRenderDrawColor(g->renderer, 70, 80, 100, 200);
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < count; i++)
+    {
       int pk = skill_tree_ui_parent_kind(i);
       int pi = skill_tree_ui_parent_index(i);
-      if (pk == 1 && pi >= 0 && pi < count) {
+      if (pk == 1 && pi >= 0 && pi < count)
+      {
         SDL_Rect pr = node_rects[pi];
         SDL_Rect cr = node_rects[i];
         SDL_RenderDrawLine(g->renderer, pr.x + pr.w / 2, pr.y + pr.h / 2,
                            cr.x + cr.w / 2, cr.y + cr.h / 2);
-      } else if (pk == 2 && pi >= 0 && pi < custom_count) {
+      }
+      else if (pk == 2 && pi >= 0 && pi < custom_count)
+      {
         SDL_Rect pr = g->skill_tree_custom_rects[pi];
         SDL_Rect cr = node_rects[i];
         SDL_RenderDrawLine(g->renderer, pr.x + pr.w / 2, pr.y + pr.h / 2,
@@ -3246,27 +4155,37 @@ void render_game(Game *g) {
       }
     }
 
-    for (int i = 0; i < custom_count; i++) {
+    for (int i = 0; i < custom_count; i++)
+    {
       SDL_Rect r = g->skill_tree_custom_rects[i];
-      if (r.w <= 0 || r.h <= 0) continue;
+      if (r.w <= 0 || r.h <= 0)
+        continue;
       int pk = skill_tree_custom_parent_kind(i);
       int pi = skill_tree_custom_parent_index(i);
-      if (pk == 1 && pi >= 0 && pi < count) {
+      if (pk == 1 && pi >= 0 && pi < count)
+      {
         SDL_Rect pr = node_rects[pi];
         SDL_RenderDrawLine(g->renderer, pr.x + pr.w / 2, pr.y + pr.h / 2,
                            r.x + r.w / 2, r.y + r.h / 2);
-      } else if (pk == 2 && pi >= 0 && pi < custom_count) {
+      }
+      else if (pk == 2 && pi >= 0 && pi < custom_count)
+      {
         SDL_Rect pr = g->skill_tree_custom_rects[pi];
         SDL_RenderDrawLine(g->renderer, pr.x + pr.w / 2, pr.y + pr.h / 2,
                            r.x + r.w / 2, r.y + r.h / 2);
       }
       SDL_SetRenderDrawColor(g->renderer, 28, 32, 40, 220);
       SDL_RenderFillRect(g->renderer, &r);
-      if (g->skill_tree_selected_kind == 2 && g->skill_tree_selected_index == i) {
+      if (g->skill_tree_selected_kind == 2 && g->skill_tree_selected_index == i)
+      {
         SDL_SetRenderDrawColor(g->renderer, 200, 160, 80, 255);
-      } else if (g->skill_tree_connect_kind == 2 && g->skill_tree_connect_index == i) {
+      }
+      else if (g->skill_tree_connect_kind == 2 && g->skill_tree_connect_index == i)
+      {
         SDL_SetRenderDrawColor(g->renderer, 120, 180, 220, 255);
-      } else {
+      }
+      else
+      {
         SDL_SetRenderDrawColor(g->renderer, 80, 90, 110, 255);
       }
       SDL_RenderDrawRect(g->renderer, &r);
@@ -3276,10 +4195,12 @@ void render_game(Game *g) {
                          (SDL_Color){160, 170, 190, 255}, cbuf);
     }
 
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < count; i++)
+    {
       SDL_Rect r = node_rects[i];
       const SkillTreeNode *node = skill_tree_node_get(i);
-      if (!node) continue;
+      if (!node)
+        continue;
       int rank = g->skill_tree.upgrades[i];
       int max_rank = skill_tree_upgrade_max_rank(i);
       int cost = skill_tree_upgrade_cost(rank);
@@ -3288,29 +4209,41 @@ void render_game(Game *g) {
       int locked = 0;
       int pk = skill_tree_ui_parent_kind(i);
       int pi = skill_tree_ui_parent_index(i);
-      if (pk == 1 && pi >= 0) {
+      if (pk == 1 && pi >= 0)
+      {
         int parent_max = skill_tree_upgrade_max_rank(pi);
-        if (g->skill_tree.upgrades[pi] < parent_max) locked = 1;
+        if (g->skill_tree.upgrades[pi] < parent_max)
+          locked = 1;
       }
 
       SDL_Color bg = {40, 40, 50, 220};
-      if (locked) bg = (SDL_Color){35, 35, 40, 220};
-      else if (maxed) bg = (SDL_Color){45, 45, 55, 220};
-      else if (afford) bg = (SDL_Color){40, 55, 45, 220};
+      if (locked)
+        bg = (SDL_Color){35, 35, 40, 220};
+      else if (maxed)
+        bg = (SDL_Color){45, 45, 55, 220};
+      else if (afford)
+        bg = (SDL_Color){40, 55, 45, 220};
       SDL_SetRenderDrawColor(g->renderer, bg.r, bg.g, bg.b, bg.a);
       SDL_RenderFillRect(g->renderer, &r);
-      if (g->skill_tree_selected_kind == 1 && g->skill_tree_selected_index == i) {
+      if (g->skill_tree_selected_kind == 1 && g->skill_tree_selected_index == i)
+      {
         SDL_SetRenderDrawColor(g->renderer, 200, 160, 80, 255);
-      } else if (g->skill_tree_connect_kind == 1 && g->skill_tree_connect_index == i) {
+      }
+      else if (g->skill_tree_connect_kind == 1 && g->skill_tree_connect_index == i)
+      {
         SDL_SetRenderDrawColor(g->renderer, 120, 180, 220, 255);
-      } else {
+      }
+      else
+      {
         SDL_SetRenderDrawColor(g->renderer, 90, 100, 120, 255);
       }
       SDL_RenderDrawRect(g->renderer, &r);
 
       char rankbuf[32];
-      if (maxed) snprintf(rankbuf, sizeof(rankbuf), "MAX");
-      else snprintf(rankbuf, sizeof(rankbuf), "%d/%d", rank, max_rank);
+      if (maxed)
+        snprintf(rankbuf, sizeof(rankbuf), "MAX");
+      else
+        snprintf(rankbuf, sizeof(rankbuf), "%d/%d", rank, max_rank);
       draw_text_centered(g->renderer, g->font, r.x + r.w / 2, r.y + r.h - 18,
                          (SDL_Color){170, 180, 200, 255}, rankbuf);
     }
@@ -3318,34 +4251,43 @@ void render_game(Game *g) {
     SDL_GetMouseState(&mx, &my);
     int hovered = -1;
     int hovered_custom = -1;
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < count; i++)
+    {
       SDL_Rect r = node_rects[i];
-      if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
+      if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h)
+      {
         hovered = i;
         break;
       }
     }
-    if (hovered < 0) {
-      for (int i = 0; i < custom_count; i++) {
+    if (hovered < 0)
+    {
+      for (int i = 0; i < custom_count; i++)
+      {
         SDL_Rect r = g->skill_tree_custom_rects[i];
-        if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
+        if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h)
+        {
           hovered_custom = i;
           break;
         }
       }
     }
-    if (hovered >= 0) {
+    if (hovered >= 0)
+    {
       const SkillTreeNode *node = skill_tree_node_get(hovered);
-      if (node) {
+      if (node)
+      {
         int rank = g->skill_tree.upgrades[hovered];
         int max_rank = skill_tree_upgrade_max_rank(hovered);
         int cost = skill_tree_upgrade_cost(rank);
         int locked = 0;
         int pk = skill_tree_ui_parent_kind(hovered);
         int pi = skill_tree_ui_parent_index(hovered);
-        if (pk == 1 && pi >= 0) {
+        if (pk == 1 && pi >= 0)
+        {
           int parent_max = skill_tree_upgrade_max_rank(pi);
-          if (g->skill_tree.upgrades[pi] < parent_max) locked = 1;
+          if (g->skill_tree.upgrades[pi] < parent_max)
+            locked = 1;
         }
 
         char line1[96];
@@ -3353,34 +4295,44 @@ void render_game(Game *g) {
         char line3[96];
         snprintf(line1, sizeof(line1), "%s", skill_tree_ui_name(hovered));
         snprintf(line2, sizeof(line2), "%s", skill_tree_ui_desc(hovered));
-        if (locked) {
+        if (locked)
+        {
           const SkillTreeNode *parent_node = (pk == 1) ? skill_tree_node_get(pi) : NULL;
           const char *parent_name = parent_node ? parent_node->name : "Parent";
           snprintf(line3, sizeof(line3), "Locked: max %s", parent_name);
-        } else if (rank >= max_rank) {
+        }
+        else if (rank >= max_rank)
+        {
           snprintf(line3, sizeof(line3), "Maxed");
-        } else {
+        }
+        else
+        {
           snprintf(line3, sizeof(line3), "Rank %d/%d  Cost %d", rank, max_rank, cost);
         }
 
         int w1 = 0, h1 = 0, w2 = 0, h2 = 0, w3 = 0, h3 = 0;
-        if (g->font) {
+        if (g->font)
+        {
           TTF_SizeText(g->font, line1, &w1, &h1);
           TTF_SizeText(g->font, line2, &w2, &h2);
           TTF_SizeText(g->font, line3, &w3, &h3);
         }
         int pad = 8;
         int box_w = w1;
-        if (w2 > box_w) box_w = w2;
-        if (w3 > box_w) box_w = w3;
+        if (w2 > box_w)
+          box_w = w2;
+        if (w3 > box_w)
+          box_w = w3;
         int line_h = (h1 > 0 ? h1 : 14);
         int box_h = line_h * 3 + pad * 2 + 4;
         int box_x = mx + 16;
         int box_y = my + 16;
-        if (box_x + box_w + pad * 2 > win_w) box_x = mx - box_w - pad * 2 - 16;
-        if (box_y + box_h > win_h) box_y = my - box_h - 16;
+        if (box_x + box_w + pad * 2 > win_w)
+          box_x = mx - box_w - pad * 2 - 16;
+        if (box_y + box_h > win_h)
+          box_y = my - box_h - 16;
 
-        SDL_Rect tip = { box_x, box_y, box_w + pad * 2, box_h };
+        SDL_Rect tip = {box_x, box_y, box_w + pad * 2, box_h};
         SDL_SetRenderDrawColor(g->renderer, 20, 22, 30, 240);
         SDL_RenderFillRect(g->renderer, &tip);
         SDL_SetRenderDrawColor(g->renderer, 120, 130, 150, 255);
@@ -3390,7 +4342,9 @@ void render_game(Game *g) {
         draw_text(g->renderer, g->font, box_x + pad, box_y + pad + line_h * 2 + 4,
                   (SDL_Color){200, 190, 160, 255}, line3);
       }
-    } else if (hovered_custom >= 0) {
+    }
+    else if (hovered_custom >= 0)
+    {
       char line1[96];
       char line2[96];
       char line3[96];
@@ -3399,23 +4353,28 @@ void render_game(Game *g) {
       snprintf(line3, sizeof(line3), "Max Rank %d", skill_tree_custom_max_rank(hovered_custom));
 
       int w1 = 0, h1 = 0, w2 = 0, h2 = 0, w3 = 0, h3 = 0;
-      if (g->font) {
+      if (g->font)
+      {
         TTF_SizeText(g->font, line1, &w1, &h1);
         TTF_SizeText(g->font, line2, &w2, &h2);
         TTF_SizeText(g->font, line3, &w3, &h3);
       }
       int pad = 8;
       int box_w = w1;
-      if (w2 > box_w) box_w = w2;
-      if (w3 > box_w) box_w = w3;
+      if (w2 > box_w)
+        box_w = w2;
+      if (w3 > box_w)
+        box_w = w3;
       int line_h = (h1 > 0 ? h1 : 14);
       int box_h = line_h * 3 + pad * 2 + 4;
       int box_x = mx + 16;
       int box_y = my + 16;
-      if (box_x + box_w + pad * 2 > win_w) box_x = mx - box_w - pad * 2 - 16;
-      if (box_y + box_h > win_h) box_y = my - box_h - 16;
+      if (box_x + box_w + pad * 2 > win_w)
+        box_x = mx - box_w - pad * 2 - 16;
+      if (box_y + box_h > win_h)
+        box_y = my - box_h - 16;
 
-      SDL_Rect tip = { box_x, box_y, box_w + pad * 2, box_h };
+      SDL_Rect tip = {box_x, box_y, box_w + pad * 2, box_h};
       SDL_SetRenderDrawColor(g->renderer, 20, 22, 30, 240);
       SDL_RenderFillRect(g->renderer, &tip);
       SDL_SetRenderDrawColor(g->renderer, 120, 130, 150, 255);
@@ -3426,12 +4385,13 @@ void render_game(Game *g) {
                 (SDL_Color){200, 190, 160, 255}, line3);
     }
 
-    if (g->skill_tree_text_active) {
+    if (g->skill_tree_text_active)
+    {
       int box_w = 520;
       int box_h = 80;
       int box_x = (win_w - box_w) / 2;
       int box_y = win_h - box_h - 30;
-      SDL_Rect edit = { box_x, box_y, box_w, box_h };
+      SDL_Rect edit = {box_x, box_y, box_w, box_h};
       SDL_SetRenderDrawColor(g->renderer, 15, 18, 26, 235);
       SDL_RenderFillRect(g->renderer, &edit);
       SDL_SetRenderDrawColor(g->renderer, 120, 130, 150, 255);
@@ -3446,10 +4406,11 @@ void render_game(Game *g) {
     }
   }
 
-  if (g->mode == MODE_GAMEOVER) {
+  if (g->mode == MODE_GAMEOVER)
+  {
     SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(g->renderer, 0, 0, 0, 180);
-    SDL_Rect overlay = { 0, 0, win_w, win_h };
+    SDL_Rect overlay = {0, 0, win_w, win_h};
     SDL_RenderFillRect(g->renderer, &overlay);
     char buf[128];
     snprintf(buf, sizeof(buf), "Game Over - Level %d", g->level);
@@ -3466,7 +4427,7 @@ void render_game(Game *g) {
     int btn_h = 40;
     int btn_x = win_w / 2 - btn_w / 2;
     int btn_y = win_h / 2 + 62;
-    g->restart_button = (SDL_Rect){ btn_x, btn_y, btn_w, btn_h };
+    g->restart_button = (SDL_Rect){btn_x, btn_y, btn_w, btn_h};
     SDL_SetRenderDrawColor(g->renderer, 40, 40, 55, 220);
     SDL_RenderFillRect(g->renderer, &g->restart_button);
     SDL_SetRenderDrawColor(g->renderer, 160, 160, 190, 255);
@@ -3475,40 +4436,46 @@ void render_game(Game *g) {
   }
 
   /* Debug item/weapon list panel (toggle with key 8) */
-  if (g->debug_show_items) {
+  if (g->debug_show_items)
+  {
     int panel_w = 220;
     int panel_x = win_w - panel_w - 10;
     int panel_y = 10;
     int line_h = 18;
-    
+
     /* Semi-transparent background */
     SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(g->renderer, 0, 0, 0, 200);
     int panel_h = 40 + (g->player.passive_count + 1) * line_h + 20 + (MAX_WEAPON_SLOTS + 1) * line_h;
-    SDL_Rect panel = { panel_x, panel_y, panel_w, panel_h };
+    SDL_Rect panel = {panel_x, panel_y, panel_w, panel_h};
     SDL_RenderFillRect(g->renderer, &panel);
     SDL_SetRenderDrawColor(g->renderer, 100, 100, 120, 255);
     SDL_RenderDrawRect(g->renderer, &panel);
-    
+
     int y = panel_y + 8;
     SDL_Color header_color = {255, 220, 100, 255};
     SDL_Color item_color = {180, 200, 180, 255};
     SDL_Color weapon_color = {180, 180, 220, 255};
     SDL_Color count_color = {120, 120, 140, 255};
-    
+
     /* Items section */
     char buf[64];
     snprintf(buf, sizeof(buf), "ITEMS (%d)", g->player.passive_count);
     draw_text(g->renderer, g->font, panel_x + 8, y, header_color, buf);
     y += line_h + 4;
-    
-    if (g->player.passive_count == 0) {
+
+    if (g->player.passive_count == 0)
+    {
       draw_text(g->renderer, g->font, panel_x + 12, y, count_color, "(none)");
       y += line_h;
-    } else {
-      for (int i = 0; i < g->player.passive_count; i++) {
+    }
+    else
+    {
+      for (int i = 0; i < g->player.passive_count; i++)
+      {
         int idx = g->player.passive_items[i];
-        if (idx >= 0 && idx < g->db.item_count) {
+        if (idx >= 0 && idx < g->db.item_count)
+        {
           ItemDef *it = &g->db.items[idx];
           SDL_Color rc = rarity_color(it->rarity);
           draw_text(g->renderer, g->font, panel_x + 12, y, rc, it->name);
@@ -3516,25 +4483,33 @@ void render_game(Game *g) {
         }
       }
     }
-    
+
     y += 10;
-    
+
     /* Weapons section */
     int weapon_count = 0;
-    for (int i = 0; i < MAX_WEAPON_SLOTS; i++) {
-      if (g->player.weapons[i].active) weapon_count++;
+    for (int i = 0; i < MAX_WEAPON_SLOTS; i++)
+    {
+      if (g->player.weapons[i].active)
+        weapon_count++;
     }
     snprintf(buf, sizeof(buf), "WEAPONS (%d)", weapon_count);
     draw_text(g->renderer, g->font, panel_x + 8, y, header_color, buf);
     y += line_h + 4;
-    
-    if (weapon_count == 0) {
+
+    if (weapon_count == 0)
+    {
       draw_text(g->renderer, g->font, panel_x + 12, y, count_color, "(none)");
-    } else {
-      for (int i = 0; i < MAX_WEAPON_SLOTS; i++) {
-        if (!g->player.weapons[i].active) continue;
+    }
+    else
+    {
+      for (int i = 0; i < MAX_WEAPON_SLOTS; i++)
+      {
+        if (!g->player.weapons[i].active)
+          continue;
         int def_idx = g->player.weapons[i].def_index;
-        if (def_idx >= 0 && def_idx < g->db.weapon_count) {
+        if (def_idx >= 0 && def_idx < g->db.weapon_count)
+        {
           WeaponDef *w = &g->db.weapons[def_idx];
           snprintf(buf, sizeof(buf), "%s (Lv%d)", w->name, g->player.weapons[i].level);
           SDL_Color rc = rarity_color(w->rarity);
@@ -3548,27 +4523,34 @@ void render_game(Game *g) {
   SDL_RenderPresent(g->renderer);
 }
 
-void handle_levelup_click(Game *g, int mx, int my) {
-  if (g->levelup_chosen >= 0 || g->levelup_selected_count > 0) return;
+void handle_levelup_click(Game *g, int mx, int my)
+{
+  if (g->levelup_chosen >= 0 || g->levelup_selected_count > 0)
+    return;
   /* Check reroll button first */
   SDL_Rect rb = g->reroll_button;
-  if (g->rerolls > 0 && mx >= rb.x && mx <= rb.x + rb.w && my >= rb.y && my <= rb.y + rb.h) {
+  if (g->rerolls > 0 && mx >= rb.x && mx <= rb.x + rb.w && my >= rb.y && my <= rb.y + rb.h)
+  {
     g->rerolls--;
     build_levelup_choices(g);
     return;
   }
-  
+
   /* Check high roll button */
   SDL_Rect hr = g->highroll_button;
-  if (!g->high_roll_used && mx >= hr.x && mx <= hr.x + hr.w && my >= hr.y && my <= hr.y + hr.h) {
+  if (!g->high_roll_used && mx >= hr.x && mx <= hr.x + hr.w && my >= hr.y && my <= hr.y + hr.h)
+  {
     g->high_roll_used = 1;
-    
+
     int items_to_grant = 1 + (rand() % 3);
-    if (items_to_grant > g->choice_count) items_to_grant = g->choice_count;
+    if (items_to_grant > g->choice_count)
+      items_to_grant = g->choice_count;
 
     int indices[MAX_LEVELUP_CHOICES];
-    for (int i = 0; i < g->choice_count; i++) indices[i] = i;
-    for (int i = g->choice_count - 1; i > 0; i--) {
+    for (int i = 0; i < g->choice_count; i++)
+      indices[i] = i;
+    for (int i = g->choice_count - 1; i > 0; i--)
+    {
       int j = rand() % (i + 1);
       int tmp = indices[i];
       indices[i] = indices[j];
@@ -3577,24 +4559,32 @@ void handle_levelup_click(Game *g, int mx, int my) {
 
     g->levelup_selected_count = 0;
     int active_weapons = 0;
-    for (int w = 0; w < MAX_WEAPON_SLOTS; w++) {
-      if (g->player.weapons[w].active) active_weapons++;
+    for (int w = 0; w < MAX_WEAPON_SLOTS; w++)
+    {
+      if (g->player.weapons[w].active)
+        active_weapons++;
     }
     int free_slots = MAX_WEAPON_SLOTS - active_weapons;
-    for (int k = 0; k < g->choice_count && g->levelup_selected_count < items_to_grant; k++) {
+    for (int k = 0; k < g->choice_count && g->levelup_selected_count < items_to_grant; k++)
+    {
       int i = indices[k];
-      if (g->choices[i].type == 0) {
+      if (g->choices[i].type == 0)
+      {
         g->levelup_selected[g->levelup_selected_count++] = i;
         continue;
       }
       int level = 0;
       int wi = g->choices[i].index;
       int owned = weapon_is_owned(&g->player, wi, &level);
-      if (owned) {
-        if (level < MAX_WEAPON_LEVEL) {
+      if (owned)
+      {
+        if (level < MAX_WEAPON_LEVEL)
+        {
           g->levelup_selected[g->levelup_selected_count++] = i;
         }
-      } else if (free_slots > 0) {
+      }
+      else if (free_slots > 0)
+      {
         g->levelup_selected[g->levelup_selected_count++] = i;
         free_slots--;
       }
@@ -3602,46 +4592,61 @@ void handle_levelup_click(Game *g, int mx, int my) {
 
     int applied_indices[MAX_LEVELUP_CHOICES];
     int applied_count = 0;
-    for (int k = 0; k < g->levelup_selected_count; k++) {
+    for (int k = 0; k < g->levelup_selected_count; k++)
+    {
       int i = g->levelup_selected[k];
       int applied = 0;
-      if (g->choices[i].type == 0) {
+      if (g->choices[i].type == 0)
+      {
         int before = g->player.passive_count;
         ItemDef *it = &g->db.items[g->choices[i].index];
         apply_item(&g->player, &g->db, it, g->choices[i].index);
-        if (g->player.passive_count > before) {
+        if (g->player.passive_count > before)
+        {
           g->last_item_index = g->choices[i].index;
           trigger_item_popup(g, it);
           applied = 1;
         }
-      } else {
+      }
+      else
+      {
         int wi = g->choices[i].index;
         int before_level = 0;
         int before_owned = weapon_is_owned(&g->player, wi, &before_level);
-        if (can_equip_weapon(&g->player, wi)) {
+        if (can_equip_weapon(&g->player, wi))
+        {
           equip_weapon(&g->player, wi);
-        } else {
-          for (int w = 0; w < MAX_WEAPON_SLOTS; w++) {
-            if (g->player.weapons[w].active && g->player.weapons[w].def_index == wi) {
-              if (g->player.weapons[w].level < MAX_WEAPON_LEVEL) g->player.weapons[w].level += 1;
+        }
+        else
+        {
+          for (int w = 0; w < MAX_WEAPON_SLOTS; w++)
+          {
+            if (g->player.weapons[w].active && g->player.weapons[w].def_index == wi)
+            {
+              if (g->player.weapons[w].level < MAX_WEAPON_LEVEL)
+                g->player.weapons[w].level += 1;
               break;
             }
           }
         }
         int after_level = 0;
         int after_owned = weapon_is_owned(&g->player, wi, &after_level);
-        if ((!before_owned && after_owned) || (after_owned && after_level > before_level)) applied = 1;
+        if ((!before_owned && after_owned) || (after_owned && after_level > before_level))
+          applied = 1;
       }
-      if (applied) applied_indices[applied_count++] = i;
+      if (applied)
+        applied_indices[applied_count++] = i;
     }
-    for (int k = 0; k < applied_count; k++) g->levelup_selected[k] = applied_indices[k];
+    for (int k = 0; k < applied_count; k++)
+      g->levelup_selected[k] = applied_indices[k];
     g->levelup_selected_count = applied_count;
     g->levelup_chosen = -1;
     g->levelup_fade = (float)SDL_GetTicks() / 1000.0f;
     return;
   }
-  
-  for (int i = 0; i < g->choice_count; i++) {
+
+  for (int i = 0; i < g->choice_count; i++)
+  {
     SDL_Rect r = g->choices[i].rect;
     int orb_size = levelup_orb_size(&r);
     float cx = (float)(r.x + r.w / 2);
@@ -3649,21 +4654,31 @@ void handle_levelup_click(Game *g, int mx, int my) {
     float radius = (float)orb_size * 0.5f;
     float dx = (float)mx - cx;
     float dy = (float)my - cy;
-    if (dx * dx + dy * dy <= radius * radius) {
-      if (g->choices[i].type == 0) {
+    if (dx * dx + dy * dy <= radius * radius)
+    {
+      if (g->choices[i].type == 0)
+      {
         ItemDef *it = &g->db.items[g->choices[i].index];
         apply_item(&g->player, &g->db, it, g->choices[i].index);
         g->last_item_index = g->choices[i].index;
         trigger_item_popup(g, it);
-      } else {
+      }
+      else
+      {
         int wi = g->choices[i].index;
-        if (can_equip_weapon(&g->player, wi)) {
+        if (can_equip_weapon(&g->player, wi))
+        {
           equip_weapon(&g->player, wi);
-        } else {
+        }
+        else
+        {
           /* Upgrade existing weapon if we already have it */
-          for (int w = 0; w < MAX_WEAPON_SLOTS; w++) {
-            if (g->player.weapons[w].active && g->player.weapons[w].def_index == wi) {
-              if (g->player.weapons[w].level < MAX_WEAPON_LEVEL) g->player.weapons[w].level += 1;
+          for (int w = 0; w < MAX_WEAPON_SLOTS; w++)
+          {
+            if (g->player.weapons[w].active && g->player.weapons[w].def_index == wi)
+            {
+              if (g->player.weapons[w].level < MAX_WEAPON_LEVEL)
+                g->player.weapons[w].level += 1;
               break;
             }
           }
@@ -3676,6 +4691,3 @@ void handle_levelup_click(Game *g, int mx, int my) {
     }
   }
 }
-
-
-

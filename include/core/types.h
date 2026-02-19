@@ -152,6 +152,7 @@ typedef struct {
   float alch_ult_timer;
   float alch_ult_start_hp;
   float alch_ult_max_hp;
+  float molten_trail_timer;
 } Player;
 
 typedef struct {
@@ -181,6 +182,7 @@ typedef struct {
   float armor_shred_timer;
   float curse_timer;
   float curse_dps;
+  float molten_tick_cd;
 } EnemyDebuffs;
 
 typedef struct {

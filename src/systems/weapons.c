@@ -164,8 +164,10 @@ void update_puddles(Game *g, float dt) {
       float dy = en->y - p->y;
       float d2 = dx * dx + dy * dy;
       if (d2 <= radius2) {
+        if (p->kind == 2 && en->debuffs.molten_tick_cd > 0.0f) continue;
         mark_enemy_hit(en);
         en->hp -= p->dps * dt;
+        if (p->kind == 2) en->debuffs.molten_tick_cd = 0.25f;
         if (p->log_timer <= 0.0f) {
           log_combatf(g, "puddle tick %s for %.1f", enemy_label(g, en), p->dps * dt);
         }

@@ -168,6 +168,9 @@ int main(int argc, char **argv) {
   game.tex_alchemist_puddle = IMG_LoadTexture(game.renderer, "data/assets/weapons/alchemist_puddle.png");
   if (game.tex_alchemist_puddle) log_line("Loaded alchemist puddle sprite");
   else log_linef("Failed to load alchemist_puddle.png: %s", IMG_GetError());
+  game.tex_fire_trail = IMG_LoadTexture(game.renderer, "data/assets/heroes/molten/fire_trail.png");
+  if (game.tex_fire_trail) log_line("Loaded fire_trail.png");
+  else log_linef("Failed to load fire_trail.png: %s", IMG_GetError());
   game.tex_alchemist_ult = IMG_LoadTexture(game.renderer, "data/assets/alchemist_ult.png");
   if (game.tex_alchemist_ult) log_line("Loaded alchemist ult sprite");
   else log_linef("Failed to load alchemist_ult.png: %s", IMG_GetError());
@@ -664,6 +667,7 @@ int main(int argc, char **argv) {
   if (game.tex_bite) SDL_DestroyTexture(game.tex_bite);
   if (game.tex_dagger) SDL_DestroyTexture(game.tex_dagger);
   if (game.tex_alchemist_puddle) SDL_DestroyTexture(game.tex_alchemist_puddle);
+  if (game.tex_fire_trail) SDL_DestroyTexture(game.tex_fire_trail);
   if (game.tex_alchemist_ult) SDL_DestroyTexture(game.tex_alchemist_ult);
   if (game.tex_exp_orb) SDL_DestroyTexture(game.tex_exp_orb);
   if (game.tex_orb_common) SDL_DestroyTexture(game.tex_orb_common);
