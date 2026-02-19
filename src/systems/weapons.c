@@ -287,13 +287,13 @@ void update_bullets(Game *g, float dt) {
     } else {
       float dx = p->x - b->x;
       float dy = p->y - b->y;
-      if (dx * dx + dy * dy < 400.0f) {
-        float dmg = damage_after_armor(b->damage, stats.armor);
-        if (p->alch_ult_phase == 0) p->hp -= dmg;
-        b->active = 0;
-      }
-    }
-  }
+      if (dx * dx + dy * dy < 400.0f) { 
+        float dmg = damage_after_armor(b->damage, stats.armor); 
+        if (p->alch_ult_phase == 0) p->hp -= player_damage_reduce(g, dmg); 
+        b->active = 0; 
+      } 
+    } 
+  } 
 }
 
 void update_sword_orbit(Game *g, float dt) {

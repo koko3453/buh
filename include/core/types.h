@@ -25,11 +25,12 @@ typedef struct {
   float shred;
 } WeaponStatusChances;
 
-typedef struct {
-  int points;
-  int total_points;
-  int upgrades[MAX_SKILL_TREE_UPGRADES];
-} SkillTreeProgress;
+typedef struct { 
+  int points; 
+  int total_points; 
+  int upgrades[MAX_SKILL_TREE_UPGRADES]; 
+  int custom_upgrades[MAX_SKILL_TREE_CUSTOM_NODES]; 
+} SkillTreeProgress; 
 
 typedef struct WeaponDef {
   char id[32];
@@ -69,11 +70,15 @@ typedef struct {
   float thorns_percent;
   float lifesteal_on_kill;
   float rarity_bias;
-  float slow_bonus_damage;
-  float legendary_amp;
-  float hp_regen_amp;
-  float xp_kill_chance;
-} ItemDef;
+  float slow_bonus_damage; 
+  float legendary_amp; 
+  float hp_regen_amp; 
+  float xp_kill_chance; 
+  float ultimate_cdr; 
+  float totem_spawn_rate; 
+  float totem_duration_bonus; 
+  int chest_reroll_bonus; 
+} ItemDef; 
 
 typedef struct {
   char id[32];
@@ -153,6 +158,7 @@ typedef struct {
   float alch_ult_start_hp;
   float alch_ult_max_hp;
   float molten_trail_timer;
+  float molten_ult_timer;
 } Player;
 
 typedef struct {

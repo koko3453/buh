@@ -39,8 +39,8 @@ int main(int argc, char **argv) {
   log_linef("Counts: weapons=%d items=%d enemies=%d characters=%d",
             game.db.weapon_count, game.db.item_count, game.db.enemy_count, game.db.character_count);
   log_line("Data load ok");
-  skill_tree_progress_init(&game);
-  skill_tree_layout_load();
+  skill_tree_layout_load(); 
+  skill_tree_progress_init(&game); 
 
   game.window = SDL_CreateWindow("buh", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                  WINDOW_W, WINDOW_H, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_MAXIMIZED);
@@ -248,19 +248,19 @@ int main(int argc, char **argv) {
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
       if (e.type == SDL_QUIT) game.running = 0;
-      if (e.type == SDL_TEXTINPUT && game.skill_tree_text_active) {
-        size_t len = strlen(game.skill_tree_text_buf);
-        size_t add = strlen(e.text.text);
-        if (len + add < sizeof(game.skill_tree_text_buf) - 1) {
-          strncat(game.skill_tree_text_buf, e.text.text, sizeof(game.skill_tree_text_buf) - len - 1);
-        }
-        continue;
-      }
-      if (e.type == SDL_KEYDOWN) {
-        if (game.skill_tree_text_active) {
-          if (e.key.keysym.sym == SDLK_BACKSPACE) {
-            size_t len = strlen(game.skill_tree_text_buf);
-            if (len > 0) game.skill_tree_text_buf[len - 1] = '\0';
+      if (e.type == SDL_TEXTINPUT && game.skill_tree_text_active) { 
+        size_t len = strlen(game.skill_tree_text_buf); 
+        size_t add = strlen(e.text.text); 
+        if (len + add < sizeof(game.skill_tree_text_buf) - 1) { 
+          strncat(game.skill_tree_text_buf, e.text.text, sizeof(game.skill_tree_text_buf) - len - 1); 
+        } 
+        continue; 
+      } 
+      if (e.type == SDL_KEYDOWN) { 
+        if (game.skill_tree_text_active) { 
+          if (e.key.keysym.sym == SDLK_BACKSPACE) { 
+            size_t len = strlen(game.skill_tree_text_buf); 
+            if (len > 0) game.skill_tree_text_buf[len - 1] = '\0'; 
           } else if (e.key.keysym.sym == SDLK_RETURN || e.key.keysym.sym == SDLK_KP_ENTER) {
             if (game.skill_tree_text_kind == 1) {
               if (game.skill_tree_text_field == 1) {
@@ -282,29 +282,29 @@ int main(int argc, char **argv) {
           } else if (e.key.keysym.sym == SDLK_ESCAPE) {
             game.skill_tree_text_active = 0;
             SDL_StopTextInput();
-          }
-          continue;
-        }
-        if (e.key.keysym.sym == SDLK_ESCAPE) {
-          if (game.mode == MODE_START && game.show_skill_tree) {
-            game.show_skill_tree = 0;
-            game.skill_tree_pan_x = 0.0f;
+          } 
+          continue; 
+        } 
+        if (e.key.keysym.sym == SDLK_ESCAPE) { 
+          if (game.mode == MODE_START && game.show_skill_tree) { 
+            game.show_skill_tree = 0; 
+            game.skill_tree_pan_x = 0.0f; 
             game.skill_tree_pan_y = 0.0f;
           } else {
             game.running = 0;
           }
         }
-        if (e.key.keysym.sym == SDLK_F9) {
-          if (game.mode == MODE_START && game.show_skill_tree) {
-            game.skill_tree_edit_mode = !game.skill_tree_edit_mode;
-            if (!game.skill_tree_edit_mode) {
-              game.skill_tree_drag_index = -1;
-              game.skill_tree_drag_custom_index = -1;
-              game.skill_tree_connect_kind = 0;
-              game.skill_tree_connect_index = -1;
-            }
-          }
-        }
+        if (e.key.keysym.sym == SDLK_F9) { 
+          if (game.mode == MODE_START && game.show_skill_tree) { 
+            game.skill_tree_edit_mode = !game.skill_tree_edit_mode; 
+            if (!game.skill_tree_edit_mode) { 
+              game.skill_tree_drag_index = -1; 
+              game.skill_tree_drag_custom_index = -1; 
+              game.skill_tree_connect_kind = 0; 
+              game.skill_tree_connect_index = -1; 
+            } 
+          } 
+        } 
         if (e.key.keysym.sym == SDLK_p) {
           if (game.mode == MODE_WAVE || game.mode == MODE_BOSS_EVENT || game.mode == MODE_PAUSE) toggle_pause(&game);
         }
@@ -345,12 +345,13 @@ int main(int argc, char **argv) {
             build_start_page(&game);
           }
         }
-        if (game.mode == MODE_WAVE || game.mode == MODE_BOSS_EVENT) {
-          if (e.key.keysym.sym == SDLK_SPACE && game.ultimate_cd <= 0.0f) {
-            activate_ultimate(&game);
-            game.ultimate_cd = 120.0f;
-          }
-        }
+        if (game.mode == MODE_WAVE || game.mode == MODE_BOSS_EVENT) { 
+          if (e.key.keysym.sym == SDLK_SPACE && game.ultimate_cd <= 0.0f) { 
+            activate_ultimate(&game); 
+            float ult_cdr = player_ultimate_cdr(&game.player, &game.db); 
+            game.ultimate_cd = 120.0f * (1.0f - ult_cdr); 
+          } 
+        } 
       }
       if (e.type == SDL_KEYUP) {
         if (e.key.keysym.sym == SDLK_F4) {
@@ -439,11 +440,12 @@ int main(int argc, char **argv) {
               float base_y = center_y + ((float)my - center_y) / zoom;
               float nx = (base_x - panel_x) / panel_w;
               float ny = (base_y - panel_y) / panel_h;
-              int new_idx = skill_tree_custom_add(nx, ny);
-              if (new_idx >= 0) {
-                game.skill_tree_selected_kind = 2;
-                game.skill_tree_selected_index = new_idx;
-              }
+              int new_idx = skill_tree_custom_add(nx, ny); 
+              if (new_idx >= 0) { 
+                game.skill_tree.custom_upgrades[new_idx] = 0; 
+                game.skill_tree_selected_kind = 2; 
+                game.skill_tree_selected_index = new_idx; 
+              } 
             }
           }
           SDL_Rect close_btn = game.skill_tree_close_button;
@@ -464,16 +466,17 @@ int main(int argc, char **argv) {
                 break;
               }
             }
-            if (!clicked_node) {
-              int custom_count = skill_tree_custom_count();
-              for (int i = 0; i < custom_count; i++) {
-                SDL_Rect r = game.skill_tree_custom_rects[i];
-                if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
-                  clicked_node = 1;
-                  break;
-                }
-              }
-            }
+            if (!clicked_node) { 
+              int custom_count = skill_tree_custom_count(); 
+              for (int i = 0; i < custom_count; i++) { 
+                SDL_Rect r = game.skill_tree_custom_rects[i]; 
+                if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) { 
+                  clicked_node = 1; 
+                  skill_tree_try_purchase_custom(&game, i); 
+                  break; 
+                } 
+              } 
+            } 
             if (!clicked_node) {
               game.skill_tree_pan_drag = 1;
               game.skill_tree_pan_start_x = (float)mx;
@@ -534,12 +537,12 @@ int main(int argc, char **argv) {
           game.start_scroll = clampf(game.start_scroll, 0.0f, max_scroll);
         }
       }
-      if (e.type == SDL_KEYDOWN && game.mode == MODE_START && game.show_skill_tree && game.skill_tree_edit_mode) {
-        if (e.key.keysym.sym == SDLK_n || e.key.keysym.sym == SDLK_d) {
-          if (game.skill_tree_selected_kind != 0 && game.skill_tree_selected_index >= 0) {
-            game.skill_tree_text_active = 1;
-            game.skill_tree_text_kind = game.skill_tree_selected_kind;
-            game.skill_tree_text_field = (e.key.keysym.sym == SDLK_n) ? 1 : 2;
+      if (e.type == SDL_KEYDOWN && game.mode == MODE_START && game.show_skill_tree && game.skill_tree_edit_mode) { 
+        if (e.key.keysym.sym == SDLK_n || e.key.keysym.sym == SDLK_d) { 
+          if (game.skill_tree_selected_kind != 0 && game.skill_tree_selected_index >= 0) { 
+            game.skill_tree_text_active = 1; 
+            game.skill_tree_text_kind = game.skill_tree_selected_kind; 
+            game.skill_tree_text_field = (e.key.keysym.sym == SDLK_n) ? 1 : 2; 
             game.skill_tree_text_buf[0] = '\0';
             if (game.skill_tree_text_kind == 1) {
               const char *src = (game.skill_tree_text_field == 1)
@@ -584,13 +587,42 @@ int main(int argc, char **argv) {
             skill_tree_custom_set_max_rank(game.skill_tree_selected_index, cur + 1);
           }
         }
-        if (e.key.keysym.sym == SDLK_s) {
-          skill_tree_layout_save();
-        }
-        if (e.key.keysym.sym == SDLK_r) {
-          skill_tree_layout_clear();
-        }
-      }
+        if (e.key.keysym.sym == SDLK_s) { 
+          skill_tree_layout_save(); 
+        } 
+        if (e.key.keysym.sym == SDLK_r) { 
+          skill_tree_layout_clear(); 
+          memset(game.skill_tree.custom_upgrades, 0, sizeof(game.skill_tree.custom_upgrades)); 
+        } 
+        if (e.key.keysym.sym == SDLK_x) { 
+          if (game.skill_tree_selected_kind == 1) { 
+            skill_tree_override_clear_parent(game.skill_tree_selected_index); 
+            skill_tree_layout_save(); 
+          } else if (game.skill_tree_selected_kind == 2) { 
+            skill_tree_custom_set_parent(game.skill_tree_selected_index, 0, -1); 
+            skill_tree_layout_save(); 
+          } 
+        } 
+        if (e.key.keysym.sym == SDLK_DELETE || e.key.keysym.sym == SDLK_BACKSPACE) { 
+          if (game.skill_tree_selected_kind == 2) { 
+            int del = game.skill_tree_selected_index; 
+            skill_tree_custom_remove(del); 
+            for (int i = del; i < MAX_SKILL_TREE_CUSTOM_NODES - 1; i++) { 
+              game.skill_tree.custom_upgrades[i] = game.skill_tree.custom_upgrades[i + 1]; 
+            } 
+            game.skill_tree.custom_upgrades[MAX_SKILL_TREE_CUSTOM_NODES - 1] = 0; 
+            game.skill_tree_selected_kind = 0; 
+            game.skill_tree_selected_index = -1; 
+            game.skill_tree_drag_custom_index = -1; 
+            game.skill_tree_connect_kind = 0; 
+            game.skill_tree_connect_index = -1; 
+            skill_tree_layout_save(); 
+          } else if (game.skill_tree_selected_kind == 1) { 
+            skill_tree_override_clear_parent(game.skill_tree_selected_index); 
+            skill_tree_layout_save(); 
+          } 
+        } 
+      } 
       if (e.type == SDL_MOUSEBUTTONDOWN &&
           (game.mode == MODE_LEVELUP || (game.mode == MODE_PAUSE && game.pause_return_mode == MODE_LEVELUP))) {
         handle_levelup_click(&game, e.button.x, e.button.y);

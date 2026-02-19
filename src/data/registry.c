@@ -239,21 +239,29 @@ static int load_items(Database *db, const char *path) {
     int lifesteal = find_key(json, tokens, obj, "lifesteal_on_kill");
     int rarity_bias = find_key(json, tokens, obj, "rarity_bias");
     int slow_bonus = find_key(json, tokens, obj, "slow_bonus_damage");
-    int legendary_amp = find_key(json, tokens, obj, "legendary_amp");
-    int hp_regen_amp = find_key(json, tokens, obj, "hp_regen_amp");
-    int xp_kill = find_key(json, tokens, obj, "xp_kill_chance");
-    if (burn_hit > 0) it->burn_on_hit = token_float(json, &tokens[burn_hit]);
-    if (burn_aura > 0) it->burn_aura = token_float(json, &tokens[burn_aura]);
-    if (thorns > 0) it->thorns_percent = token_float(json, &tokens[thorns]);
-    if (lifesteal > 0) it->lifesteal_on_kill = token_float(json, &tokens[lifesteal]);
-    if (rarity_bias > 0) it->rarity_bias = token_float(json, &tokens[rarity_bias]);
-    if (slow_bonus > 0) it->slow_bonus_damage = token_float(json, &tokens[slow_bonus]);
-    if (legendary_amp > 0) it->legendary_amp = token_float(json, &tokens[legendary_amp]);
-    if (hp_regen_amp > 0) it->hp_regen_amp = token_float(json, &tokens[hp_regen_amp]);
-    if (xp_kill > 0) it->xp_kill_chance = token_float(json, &tokens[xp_kill]);
+    int legendary_amp = find_key(json, tokens, obj, "legendary_amp"); 
+    int hp_regen_amp = find_key(json, tokens, obj, "hp_regen_amp"); 
+    int xp_kill = find_key(json, tokens, obj, "xp_kill_chance"); 
+    int ult_cdr = find_key(json, tokens, obj, "ultimate_cdr"); 
+    int totem_spawn = find_key(json, tokens, obj, "totem_spawn_rate"); 
+    int totem_dur = find_key(json, tokens, obj, "totem_duration_bonus"); 
+    int chest_reroll = find_key(json, tokens, obj, "chest_reroll_bonus"); 
+    if (burn_hit > 0) it->burn_on_hit = token_float(json, &tokens[burn_hit]); 
+    if (burn_aura > 0) it->burn_aura = token_float(json, &tokens[burn_aura]); 
+    if (thorns > 0) it->thorns_percent = token_float(json, &tokens[thorns]); 
+    if (lifesteal > 0) it->lifesteal_on_kill = token_float(json, &tokens[lifesteal]); 
+    if (rarity_bias > 0) it->rarity_bias = token_float(json, &tokens[rarity_bias]); 
+    if (slow_bonus > 0) it->slow_bonus_damage = token_float(json, &tokens[slow_bonus]); 
+    if (legendary_amp > 0) it->legendary_amp = token_float(json, &tokens[legendary_amp]); 
+    if (hp_regen_amp > 0) it->hp_regen_amp = token_float(json, &tokens[hp_regen_amp]); 
+    if (xp_kill > 0) it->xp_kill_chance = token_float(json, &tokens[xp_kill]); 
+    if (ult_cdr > 0) it->ultimate_cdr = token_float(json, &tokens[ult_cdr]); 
+    if (totem_spawn > 0) it->totem_spawn_rate = token_float(json, &tokens[totem_spawn]); 
+    if (totem_dur > 0) it->totem_duration_bonus = token_float(json, &tokens[totem_dur]); 
+    if (chest_reroll > 0) it->chest_reroll_bonus = token_int(json, &tokens[chest_reroll]); 
 
-    idx += token_span(tokens, idx);
-  }
+    idx += token_span(tokens, idx); 
+  } 
   free(json);
   return 1;
 }

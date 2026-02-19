@@ -1,7 +1,7 @@
 {
-  "points": 6,
-  "total_points": 6,
-  "checksum": 75483424,
+  "points": 0,
+  "total_points": 0,
+  "checksum": 473152834,
   "upgrades": {
     "boss_root": 0,
     "boss_armor": 0,
@@ -19,5 +19,6 @@
     "stats_damage": 0,
     "stats_attack_speed": 0,
     "stats_crit": 0
-  }
+  },
+  "custom_upgrades": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 }

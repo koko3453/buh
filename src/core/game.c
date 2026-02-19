@@ -202,10 +202,31 @@ float clampf(float v, float a, float b)
   return v;
 }
 
-float frandf(void)
-{
-  return (float)rand() / (float)RAND_MAX;
-}
+float frandf(void) 
+{ 
+  return (float)rand() / (float)RAND_MAX; 
+} 
+
+static void draw_filled_triangle(SDL_Renderer *r, int x0, int y0, int x1, int y1, int x2, int y2, SDL_Color c) 
+{ 
+  SDL_Vertex v[3]; 
+  v[0].position.x = (float)x0; 
+  v[0].position.y = (float)y0; 
+  v[1].position.x = (float)x1; 
+  v[1].position.y = (float)y1; 
+  v[2].position.x = (float)x2; 
+  v[2].position.y = (float)y2; 
+  v[0].color = c; 
+  v[1].color = c; 
+  v[2].color = c; 
+  v[0].tex_coord.x = 0.0f; 
+  v[0].tex_coord.y = 0.0f; 
+  v[1].tex_coord.x = 0.0f; 
+  v[1].tex_coord.y = 0.0f; 
+  v[2].tex_coord.x = 0.0f; 
+  v[2].tex_coord.y = 0.0f; 
+  SDL_RenderGeometry(r, NULL, v, 3, NULL, 0); 
+} 
 
 static float frand_range(float a, float b)
 {
@@ -333,6 +354,10 @@ Stats player_total_stats(Player *p, Database *db)
     float ms = s.move_speed;
     s.move_speed = 0.0f;
     s.attack_speed += ms;
+  }
+  if (p->molten_ult_timer > 0.0f)
+  {
+    s.move_speed += 1.0f;
   }
   s.max_hp = clampf(s.max_hp, 1.0f, 9999.0f);
   s.attack_speed = clampf(s.attack_speed, -0.5f, 3.0f);
@@ -500,19 +525,69 @@ float player_hp_regen_amp(Player *p, Database *db)
   return clampf(total, 0.0f, 3.0f);
 }
 
-float player_xp_kill_chance(Player *p, Database *db)
-{
-  float total = 0.0f;
-  for (int i = 0; i < p->passive_count; i++)
-  {
+float player_xp_kill_chance(Player *p, Database *db) 
+{ 
+  float total = 0.0f; 
+  for (int i = 0; i < p->passive_count; i++) 
+  { 
     int idx = p->passive_items[i];
     if (idx >= 0 && idx < db->item_count)
     {
       total += db->items[idx].xp_kill_chance;
     }
-  }
-  return clampf(total, 0.0f, 1.0f);
-}
+  } 
+  return clampf(total, 0.0f, 1.0f); 
+} 
+
+float player_ultimate_cdr(Player *p, Database *db) 
+{ 
+  float total = 0.0f; 
+  for (int i = 0; i < p->passive_count; i++) 
+  { 
+    int idx = p->passive_items[i]; 
+    if (idx >= 0 && idx < db->item_count) 
+      total += db->items[idx].ultimate_cdr; 
+  } 
+  return clampf(total, 0.0f, 0.6f); 
+} 
+
+float player_totem_spawn_rate(Player *p, Database *db) 
+{ 
+  float total = 0.0f; 
+  for (int i = 0; i < p->passive_count; i++) 
+  { 
+    int idx = p->passive_items[i]; 
+    if (idx >= 0 && idx < db->item_count) 
+      total += db->items[idx].totem_spawn_rate; 
+  } 
+  return clampf(total, 0.0f, 0.8f); 
+} 
+
+float player_totem_duration_bonus(Player *p, Database *db) 
+{ 
+  float total = 0.0f; 
+  for (int i = 0; i < p->passive_count; i++) 
+  { 
+    int idx = p->passive_items[i]; 
+    if (idx >= 0 && idx < db->item_count) 
+      total += db->items[idx].totem_duration_bonus; 
+  } 
+  return clampf(total, 0.0f, 2.0f); 
+} 
+
+int player_chest_reroll_bonus(Player *p, Database *db) 
+{ 
+  int total = 0; 
+  for (int i = 0; i < p->passive_count; i++) 
+  { 
+    int idx = p->passive_items[i]; 
+    if (idx >= 0 && idx < db->item_count) 
+      total += db->items[idx].chest_reroll_bonus; 
+  } 
+  if (total < 0) 
+    total = 0; 
+  return total; 
+} 
 
 float player_roll_crit_damage(Stats *stats, WeaponDef *w, float dmg)
 {
@@ -615,11 +690,20 @@ void player_try_item_proc(Game *g, int enemy_idx, Stats *stats)
   }
 }
 
-float damage_after_armor(float dmg, float armor)
-{
-  float reduction = clampf(armor * 0.02f, 0.0f, 0.7f);
-  return dmg * (1.0f - reduction);
-}
+float damage_after_armor(float dmg, float armor) 
+{ 
+  float reduction = clampf(armor * 0.02f, 0.0f, 0.7f); 
+  return dmg * (1.0f - reduction); 
+} 
+
+float player_damage_reduce(Game *g, float dmg) 
+{ 
+  if (!g) 
+    return dmg; 
+  if (g->player.molten_ult_timer > 0.0f) 
+    return dmg * 0.5f; 
+  return dmg; 
+} 
 
 static void clear_boss_room(Game *g)
 {
@@ -1375,6 +1459,7 @@ void game_reset(Game *g)
   p->alch_ult_start_hp = p->hp;
   p->alch_ult_max_hp = p->hp;
   p->molten_trail_timer = 0.0f;
+  p->molten_ult_timer = 0.0f;
 
   int chest_spawned = 0;
   int attempts = 0;
@@ -1474,10 +1559,13 @@ static void handle_player_pickups(Game *g, float dt)
           p->hp = clampf(p->hp + d->value, 0.0f, total.max_hp);
         }
       }
-      else
-      {
-        level_up(g);
-      }
+      else 
+      { 
+        level_up(g); 
+        int bonus = player_chest_reroll_bonus(p, &g->db); 
+        if (bonus > 0) 
+          g->rerolls += bonus; 
+      } 
       d->active = 0;
       continue;
     }
@@ -1535,34 +1623,36 @@ static int any_totem_active(Game *g)
   return 0;
 }
 
-static void apply_totem_effect(Game *g, int type)
-{
-  if (!g)
-    return;
-  if (type == 0)
-  {
-    g->totem_freeze_timer = 5.0f;
-    for (int i = 0; i < MAX_ENEMIES; i++)
-    {
-      if (!g->enemies[i].active)
-        continue;
-      if (g->enemies[i].debuffs.stun_timer < 5.0f)
-        g->enemies[i].debuffs.stun_timer = 5.0f;
-    }
-    log_combatf(g, "freeze_totem activated");
-  }
-  else if (type == 1)
-  {
-    for (int i = 0; i < MAX_ENEMIES; i++)
-    {
-      Enemy *en = &g->enemies[i];
-      if (!en->active)
-        continue;
-      en->debuffs.curse_timer = 5.0f;
-      en->debuffs.curse_dps = (en->max_hp * 0.5f) / 5.0f;
-    }
-    log_combatf(g, "curse_totem activated");
-  }
+static void apply_totem_effect(Game *g, int type) 
+{ 
+  if (!g) 
+    return; 
+  float dur_bonus = player_totem_duration_bonus(&g->player, &g->db); 
+  float duration = 5.0f * (1.0f + dur_bonus); 
+  if (type == 0) 
+  { 
+    g->totem_freeze_timer = duration; 
+    for (int i = 0; i < MAX_ENEMIES; i++) 
+    { 
+      if (!g->enemies[i].active) 
+        continue; 
+      if (g->enemies[i].debuffs.stun_timer < duration) 
+        g->enemies[i].debuffs.stun_timer = duration; 
+    } 
+    log_combatf(g, "freeze_totem activated"); 
+  } 
+  else if (type == 1) 
+  { 
+    for (int i = 0; i < MAX_ENEMIES; i++) 
+    { 
+      Enemy *en = &g->enemies[i]; 
+      if (!en->active) 
+        continue; 
+      en->debuffs.curse_timer = duration; 
+      en->debuffs.curse_dps = (en->max_hp * 0.5f) / duration; 
+    } 
+    log_combatf(g, "curse_totem activated"); 
+  } 
   else if (type == 2)
   {
     int killed = 0;
@@ -1744,12 +1834,19 @@ static void update_alchemist_ult(Game *g, float dt)
   }
 }
 
-static void ultimate_shift_speed(Game *g)
-{
-  if (!g)
-    return;
-  g->player.ultimate_move_to_as_timer = 30.0f;
-}
+static void ultimate_shift_speed(Game *g) 
+{ 
+  if (!g) 
+    return; 
+  g->player.ultimate_move_to_as_timer = 30.0f; 
+} 
+
+static void ultimate_molten_overdrive(Game *g) 
+{ 
+  if (!g) 
+    return; 
+  g->player.molten_ult_timer = 10.0f; 
+} 
 
 void activate_ultimate(Game *g)
 {
@@ -1769,14 +1866,18 @@ void activate_ultimate(Game *g)
   {
     ultimate_alchemist(g);
   }
-  else if (strcmp(ult_type, "shift_speed") == 0)
-  {
-    ultimate_shift_speed(g);
-  }
-  else if (strcmp(ult_type, "aoe_mouse") == 0)
-  {
-    ultimate_aoe_mouse(g);
-  }
+  else if (strcmp(ult_type, "shift_speed") == 0) 
+  { 
+    ultimate_shift_speed(g); 
+  } 
+  else if (strcmp(ult_type, "molten_overdrive") == 0) 
+  { 
+    ultimate_molten_overdrive(g); 
+  } 
+  else if (strcmp(ult_type, "aoe_mouse") == 0) 
+  { 
+    ultimate_aoe_mouse(g); 
+  } 
   else
   {
     /* Unknown ultimate - fallback to kill_all */
@@ -1788,8 +1889,14 @@ void update_game(Game *g, float dt)
 {
   const Uint8 *keys = SDL_GetKeyboardState(NULL);
   Player *p = &g->player;
-  Stats stats = player_total_stats(p, &g->db);
-  update_alchemist_ult(g, dt);
+  Stats stats = player_total_stats(p, &g->db); 
+  update_alchemist_ult(g, dt); 
+  if (p->molten_ult_timer > 0.0f) 
+  { 
+    p->molten_ult_timer -= dt; 
+    if (p->molten_ult_timer < 0.0f) 
+      p->molten_ult_timer = 0.0f; 
+  } 
 
   /* Ultimate cooldown tick */
   if (g->ultimate_cd > 0.0f)
@@ -1831,49 +1938,28 @@ void update_game(Game *g, float dt)
     p->hp = clampf(p->hp + stats.hp_regen * dt, 0.0f, stats.max_hp);
   }
 
-  if (g->selected_character >= 0 && g->selected_character < g->db.character_count)
-  {
-    if (strcmp(g->db.characters[g->selected_character].id, "molten") == 0)
-    {
-      if (p->is_moving)
-      {
-        p->molten_trail_timer -= dt;
-        if (p->molten_trail_timer <= 0.0f)
-        {
-          float radius = 60.0f;
-          float dps = 60.0f * (1.0f + stats.damage);
-          spawn_puddle(g, p->x, p->y, radius, dps, 3.0f, 2);
-          p->molten_trail_timer = 0.5f;
-        }
-      }
+  if (g->selected_character >= 0 && g->selected_character < g->db.character_count) 
+  { 
+    if (strcmp(g->db.characters[g->selected_character].id, "molten") == 0) 
+    { 
+      if (p->is_moving) 
+      { 
+        p->molten_trail_timer -= dt; 
+        if (p->molten_trail_timer <= 0.0f) 
+        { 
+          float radius = 60.0f; 
+          float dps = 60.0f * (1.0f + stats.damage); 
+          float interval = (p->molten_ult_timer > 0.0f) ? 0.1f : 0.4f; 
+          spawn_puddle(g, p->x, p->y, radius, dps, 3.0f, 2); 
+          p->molten_trail_timer = interval; 
+        } 
+      } 
       else
       {
         if (p->molten_trail_timer > 0.0f) p->molten_trail_timer -= dt;
-      }
-    }
-  }
-
-  if (g->selected_character >= 0 && g->selected_character < g->db.character_count)
-  {
-    if (strcmp(g->db.characters[g->selected_character].id, "molten") == 0)
-    {
-      if (p->is_moving)
-      {
-        p->molten_trail_timer -= dt;
-        if (p->molten_trail_timer <= 0.0f)
-        {
-          float radius = 60.0f;
-          float dps = 60.0f * (1.0f + stats.damage);
-          spawn_puddle(g, p->x, p->y, radius, dps, 3.0f, 0);
-          p->molten_trail_timer = 0.2f;
-        }
-      }
-      else
-      {
-        if (p->molten_trail_timer > 0.0f) p->molten_trail_timer -= dt;
-      }
-    }
-  }
+      } 
+    } 
+  } 
 
   /* Update camera - scroll when player reaches 4/5 of view edge */
   float scroll_margin_x = g->view_w * 0.2f;
@@ -1936,12 +2022,14 @@ void update_game(Game *g, float dt)
   if (!any_totem_active(g))
   {
     g->totem_spawn_timer -= dt;
-    if (g->totem_spawn_timer <= 0.0f)
-    {
-      spawn_random_totem(g);
-      g->totem_spawn_timer = 30.0f + frandf() * 25.0f;
-    }
-  }
+    if (g->totem_spawn_timer <= 0.0f) 
+    { 
+      spawn_random_totem(g); 
+      float base = 30.0f + frandf() * 25.0f; 
+      float rate = player_totem_spawn_rate(p, &g->db); 
+      g->totem_spawn_timer = base * (1.0f - rate); 
+    } 
+  } 
 
   /* Update game time and spawn enemies continuously */
   g->game_time += dt;
@@ -2002,9 +2090,15 @@ void update_boss_event(Game *g, float dt)
 {
   const Uint8 *keys = SDL_GetKeyboardState(NULL);
   Player *p = &g->player;
-  Stats stats = player_total_stats(p, &g->db);
-  update_alchemist_ult(g, dt);
-  int player_immune = (p->alch_ult_phase != 0);
+  Stats stats = player_total_stats(p, &g->db); 
+  update_alchemist_ult(g, dt); 
+  int player_immune = (p->alch_ult_phase != 0); 
+  if (p->molten_ult_timer > 0.0f) 
+  { 
+    p->molten_ult_timer -= dt; 
+    if (p->molten_ult_timer < 0.0f) 
+      p->molten_ult_timer = 0.0f; 
+  } 
 
   if (g->boss_event_cd > 0.0f)
   {
@@ -2086,10 +2180,33 @@ void update_boss_event(Game *g, float dt)
   p->x = clampf(p->x + vx * speed * dt, 20.0f, ARENA_W - 20.0f);
   p->y = clampf(p->y + vy * speed * dt, 20.0f, ARENA_H - 20.0f);
 
-  if (stats.hp_regen > 0.0f && p->alch_ult_phase == 0)
-  {
-    p->hp = clampf(p->hp + stats.hp_regen * dt, 0.0f, stats.max_hp);
-  }
+  if (stats.hp_regen > 0.0f && p->alch_ult_phase == 0) 
+  { 
+    p->hp = clampf(p->hp + stats.hp_regen * dt, 0.0f, stats.max_hp); 
+  } 
+
+  if (g->selected_character >= 0 && g->selected_character < g->db.character_count) 
+  { 
+    if (strcmp(g->db.characters[g->selected_character].id, "molten") == 0) 
+    { 
+      if (p->is_moving) 
+      { 
+        p->molten_trail_timer -= dt; 
+        if (p->molten_trail_timer <= 0.0f) 
+        { 
+          float radius = 60.0f; 
+          float dps = 60.0f * (1.0f + stats.damage); 
+          float interval = (p->molten_ult_timer > 0.0f) ? 0.1f : 0.4f; 
+          spawn_puddle(g, p->x, p->y, radius, dps, 3.0f, 2); 
+          p->molten_trail_timer = interval; 
+        } 
+      } 
+      else 
+      { 
+        if (p->molten_trail_timer > 0.0f) p->molten_trail_timer -= dt; 
+      } 
+    } 
+  } 
 
   float scroll_margin_x = g->view_w * 0.2f;
   float scroll_margin_y = g->view_h * 0.2f;
@@ -2145,13 +2262,13 @@ void update_boss_event(Game *g, float dt)
     if (g->boss.attack_timer > 0.0f)
       g->boss.attack_timer -= dt;
     float hit_range = def->radius + 14.0f;
-    if (dist < hit_range && g->boss.attack_timer <= 0.0f)
-    {
-      float dmg = damage_after_armor(def->damage, stats.armor);
-      if (!player_immune)
-        p->hp -= dmg;
-      g->boss.attack_timer = def->attack_cooldown;
-    }
+    if (dist < hit_range && g->boss.attack_timer <= 0.0f) 
+    { 
+      float dmg = damage_after_armor(def->damage, stats.armor); 
+      if (!player_immune) 
+        p->hp -= player_damage_reduce(g, dmg); 
+      g->boss.attack_timer = def->attack_cooldown; 
+    } 
 
     if (g->boss.wave_cd > 0.0f)
       g->boss.wave_cd -= dt;
@@ -2172,12 +2289,12 @@ void update_boss_event(Game *g, float dt)
     {
       float perp = fabsf(dx * (-ly) + dy * lx);
       if (perp <= def->beam_width * 0.5f)
-      {
-        float dmg = damage_after_armor(def->beam_dps * dt, stats.armor);
-        if (!player_immune)
-          p->hp -= dmg;
-      }
-    }
+      { 
+        float dmg = damage_after_armor(def->beam_dps * dt, stats.armor); 
+        if (!player_immune) 
+          p->hp -= player_damage_reduce(g, dmg); 
+      } 
+    } 
 
     int hazard_active = 0;
     if (g->boss.hazard_timer > 0.0f)
@@ -2202,12 +2319,12 @@ void update_boss_event(Game *g, float dt)
         }
       }
       if (!safe)
-      {
-        float dmg = damage_after_armor(def->hazard_dps * dt, stats.armor);
-        if (!player_immune)
-          p->hp -= dmg;
-      }
-    }
+      { 
+        float dmg = damage_after_armor(def->hazard_dps * dt, stats.armor); 
+        if (!player_immune) 
+          p->hp -= player_damage_reduce(g, dmg); 
+      } 
+    } 
     else if (g->boss.hazard_cd <= 0.0f)
     {
       g->boss.hazard_timer = def->hazard_duration;
@@ -2261,13 +2378,13 @@ void update_boss_event(Game *g, float dt)
       g->boss.wave_cd = def->wave_cooldown;
     }
 
-    if (!hazard_active && g->boss.slam_cd <= 0.0f && dist < def->slam_radius)
-    {
-      float dmg = damage_after_armor(def->slam_damage, stats.armor);
-      if (!player_immune)
-        p->hp -= dmg;
-      g->boss.slam_cd = def->slam_cooldown;
-    }
+    if (!hazard_active && g->boss.slam_cd <= 0.0f && dist < def->slam_radius) 
+    { 
+      float dmg = damage_after_armor(def->slam_damage, stats.armor); 
+      if (!player_immune) 
+        p->hp -= player_damage_reduce(g, dmg); 
+      g->boss.slam_cd = def->slam_cooldown; 
+    } 
 
     if (g->boss.hp <= 0.0f)
     {
@@ -2930,11 +3047,11 @@ void render_game(Game *g)
     }
   }
 
-  /* Totems (above ground, behind player/enemies) */
-  if (g->mode != MODE_LEVELUP)
-  {
-    for (int i = 0; i < MAX_TOTEMS; i++)
-    {
+  /* Totems (above ground, behind player/enemies) */ 
+  if (g->mode != MODE_LEVELUP) 
+  { 
+    for (int i = 0; i < MAX_TOTEMS; i++) 
+    { 
       if (!g->totems[i].active)
         continue;
       Totem *t = &g->totems[i];
@@ -2959,9 +3076,77 @@ void render_game(Game *g)
         if (t->type == 2)
           c = (SDL_Color){160, 120, 80, 220};
         draw_filled_circle(g->renderer, tx, ty, size / 3, c);
-      }
-    }
-  }
+      } 
+    } 
+
+    /* Totem off-screen arrows */ 
+    int sw = g->view_w; 
+    int sh = g->view_h; 
+    int pad = 28; 
+    int edge_min_x = pad; 
+    int edge_max_x = sw - pad; 
+    int edge_min_y = pad; 
+    int edge_max_y = sh - pad; 
+    int center_x = sw / 2; 
+    int center_y = sh / 2; 
+    for (int i = 0; i < MAX_TOTEMS; i++) 
+    { 
+      if (!g->totems[i].active) 
+        continue; 
+      Totem *t = &g->totems[i]; 
+      int tx = (int)(offset_x + t->x - cam_x); 
+      int ty = (int)(offset_y + t->y - cam_y); 
+      if (tx >= 0 && tx <= sw && ty >= 0 && ty <= sh) 
+        continue; 
+
+      float dx = (float)(tx - center_x); 
+      float dy = (float)(ty - center_y); 
+      float len = sqrtf(dx * dx + dy * dy); 
+      if (len <= 0.001f) 
+        continue; 
+      dx /= len; 
+      dy /= len; 
+
+      float t_x = 100000.0f; 
+      float t_y = 100000.0f; 
+      if (dx > 0.0f) 
+        t_x = (edge_max_x - center_x) / dx; 
+      else if (dx < 0.0f) 
+        t_x = (edge_min_x - center_x) / dx; 
+      if (dy > 0.0f) 
+        t_y = (edge_max_y - center_y) / dy; 
+      else if (dy < 0.0f) 
+        t_y = (edge_min_y - center_y) / dy; 
+
+      float tmin = t_x; 
+      if (t_y < tmin) 
+        tmin = t_y; 
+
+      int ax = (int)(center_x + dx * tmin); 
+      int ay = (int)(center_y + dy * tmin); 
+      int tip_x = ax; 
+      int tip_y = ay; 
+      int back_x = (int)(ax - dx * 32.0f); 
+      int back_y = (int)(ay - dy * 32.0f); 
+      int left_x = (int)(back_x + -dy * 16.0f); 
+      int left_y = (int)(back_y + dx * 16.0f); 
+      int right_x = (int)(back_x - -dy * 16.0f); 
+      int right_y = (int)(back_y - dx * 16.0f); 
+
+      int back2_x = (int)(ax - dx * 36.0f); 
+      int back2_y = (int)(ay - dy * 36.0f); 
+      int left2_x = (int)(back2_x + -dy * 18.0f); 
+      int left2_y = (int)(back2_y + dx * 18.0f); 
+      int right2_x = (int)(back2_x - -dy * 18.0f); 
+      int right2_y = (int)(back2_y - dx * 18.0f); 
+
+      SDL_SetRenderDrawBlendMode(g->renderer, SDL_BLENDMODE_BLEND); 
+      draw_filled_triangle(g->renderer, tip_x, tip_y, left2_x, left2_y, right2_x, right2_y, 
+                           (SDL_Color){0, 0, 0, 220}); 
+      draw_filled_triangle(g->renderer, tip_x, tip_y, left_x, left_y, right_x, right_y, 
+                           (SDL_Color){240, 40, 40, 230}); 
+    } 
+  } 
 
   /* Drops with sparkle effect */
   for (int i = 0; i < MAX_DROPS; i++)
@@ -3980,18 +4165,18 @@ void render_game(Game *g)
       angles[b] = (-90.0f + 72.0f * (float)b) * (3.14159265f / 180.0f);
     }
 
-    if (g->skill_tree_edit_mode)
-    {
-      draw_text(g->renderer, g->font, panel_x + 20, panel_y + 62, (SDL_Color){170, 180, 200, 255},
-                "Edit Mode: LMB drag/select, RMB add, C connect, [ ] rank, N name, D desc, wheel zoom, S save, R reset");
-      draw_text(g->renderer, g->font, panel_x + 20, panel_y + 80, (SDL_Color){150, 160, 180, 255},
-                "Connect: select node, press C, click target");
-    }
-    else
-    {
-      draw_text(g->renderer, g->font, panel_x + 20, panel_y + 62, (SDL_Color){170, 180, 200, 255},
-                "Binds: click node to buy, drag to pan, F9 edit, wheel zoom");
-    }
+    if (g->skill_tree_edit_mode) 
+    { 
+      draw_text(g->renderer, g->font, panel_x + 20, panel_y + 62, (SDL_Color){170, 180, 200, 255}, 
+                "Edit Mode: LMB drag/select, RMB add, C connect, X unlink, Del delete, [ ] rank, N name, D desc, wheel zoom, S save, R reset"); 
+      draw_text(g->renderer, g->font, panel_x + 20, panel_y + 80, (SDL_Color){150, 160, 180, 255}, 
+                "Connect: select node, press C, click target"); 
+    } 
+    else 
+    { 
+      draw_text(g->renderer, g->font, panel_x + 20, panel_y + 62, (SDL_Color){170, 180, 200, 255}, 
+                "Binds: click node to buy, drag to pan, F9 edit, wheel zoom"); 
+    } 
 
     int mx = 0;
     int my = 0;
@@ -4155,27 +4340,52 @@ void render_game(Game *g)
       }
     }
 
-    for (int i = 0; i < custom_count; i++)
-    {
-      SDL_Rect r = g->skill_tree_custom_rects[i];
-      if (r.w <= 0 || r.h <= 0)
-        continue;
-      int pk = skill_tree_custom_parent_kind(i);
-      int pi = skill_tree_custom_parent_index(i);
-      if (pk == 1 && pi >= 0 && pi < count)
-      {
-        SDL_Rect pr = node_rects[pi];
+    for (int i = 0; i < custom_count; i++) 
+    { 
+      SDL_Rect r = g->skill_tree_custom_rects[i]; 
+      if (r.w <= 0 || r.h <= 0) 
+        continue; 
+      int rank = g->skill_tree.custom_upgrades[i]; 
+      int max_rank = skill_tree_custom_max_rank(i); 
+      int cost = skill_tree_upgrade_cost(rank); 
+      int maxed = (rank >= max_rank); 
+      int afford = (g->skill_tree.points >= cost); 
+      int locked = 0; 
+      int pk = skill_tree_custom_parent_kind(i); 
+      int pi = skill_tree_custom_parent_index(i); 
+      if (pk == 1 && pi >= 0 && pi < count) 
+      { 
+        int parent_max = skill_tree_upgrade_max_rank(pi); 
+        if (g->skill_tree.upgrades[pi] < parent_max) 
+          locked = 1; 
+      } 
+      else if (pk == 2 && pi >= 0 && pi < custom_count) 
+      { 
+        int parent_max = skill_tree_custom_max_rank(pi); 
+        if (g->skill_tree.custom_upgrades[pi] < parent_max) 
+          locked = 1; 
+      } 
+      if (pk == 1 && pi >= 0 && pi < count) 
+      { 
+        SDL_Rect pr = node_rects[pi]; 
         SDL_RenderDrawLine(g->renderer, pr.x + pr.w / 2, pr.y + pr.h / 2,
                            r.x + r.w / 2, r.y + r.h / 2);
       }
-      else if (pk == 2 && pi >= 0 && pi < custom_count)
-      {
-        SDL_Rect pr = g->skill_tree_custom_rects[pi];
-        SDL_RenderDrawLine(g->renderer, pr.x + pr.w / 2, pr.y + pr.h / 2,
-                           r.x + r.w / 2, r.y + r.h / 2);
-      }
-      SDL_SetRenderDrawColor(g->renderer, 28, 32, 40, 220);
-      SDL_RenderFillRect(g->renderer, &r);
+      else if (pk == 2 && pi >= 0 && pi < custom_count) 
+      { 
+        SDL_Rect pr = g->skill_tree_custom_rects[pi]; 
+        SDL_RenderDrawLine(g->renderer, pr.x + pr.w / 2, pr.y + pr.h / 2, 
+                           r.x + r.w / 2, r.y + r.h / 2); 
+      } 
+      SDL_Color bg = {28, 32, 40, 220}; 
+      if (locked) 
+        bg = (SDL_Color){24, 28, 34, 220}; 
+      else if (maxed) 
+        bg = (SDL_Color){32, 36, 44, 220}; 
+      else if (afford) 
+        bg = (SDL_Color){28, 40, 32, 220}; 
+      SDL_SetRenderDrawColor(g->renderer, bg.r, bg.g, bg.b, bg.a); 
+      SDL_RenderFillRect(g->renderer, &r); 
       if (g->skill_tree_selected_kind == 2 && g->skill_tree_selected_index == i)
       {
         SDL_SetRenderDrawColor(g->renderer, 200, 160, 80, 255);
@@ -4184,16 +4394,19 @@ void render_game(Game *g)
       {
         SDL_SetRenderDrawColor(g->renderer, 120, 180, 220, 255);
       }
-      else
-      {
-        SDL_SetRenderDrawColor(g->renderer, 80, 90, 110, 255);
-      }
-      SDL_RenderDrawRect(g->renderer, &r);
-      char cbuf[16];
-      snprintf(cbuf, sizeof(cbuf), "C%d", skill_tree_custom_max_rank(i));
-      draw_text_centered(g->renderer, g->font, r.x + r.w / 2, r.y + r.h / 2 - 6,
-                         (SDL_Color){160, 170, 190, 255}, cbuf);
-    }
+      else 
+      { 
+        SDL_SetRenderDrawColor(g->renderer, 80, 90, 110, 255); 
+      } 
+      SDL_RenderDrawRect(g->renderer, &r); 
+      char cbuf[32]; 
+      if (maxed) 
+        snprintf(cbuf, sizeof(cbuf), "MAX"); 
+      else 
+        snprintf(cbuf, sizeof(cbuf), "%d/%d", rank, max_rank); 
+      draw_text_centered(g->renderer, g->font, r.x + r.w / 2, r.y + r.h / 2 - 6, 
+                         (SDL_Color){160, 170, 190, 255}, cbuf); 
+    } 
 
     for (int i = 0; i < count; i++)
     {
@@ -4325,12 +4538,12 @@ void render_game(Game *g)
           box_w = w3;
         int line_h = (h1 > 0 ? h1 : 14);
         int box_h = line_h * 3 + pad * 2 + 4;
-        int box_x = mx + 16;
-        int box_y = my + 16;
-        if (box_x + box_w + pad * 2 > win_w)
-          box_x = mx - box_w - pad * 2 - 16;
-        if (box_y + box_h > win_h)
-          box_y = my - box_h - 16;
+        int box_x = mx + 31; 
+        int box_y = my + 41; 
+        if (box_x + box_w + pad * 2 > win_w) 
+          box_x = mx - box_w - pad * 2 - 16; 
+        if (box_y + box_h > win_h) 
+          box_y = my - box_h - 41; 
 
         SDL_Rect tip = {box_x, box_y, box_w + pad * 2, box_h};
         SDL_SetRenderDrawColor(g->renderer, 20, 22, 30, 240);
@@ -4343,14 +4556,43 @@ void render_game(Game *g)
                   (SDL_Color){200, 190, 160, 255}, line3);
       }
     }
-    else if (hovered_custom >= 0)
-    {
-      char line1[96];
-      char line2[96];
-      char line3[96];
-      snprintf(line1, sizeof(line1), "%s", skill_tree_custom_name(hovered_custom));
-      snprintf(line2, sizeof(line2), "%s", skill_tree_custom_desc(hovered_custom));
-      snprintf(line3, sizeof(line3), "Max Rank %d", skill_tree_custom_max_rank(hovered_custom));
+    else if (hovered_custom >= 0) 
+    { 
+      char line1[96]; 
+      char line2[96]; 
+      char line3[96]; 
+      snprintf(line1, sizeof(line1), "%s", skill_tree_custom_name(hovered_custom)); 
+      snprintf(line2, sizeof(line2), "%s", skill_tree_custom_desc(hovered_custom)); 
+      int rank = g->skill_tree.custom_upgrades[hovered_custom]; 
+      int max_rank = skill_tree_custom_max_rank(hovered_custom); 
+      int cost = skill_tree_upgrade_cost(rank); 
+      int locked = 0; 
+      int pk = skill_tree_custom_parent_kind(hovered_custom); 
+      int pi = skill_tree_custom_parent_index(hovered_custom); 
+      if (pk == 1 && pi >= 0) 
+      { 
+        int parent_max = skill_tree_upgrade_max_rank(pi); 
+        if (g->skill_tree.upgrades[pi] < parent_max) 
+          locked = 1; 
+      } 
+      else if (pk == 2 && pi >= 0) 
+      { 
+        int parent_max = skill_tree_custom_max_rank(pi); 
+        if (g->skill_tree.custom_upgrades[pi] < parent_max) 
+          locked = 1; 
+      } 
+      if (locked) 
+      { 
+        snprintf(line3, sizeof(line3), "Locked"); 
+      } 
+      else if (rank >= max_rank) 
+      { 
+        snprintf(line3, sizeof(line3), "Maxed"); 
+      } 
+      else 
+      { 
+        snprintf(line3, sizeof(line3), "Rank %d/%d  Cost %d", rank, max_rank, cost); 
+      } 
 
       int w1 = 0, h1 = 0, w2 = 0, h2 = 0, w3 = 0, h3 = 0;
       if (g->font)
@@ -4367,12 +4609,12 @@ void render_game(Game *g)
         box_w = w3;
       int line_h = (h1 > 0 ? h1 : 14);
       int box_h = line_h * 3 + pad * 2 + 4;
-      int box_x = mx + 16;
-      int box_y = my + 16;
-      if (box_x + box_w + pad * 2 > win_w)
-        box_x = mx - box_w - pad * 2 - 16;
-      if (box_y + box_h > win_h)
-        box_y = my - box_h - 16;
+      int box_x = mx + 31; 
+      int box_y = my + 41; 
+      if (box_x + box_w + pad * 2 > win_w) 
+        box_x = mx - box_w - pad * 2 - 16; 
+      if (box_y + box_h > win_h) 
+        box_y = my - box_h - 41; 
 
       SDL_Rect tip = {box_x, box_y, box_w + pad * 2, box_h};
       SDL_SetRenderDrawColor(g->renderer, 20, 22, 30, 240);

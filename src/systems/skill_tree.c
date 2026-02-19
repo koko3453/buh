@@ -40,8 +40,8 @@ static const SkillTreeNode skill_tree_nodes[] = {
   { "stats_crit", "Crit Chance", "Placeholder", 3, 13, SKILL_TREE_BRANCH_STATS, 2, SKILL_TREE_EFF_NONE, 0.0f }
 };
 
-static const char *skill_tree_checksum_salt = "buh_skill_tree_v1";
-static const char *skill_tree_layout_path = "data/skill_tree_layout.json";
+static const char *skill_tree_checksum_salt = "buh_skill_tree_v1"; 
+static const char *skill_tree_layout_path = "data/skill_tree_layout.json"; 
 
 static float skill_tree_layout_x[MAX_SKILL_TREE_UPGRADES];
 static float skill_tree_layout_y[MAX_SKILL_TREE_UPGRADES];
@@ -81,9 +81,9 @@ static char *read_file(const char *path) {
   return buf;
 }
 
-static int write_file(const char *path, const char *data) {
-  FILE *f = fopen(path, "wb");
-  if (!f) return 0;
+static int write_file(const char *path, const char *data) { 
+  FILE *f = fopen(path, "wb"); 
+  if (!f) return 0; 
   size_t len = strlen(data);
   if (fwrite(data, 1, len, f) != len) {
     fclose(f);
@@ -166,20 +166,28 @@ static unsigned int skill_tree_checksum(const char *payload) {
   return hash;
 }
 
-static void skill_tree_build_payload(const SkillTreeProgress *progress, char *out, size_t out_len) {
-  if (!out || out_len == 0) return;
-  size_t used = 0;
-  used += (size_t)snprintf(out + used, out_len - used, "points=%d\n", progress->points);
-  used += (size_t)snprintf(out + used, out_len - used, "total=%d\n", progress->total_points);
-  int count = skill_tree_node_count();
-  for (int i = 0; i < count; i++) {
-    used += (size_t)snprintf(out + used, out_len - used, "%s=%d\n", skill_tree_nodes[i].key, progress->upgrades[i]);
-    if (used >= out_len) {
-      out[out_len - 1] = '\0';
-      break;
-    }
-  }
-}
+static void skill_tree_build_payload(const SkillTreeProgress *progress, char *out, size_t out_len) { 
+  if (!out || out_len == 0) return; 
+  size_t used = 0; 
+  used += (size_t)snprintf(out + used, out_len - used, "points=%d\n", progress->points); 
+  used += (size_t)snprintf(out + used, out_len - used, "total=%d\n", progress->total_points); 
+  int count = skill_tree_node_count(); 
+  for (int i = 0; i < count; i++) { 
+    used += (size_t)snprintf(out + used, out_len - used, "%s=%d\n", skill_tree_nodes[i].key, progress->upgrades[i]); 
+    if (used >= out_len) { 
+      out[out_len - 1] = '\0'; 
+      break; 
+    } 
+  } 
+  int custom_count = skill_tree_custom_count_value; 
+  for (int i = 0; i < custom_count; i++) { 
+    used += (size_t)snprintf(out + used, out_len - used, "custom_%d=%d\n", i, progress->custom_upgrades[i]); 
+    if (used >= out_len) { 
+      out[out_len - 1] = '\0'; 
+      break; 
+    } 
+  } 
+} 
 
 int skill_tree_node_count(void) {
   int count = (int)(sizeof(skill_tree_nodes) / sizeof(skill_tree_nodes[0]));
@@ -326,12 +334,51 @@ int skill_tree_custom_parent_index(int index) {
   return skill_tree_custom_parent_index_arr[index];
 }
 
-void skill_tree_custom_set_parent(int index, int parent_kind, int parent_index) {
-  if (index < 0 || index >= skill_tree_custom_count_value) return;
-  if (parent_kind < 0 || parent_kind > 2) return;
-  skill_tree_custom_parent_kind_arr[index] = parent_kind;
-  skill_tree_custom_parent_index_arr[index] = parent_index;
-}
+void skill_tree_custom_set_parent(int index, int parent_kind, int parent_index) { 
+  if (index < 0 || index >= skill_tree_custom_count_value) return; 
+  if (parent_kind < 0 || parent_kind > 2) return; 
+  skill_tree_custom_parent_kind_arr[index] = parent_kind; 
+  skill_tree_custom_parent_index_arr[index] = parent_index; 
+} 
+
+void skill_tree_custom_remove(int index) { 
+  if (index < 0 || index >= skill_tree_custom_count_value) return; 
+  for (int i = index; i < skill_tree_custom_count_value - 1; i++) { 
+    skill_tree_custom_x[i] = skill_tree_custom_x[i + 1]; 
+    skill_tree_custom_y[i] = skill_tree_custom_y[i + 1]; 
+    skill_tree_custom_parent_kind_arr[i] = skill_tree_custom_parent_kind_arr[i + 1]; 
+    skill_tree_custom_parent_index_arr[i] = skill_tree_custom_parent_index_arr[i + 1]; 
+    skill_tree_custom_max_rank_arr[i] = skill_tree_custom_max_rank_arr[i + 1]; 
+    snprintf(skill_tree_custom_name_buf[i], sizeof(skill_tree_custom_name_buf[i]), "%s", skill_tree_custom_name_buf[i + 1]); 
+    snprintf(skill_tree_custom_desc_buf[i], sizeof(skill_tree_custom_desc_buf[i]), "%s", skill_tree_custom_desc_buf[i + 1]); 
+  } 
+  skill_tree_custom_count_value--; 
+  if (skill_tree_custom_count_value < 0) skill_tree_custom_count_value = 0; 
+
+  for (int i = 0; i < skill_tree_custom_count_value; i++) { 
+    if (skill_tree_custom_parent_kind_arr[i] == 2) { 
+      if (skill_tree_custom_parent_index_arr[i] == index) { 
+        skill_tree_custom_parent_kind_arr[i] = 0; 
+        skill_tree_custom_parent_index_arr[i] = -1; 
+      } else if (skill_tree_custom_parent_index_arr[i] > index) { 
+        skill_tree_custom_parent_index_arr[i]--; 
+      } 
+    } 
+  } 
+
+  int node_count = skill_tree_node_count(); 
+  for (int i = 0; i < node_count; i++) { 
+    if (skill_tree_override_has_parent_arr[i] && skill_tree_override_parent_kind_arr[i] == 2) { 
+      if (skill_tree_override_parent_index_arr[i] == index) { 
+        skill_tree_override_has_parent_arr[i] = 1; 
+        skill_tree_override_parent_kind_arr[i] = 0; 
+        skill_tree_override_parent_index_arr[i] = -1; 
+      } else if (skill_tree_override_parent_index_arr[i] > index) { 
+        skill_tree_override_parent_index_arr[i]--; 
+      } 
+    } 
+  } 
+} 
 
 void skill_tree_override_set_max_rank(int index, int max_rank) {
   if (index < 0 || index >= skill_tree_node_count()) return;
@@ -347,12 +394,19 @@ int skill_tree_override_max_rank(int index) {
   return skill_tree_override_max_rank_arr[index];
 }
 
-void skill_tree_override_set_parent(int index, int parent_kind, int parent_index) {
-  if (index < 0 || index >= skill_tree_node_count()) return;
-  skill_tree_override_has_parent_arr[index] = 1;
-  skill_tree_override_parent_kind_arr[index] = parent_kind;
-  skill_tree_override_parent_index_arr[index] = parent_index;
-}
+void skill_tree_override_set_parent(int index, int parent_kind, int parent_index) { 
+  if (index < 0 || index >= skill_tree_node_count()) return; 
+  skill_tree_override_has_parent_arr[index] = 1; 
+  skill_tree_override_parent_kind_arr[index] = parent_kind; 
+  skill_tree_override_parent_index_arr[index] = parent_index; 
+} 
+
+void skill_tree_override_clear_parent(int index) { 
+  if (index < 0 || index >= skill_tree_node_count()) return; 
+  skill_tree_override_has_parent_arr[index] = 1; 
+  skill_tree_override_parent_kind_arr[index] = 0; 
+  skill_tree_override_parent_index_arr[index] = -1; 
+} 
 
 int skill_tree_ui_parent_kind(int index) {
   if (index < 0 || index >= skill_tree_node_count()) return 0;
@@ -577,27 +631,33 @@ void skill_tree_apply_run_mods(Game *g) {
   p->base.armor += g->skill_tree_armor_bonus;
 }
 
-void skill_tree_progress_save(Game *g) {
-  if (!g) return;
-  char payload[1024];
-  skill_tree_build_payload(&g->skill_tree, payload, sizeof(payload));
-  unsigned int checksum = skill_tree_checksum(payload);
-  char buf[2048];
-  int used = 0;
-  used += snprintf(buf + used, sizeof(buf) - used,
-                   "{\n  \"points\": %d,\n  \"total_points\": %d,\n  \"checksum\": %u,\n  \"upgrades\": {\n",
-                   g->skill_tree.points,
-                   g->skill_tree.total_points,
-                   checksum);
-  int count = skill_tree_node_count();
-  for (int i = 0; i < count; i++) {
-    const char *comma = (i == count - 1) ? "" : ",";
-    used += snprintf(buf + used, sizeof(buf) - used, "    \"%s\": %d%s\n",
-                     skill_tree_nodes[i].key, g->skill_tree.upgrades[i], comma);
-  }
-  used += snprintf(buf + used, sizeof(buf) - used, "  }\n}\n");
-  write_file("data/skill_tree_progress.json", buf);
-}
+void skill_tree_progress_save(Game *g) { 
+  if (!g) return; 
+  char payload[1024]; 
+  skill_tree_build_payload(&g->skill_tree, payload, sizeof(payload)); 
+  unsigned int checksum = skill_tree_checksum(payload); 
+  char buf[2048]; 
+  int used = 0; 
+  used += snprintf(buf + used, sizeof(buf) - used, 
+                   "{\n  \"points\": %d,\n  \"total_points\": %d,\n  \"checksum\": %u,\n  \"upgrades\": {\n", 
+                   g->skill_tree.points, 
+                   g->skill_tree.total_points, 
+                   checksum); 
+  int count = skill_tree_node_count(); 
+  for (int i = 0; i < count; i++) { 
+    const char *comma = (i == count - 1) ? "" : ","; 
+    used += snprintf(buf + used, sizeof(buf) - used, "    \"%s\": %d%s\n", 
+                     skill_tree_nodes[i].key, g->skill_tree.upgrades[i], comma); 
+  } 
+  used += snprintf(buf + used, sizeof(buf) - used, "  },\n  \"custom_upgrades\": ["); 
+  int custom_count = skill_tree_custom_count_value; 
+  for (int i = 0; i < custom_count; i++) { 
+    const char *comma = (i == custom_count - 1) ? "" : ", "; 
+    used += snprintf(buf + used, sizeof(buf) - used, "%d%s", g->skill_tree.custom_upgrades[i], comma); 
+  } 
+  used += snprintf(buf + used, sizeof(buf) - used, "]\n}\n"); 
+  write_file("data/skill_tree_progress.json", buf); 
+} 
 
 void skill_tree_progress_init(Game *g) {
   if (!g) return;
@@ -630,14 +690,25 @@ void skill_tree_progress_init(Game *g) {
   unsigned int saved_checksum = 0;
   if (ct > 0) saved_checksum = (unsigned int)token_int(json, &tokens[ct]);
 
-  int upgrades = find_key(json, tokens, 0, "upgrades");
-  if (upgrades > 0 && tokens[upgrades].type == JSMN_OBJECT) {
-    int node_count = skill_tree_node_count();
-    for (int i = 0; i < node_count; i++) {
-      int ut = find_key(json, tokens, upgrades, skill_tree_nodes[i].key);
-      if (ut > 0) g->skill_tree.upgrades[i] = token_int(json, &tokens[ut]);
-    }
-  }
+  int upgrades = find_key(json, tokens, 0, "upgrades"); 
+  if (upgrades > 0 && tokens[upgrades].type == JSMN_OBJECT) { 
+    int node_count = skill_tree_node_count(); 
+    for (int i = 0; i < node_count; i++) { 
+      int ut = find_key(json, tokens, upgrades, skill_tree_nodes[i].key); 
+      if (ut > 0) g->skill_tree.upgrades[i] = token_int(json, &tokens[ut]); 
+    } 
+  } 
+
+  int custom = find_key(json, tokens, 0, "custom_upgrades"); 
+  if (custom > 0 && tokens[custom].type == JSMN_ARRAY) { 
+    int n = tokens[custom].size; 
+    int idx = custom + 1; 
+    int max = (n < MAX_SKILL_TREE_CUSTOM_NODES) ? n : MAX_SKILL_TREE_CUSTOM_NODES; 
+    for (int i = 0; i < max; i++) { 
+      g->skill_tree.custom_upgrades[i] = token_int(json, &tokens[idx]); 
+      idx += token_span(tokens, idx); 
+    } 
+  } 
 
   free(json);
   skill_tree_recalculate(g);
@@ -654,10 +725,10 @@ void skill_tree_progress_init(Game *g) {
   }
 }
 
-int skill_tree_try_purchase_upgrade(Game *g, int upgrade_index) {
-  if (!g) return 0;
-  int count = skill_tree_node_count();
-  if (upgrade_index < 0 || upgrade_index >= count) return 0;
+int skill_tree_try_purchase_upgrade(Game *g, int upgrade_index) { 
+  if (!g) return 0; 
+  int count = skill_tree_node_count(); 
+  if (upgrade_index < 0 || upgrade_index >= count) return 0; 
   int pk = skill_tree_ui_parent_kind(upgrade_index);
   int parent = skill_tree_ui_parent_index(upgrade_index);
   if (pk == 1 && parent >= 0) {
@@ -670,20 +741,47 @@ int skill_tree_try_purchase_upgrade(Game *g, int upgrade_index) {
   int cost = skill_tree_upgrade_cost(rank);
   if (g->skill_tree.points < cost) return 0;
   g->skill_tree.points -= cost;
-  g->skill_tree.upgrades[upgrade_index] += 1;
-  skill_tree_recalculate(g);
-  skill_tree_progress_save(g);
-  return 1;
-}
+  g->skill_tree.upgrades[upgrade_index] += 1; 
+  skill_tree_recalculate(g); 
+  skill_tree_progress_save(g); 
+  return 1; 
+} 
 
-void skill_tree_reset_upgrades(Game *g) {
-  if (!g) return;
-  int count = skill_tree_node_count();
-  for (int i = 0; i < count; i++) g->skill_tree.upgrades[i] = 0;
-  g->skill_tree.points = g->skill_tree.total_points;
-  skill_tree_recalculate(g);
-  skill_tree_progress_save(g);
-}
+int skill_tree_try_purchase_custom(Game *g, int custom_index) { 
+  if (!g) return 0; 
+  int count = skill_tree_custom_count_value; 
+  if (custom_index < 0 || custom_index >= count) return 0; 
+  int pk = skill_tree_custom_parent_kind_arr[custom_index]; 
+  int parent = skill_tree_custom_parent_index_arr[custom_index]; 
+  if (pk == 1 && parent >= 0) { 
+    int parent_max = skill_tree_upgrade_max_rank(parent); 
+    if (g->skill_tree.upgrades[parent] < parent_max) return 0; 
+  } else if (pk == 2 && parent >= 0) { 
+    int parent_max = skill_tree_custom_max_rank_arr[parent]; 
+    if (g->skill_tree.custom_upgrades[parent] < parent_max) return 0; 
+  } 
+  int rank = g->skill_tree.custom_upgrades[custom_index]; 
+  int max_rank = skill_tree_custom_max_rank_arr[custom_index]; 
+  if (rank >= max_rank) return 0; 
+  int cost = skill_tree_upgrade_cost(rank); 
+  if (g->skill_tree.points < cost) return 0; 
+  g->skill_tree.points -= cost; 
+  g->skill_tree.custom_upgrades[custom_index] += 1; 
+  skill_tree_recalculate(g); 
+  skill_tree_progress_save(g); 
+  return 1; 
+} 
+
+void skill_tree_reset_upgrades(Game *g) { 
+  if (!g) return; 
+  int count = skill_tree_node_count(); 
+  for (int i = 0; i < count; i++) g->skill_tree.upgrades[i] = 0; 
+  int custom = skill_tree_custom_count_value; 
+  for (int i = 0; i < custom; i++) g->skill_tree.custom_upgrades[i] = 0; 
+  g->skill_tree.points = g->skill_tree.total_points; 
+  skill_tree_recalculate(g); 
+  skill_tree_progress_save(g); 
+} 
 
 
 

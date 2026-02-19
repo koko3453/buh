@@ -136,26 +136,26 @@ void update_enemies(Game *g, float dt) {
       }
     }
 
-    if (dist < 20.0f && p->alch_ult_phase == 0) {
-      float dmg = damage_after_armor(def->damage, stats.armor);
-      float applied = dmg * dt;
-      p->hp -= applied;
-      float thorns = player_thorns_percent(p, &g->db);
-      if (thorns > 0.0f) {
-        e->hp -= applied * thorns;
-        log_combatf(g, "thorns reflect %.1f to %s", applied * thorns, enemy_label(g, e));
-      }
-    }
+    if (dist < 20.0f && p->alch_ult_phase == 0) { 
+      float dmg = damage_after_armor(def->damage, stats.armor); 
+      float applied = player_damage_reduce(g, dmg * dt); 
+      p->hp -= applied; 
+      float thorns = player_thorns_percent(p, &g->db); 
+      if (thorns > 0.0f) { 
+        e->hp -= applied * thorns; 
+        log_combatf(g, "thorns reflect %.1f to %s", applied * thorns, enemy_label(g, e)); 
+      } 
+    } 
 
-    if (strcmp(def->role, "exploder") == 0 && dist < 28.0f && p->alch_ult_phase == 0) {
-      float dmg = damage_after_armor(def->damage, stats.armor);
-      float applied = dmg * 2.0f;
-      p->hp -= applied;
-      float thorns = player_thorns_percent(p, &g->db);
-      if (thorns > 0.0f) {
-        e->hp -= applied * thorns;
-        log_combatf(g, "thorns reflect %.1f to %s", applied * thorns, enemy_label(g, e));
-      }
+    if (strcmp(def->role, "exploder") == 0 && dist < 28.0f && p->alch_ult_phase == 0) { 
+      float dmg = damage_after_armor(def->damage, stats.armor); 
+      float applied = player_damage_reduce(g, dmg * 2.0f); 
+      p->hp -= applied; 
+      float thorns = player_thorns_percent(p, &g->db); 
+      if (thorns > 0.0f) { 
+        e->hp -= applied * thorns; 
+        log_combatf(g, "thorns reflect %.1f to %s", applied * thorns, enemy_label(g, e)); 
+      } 
       e->hp = 0;
     }
 

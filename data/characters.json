@@ -20,10 +20,13 @@
       "stats": {
         "damage": 0.1,
         "attack_speed": 0.05
-      },
-      "rule": "lifesteal",
-      "ultimate": "kill_all"
-    },
+      }, 
+      "rule": "lifesteal", 
+      "ultimate": "kill_all", 
+      "walk_strip": "heroes/reaper/reaper_walk.png", 
+      "idle_frame": 1, 
+      "anim_fps": 6 
+    }, 
     {
       "id": "rogue",
       "name": "Rogue",
@@ -142,10 +145,10 @@
       "stats": {
         "damage": 0.08,
         "armor": 2,
-        "move_speed": -0.05
+        "move_speed": 0.10
       },
       "rule": "burning_core",
-      "ultimate": "kill_all",
+      "ultimate": "molten_overdrive",
       "walk_strip": "heroes/molten/molten_walk.png",
       "idle_frame": 1,
       "anim_fps": 6

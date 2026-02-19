@@ -1,5 +1,7 @@
-#ifndef BUH_SYSTEMS_SKILL_TREE_H
-#define BUH_SYSTEMS_SKILL_TREE_H
+#ifndef BUH_SYSTEMS_SKILL_TREE_H 
+#define BUH_SYSTEMS_SKILL_TREE_H 
+
+#include "core/game.h" 
 
 typedef enum {
   SKILL_TREE_BRANCH_BOSS,
@@ -49,15 +51,18 @@ const char *skill_tree_custom_desc(int index);
 void skill_tree_custom_set_name(int index, const char *name);
 void skill_tree_custom_set_desc(int index, const char *desc);
 int skill_tree_custom_max_rank(int index);
-void skill_tree_custom_set_max_rank(int index, int max_rank);
-int skill_tree_custom_parent_kind(int index);
-int skill_tree_custom_parent_index(int index);
-void skill_tree_custom_set_parent(int index, int parent_kind, int parent_index);
-void skill_tree_override_set_max_rank(int index, int max_rank);
-int skill_tree_override_max_rank(int index);
-void skill_tree_override_set_parent(int index, int parent_kind, int parent_index);
-int skill_tree_ui_parent_kind(int index);
-int skill_tree_ui_parent_index(int index);
+void skill_tree_custom_set_max_rank(int index, int max_rank); 
+int skill_tree_custom_parent_kind(int index); 
+int skill_tree_custom_parent_index(int index); 
+void skill_tree_custom_set_parent(int index, int parent_kind, int parent_index); 
+void skill_tree_custom_remove(int index); 
+void skill_tree_override_set_max_rank(int index, int max_rank); 
+int skill_tree_override_max_rank(int index); 
+void skill_tree_override_set_parent(int index, int parent_kind, int parent_index); 
+void skill_tree_override_clear_parent(int index); 
+int skill_tree_try_purchase_custom(Game *g, int custom_index); 
+int skill_tree_ui_parent_kind(int index); 
+int skill_tree_ui_parent_index(int index); 
 const char *skill_tree_ui_name(int index);
 const char *skill_tree_ui_desc(int index);
 void skill_tree_override_set_name(int index, const char *name);

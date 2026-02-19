@@ -112,10 +112,10 @@ typedef struct {
   int skill_tree_selected_index;
   int skill_tree_connect_kind; /* 0=none,1=node,2=custom */
   int skill_tree_connect_index;
-  int skill_tree_text_active;
-  int skill_tree_text_kind;  /* 1=node,2=custom */
-  int skill_tree_text_field; /* 1=name,2=desc */
-  char skill_tree_text_buf[128];
+  int skill_tree_text_active; 
+  int skill_tree_text_kind;  /* 1=node,2=custom */ 
+  int skill_tree_text_field; /* 1=name,2=desc */ 
+  char skill_tree_text_buf[128]; 
   float skill_tree_drag_off_x;
   float skill_tree_drag_off_y;
   SDL_Rect skill_tree_button;
@@ -178,6 +178,7 @@ float clampf(float v, float a, float b);
 float frandf(void);
 void vec_norm(float *x, float *y);
 float damage_after_armor(float dmg, float armor);
+float player_damage_reduce(Game *g, float dmg);
 
 int weapon_is(const WeaponDef *w, const char *id);
 WeaponStatusChances weapon_status_chances(const WeaponDef *w);
@@ -198,11 +199,15 @@ float player_slow_aura(Player *p, Database *db);
 float player_burn_aura(Player *p, Database *db);
 float player_thorns_percent(Player *p, Database *db);
 float player_lifesteal_on_kill(Player *p, Database *db);
-float player_slow_bonus_damage(Player *p, Database *db);
-float player_legendary_amp(Player *p, Database *db);
-float player_hp_regen_amp(Player *p, Database *db);
-float player_xp_kill_chance(Player *p, Database *db);
-Stats player_total_stats(Player *p, Database *db);
+float player_slow_bonus_damage(Player *p, Database *db); 
+float player_legendary_amp(Player *p, Database *db); 
+float player_hp_regen_amp(Player *p, Database *db); 
+float player_xp_kill_chance(Player *p, Database *db); 
+float player_ultimate_cdr(Player *p, Database *db); 
+float player_totem_spawn_rate(Player *p, Database *db); 
+float player_totem_duration_bonus(Player *p, Database *db); 
+int player_chest_reroll_bonus(Player *p, Database *db); 
+Stats player_total_stats(Player *p, Database *db); 
 float player_roll_crit_damage(Stats *stats, WeaponDef *w, float dmg);
 float player_apply_hit_mods(Game *g, Enemy *en, float dmg);
 void player_try_item_proc(Game *g, int enemy_idx, Stats *stats);

@@ -406,6 +406,118 @@
       "rarity": "legendary",
       "xp_kill_chance": 0.10,
       "desc": "XP pickup: 10% chance to kill an enemy"
+    },
+    {
+      "id": "master_key",
+      "name": "Master Key",
+      "rarity": "uncommon",
+      "chest_reroll_bonus": 1,
+      "desc": "Chests grant +1 reroll"
+    },
+    {
+      "id": "totem_beacon",
+      "name": "Totem Beacon",
+      "rarity": "rare",
+      "totem_spawn_rate": 0.2,
+      "desc": "Totems appear 20% faster"
+    },
+    {
+      "id": "totem_core",
+      "name": "Totem Core",
+      "rarity": "epic",
+      "totem_duration_bonus": 0.5,
+      "desc": "Totem effects last 50% longer"
+    },
+    {
+      "id": "chrono_sigil",
+      "name": "Chrono Sigil",
+      "rarity": "epic",
+      "ultimate_cdr": 0.2,
+      "desc": "Ultimate cooldowns are 20% shorter"
+    },
+    {
+      "id": "vault_pass",
+      "name": "Vault Pass",
+      "rarity": "rare",
+      "chest_reroll_bonus": 2,
+      "desc": "Chests grant +2 rerolls"
+    },
+    {
+      "id": "totem_lure",
+      "name": "Totem Lure",
+      "rarity": "uncommon",
+      "totem_spawn_rate": 0.35,
+      "desc": "Totems appear 35% faster"
+    },
+    {
+      "id": "totem_everlasting",
+      "name": "Everlasting Totem",
+      "rarity": "legendary",
+      "totem_duration_bonus": 1.0,
+      "desc": "Totem effects last 100% longer"
+    },
+    {
+      "id": "time_sheath",
+      "name": "Time Sheath",
+      "rarity": "legendary",
+      "ultimate_cdr": 0.35,
+      "desc": "Ultimate cooldowns are 35% shorter"
+    },
+    {
+      "id": "marksman_focus",
+      "name": "Marksman Focus",
+      "rarity": "uncommon",
+      "stats": {"crit_chance": 0.08},
+      "desc": "+8% Crit Chance"
+    },
+    {
+      "id": "blood_quartz",
+      "name": "Blood Quartz",
+      "rarity": "rare",
+      "stats": {"hp_regen": 0.8, "max_hp": 10},
+      "desc": "+0.8 HP/s, +10 HP"
+    },
+    {
+      "id": "storm_shard",
+      "name": "Storm Shard",
+      "rarity": "rare",
+      "stats": {"attack_speed": 0.14, "cooldown_reduction": 0.06},
+      "desc": "+14% AS, -6% cooldowns"
+    },
+    {
+      "id": "gale_band",
+      "name": "Gale Band",
+      "rarity": "uncommon",
+      "stats": {"move_speed": 0.12, "xp_magnet": 60},
+      "desc": "+12% Speed, +60 magnet"
+    },
+    {
+      "id": "ironroots",
+      "name": "Ironroots",
+      "rarity": "epic",
+      "stats": {"armor": 6, "hp_regen": 0.6},
+      "desc": "+6 Armor, +0.6 HP/s"
+    },
+    {
+      "id": "savage_pact",
+      "name": "Savage Pact",
+      "rarity": "epic",
+      "stats": {"damage": 0.18, "crit_damage": 0.4},
+      "desc": "+18% Dmg, +40% Crit Dmg"
+    },
+    {
+      "id": "silent_steps",
+      "name": "Silent Steps",
+      "rarity": "rare",
+      "stats": {"dodge": 0.08, "move_speed": 0.08},
+      "desc": "+8% Dodge, +8% Speed"
+    },
+    {
+      "id": "arcane_well",
+      "name": "Arcane Well",
+      "rarity": "epic",
+      "stats": {"damage": 0.08, "xp_magnet": 120},
+      "desc": "+8% Dmg, +120 magnet"
     }
   ]
 }

@@ -154,21 +154,26 @@ def validate_items(data, errors):
                     err(errors, ipath, "'proc.bounces' must be an integer")
                 if "range" in proc and not is_number(proc["range"]):
                     err(errors, ipath, "'proc.range' must be a number")
-        for key in (
-            "slow_on_hit",
-            "slow_aura",
-            "burn_on_hit",
-            "burn_aura",
-            "thorns_percent",
-            "lifesteal_on_kill",
-            "rarity_bias",
-            "slow_bonus_damage",
-            "legendary_amp",
-            "hp_regen_amp",
-            "xp_kill_chance",
-        ):
-            if key in item and not is_number(item[key]):
-                err(errors, ipath, f"'{key}' must be a number")
+        for key in ( 
+            "slow_on_hit", 
+            "slow_aura", 
+            "burn_on_hit", 
+            "burn_aura", 
+            "thorns_percent", 
+            "lifesteal_on_kill", 
+            "rarity_bias", 
+            "slow_bonus_damage", 
+            "legendary_amp", 
+            "hp_regen_amp", 
+            "xp_kill_chance", 
+            "ultimate_cdr", 
+            "totem_spawn_rate", 
+            "totem_duration_bonus", 
+        ): 
+            if key in item and not is_number(item[key]): 
+                err(errors, ipath, f"'{key}' must be a number") 
+        if "chest_reroll_bonus" in item and not isinstance(item["chest_reroll_bonus"], int): 
+            err(errors, ipath, "'chest_reroll_bonus' must be an integer") 
 
 
 def validate_enemies(data, errors):
